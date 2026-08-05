@@ -1,0 +1,20 @@
+# Normalizacion de fin de linea.
+# El repositorio almacena siempre LF; git ajusta el checkout segun el sistema.
+* text=auto
+
+# Los scripts de shell DEBEN quedar con LF incluso en Windows: con CRLF, bash
+# falla con "$'\r': command not found".
+*.sh text eol=lf
+
+# Los notebooks de Databricks se sincronizan al workspace (Linux): LF.
+notebooks/*.py text eol=lf
+
+# PowerShell es indiferente, pero CRLF es lo nativo en Windows.
+*.ps1 text eol=crlf
+
+# Binarios: sin normalizacion.
+*.png binary
+*.jpg binary
+*.pdf binary
+*.whl binary
+*.dbc binary
