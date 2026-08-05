@@ -1,0 +1,28 @@
+# Overlay de entorno QA.
+catalog:
+  catalog: finops_qa
+
+ingestion:
+  lookback_days: 5
+  initial_load_days: 180
+
+alerting:
+  min_severity: high
+  channels:
+    - name: tabla
+      type: table
+      enabled: true
+      min_severity: low
+    - name: teams
+      type: webhook
+      enabled: false
+      secret_scope: finops
+      secret_key: teams_webhook_url
+      format: teams
+      min_severity: critical
+
+quality:
+  fail_pipeline_on_error: true
+
+runtime:
+  log_level: INFO

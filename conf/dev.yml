@@ -1,0 +1,32 @@
+# Overlay de entorno DEV. Solo se declaran las claves que difieren de base.yml.
+catalog:
+  catalog: finops_dev
+
+ingestion:
+  lookback_days: 3
+  initial_load_days: 90
+
+anomaly:
+  min_avg_cost_usd: 1.0
+  score_threshold: 3.0
+
+forecast:
+  min_history_days: 10
+
+optimization:
+  min_monthly_savings_usd: 1.0
+
+alerting:
+  # En DEV solo se escribe a la tabla de alertas, nunca se notifica a canales.
+  min_severity: low
+  channels:
+    - name: tabla
+      type: table
+      enabled: true
+      min_severity: low
+
+quality:
+  fail_pipeline_on_error: false
+
+runtime:
+  log_level: DEBUG

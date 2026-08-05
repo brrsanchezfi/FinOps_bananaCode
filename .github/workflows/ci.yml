@@ -1,0 +1,125 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  calidad:
+    name: Lint y pruebas
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Lint (ruff)
+        run: ruff check src tests scripts
+
+      - name: Formato (ruff format --check)
+        run: ruff format --check src tests scripts
+        continue-on-error: true
+
+      - name: Pruebas unitarias
+        run: pytest --cov=finops --cov-report=term-missing --cov-report=xml
+
+      - name: Publicar cobertura
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cobertura
+          path: coverage.xml
+
+  configuracion:
+    name: Validar configuracion y dashboards
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Validar los tres entornos
+        run: |
+          for env in dev qa prd; do
+            echo "--- $env ---"
+            python -m finops.cli validate --env "$env"
+            python -m finops.cli plan --env "$env" > /dev/null
+          done
+
+      - name: Verificar que los dashboards versionados esten al dia
+        run: |
+          python scripts/dashboards.py generate
+          if ! git diff --exit-code -- dashboards/; then
+            echo "::error::Los dashboards versionados difieren de scripts/dashboards.py."
+            echo "Ejecuta 'python scripts/dashboards.py generate' y commitea el resultado."
+            exit 1
+          fi
+
+      - name: Renderizar dashboards para cada entorno
+        run: |
+          for env in dev qa prd; do
+            python scripts/dashboards.py render --env "$env"
+          done
+
+  bundle:
+    name: Validar Databricks Asset Bundle
+    runs-on: ubuntu-latest
+    # Requiere los secretos de workspace. Se omite en forks / PRs externos.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e "."
+
+      - uses: databricks/setup-cli@main
+
+      - name: Renderizar dashboards (dev)
+        run: python scripts/dashboards.py render --env dev
+
+      - name: Validar bundle
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST_DEV }}
+          DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID_DEV }}
+          DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET_DEV }}
+        run: |
+          if [ -z "$DATABRICKS_HOST" ]; then
+            echo "::notice::Secretos de Databricks no configurados; se omite la validacion del bundle."
+            exit 0
+          fi
+          databricks bundle validate -t dev

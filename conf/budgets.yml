@@ -1,0 +1,88 @@
+# =============================================================================
+# Definicion de presupuestos FinOps.
+#
+# Cada presupuesto define un ambito (scope) sobre el modelo gold y un monto por
+# periodo. El motor calcula: consumido, % consumido, burn rate, proyeccion de
+# cierre de periodo y estado (OK / WARNING / CRITICAL / EXCEEDED).
+#
+# Campos:
+#   id            identificador estable (usado como clave y en la huella de alertas)
+#   name          nombre legible
+#   scope         filtro sobre fct_cost_daily. Claves validas:
+#                   workspace_id, team, cost_center, project, environment,
+#                   application, owner, sku_group, entity_type
+#                 Un scope vacio {} significa "toda la organizacion".
+#   period        monthly | quarterly | yearly
+#   amount_usd    monto del periodo
+#   thresholds_pct umbrales de alerta (% del presupuesto)
+#   owner_email   destinatario logico de las alertas
+#   effective_from / effective_to  (opcional, ISO date) vigencia del presupuesto
+# =============================================================================
+
+budgets:
+  - id: org_global_monthly
+    name: "Presupuesto global Databricks"
+    scope: {}
+    period: monthly
+    amount_usd: 20000
+    thresholds_pct: [50, 80, 90, 100]
+    owner_email: "finops@dataknow.com.co"
+
+  - id: env_prd_monthly
+    name: "Ambiente productivo"
+    scope:
+      environment: PRD
+    period: monthly
+    amount_usd: 13000
+    thresholds_pct: [70, 90, 100]
+    owner_email: "finops@dataknow.com.co"
+
+  - id: env_dev_monthly
+    name: "Ambientes no productivos"
+    scope:
+      environment: DEV
+    period: monthly
+    amount_usd: 3000
+    thresholds_pct: [60, 85, 100]
+    owner_email: "finops@dataknow.com.co"
+
+  - id: sql_serverless_monthly
+    name: "SQL Warehouses"
+    scope:
+      sku_group: SQL
+    period: monthly
+    amount_usd: 4500
+    thresholds_pct: [80, 100]
+    owner_email: "finops@dataknow.com.co"
+
+  # Ejemplo de presupuesto por equipo. Duplicar por cada equipo real.
+  # - id: team_datos_monthly
+  #   name: "Equipo Datos"
+  #   scope:
+  #     team: DATOS
+  #   period: monthly
+  #   amount_usd: 5000
+  #   thresholds_pct: [80, 100]
+  #   owner_email: "lider.datos@dataknow.com.co"
+
+# ---------------------------------------------------------------------------
+# Reglas de chargeback / showback.
+# ---------------------------------------------------------------------------
+chargeback:
+  # Dimension primaria de imputacion.
+  allocation_dimension: cost_center
+  # Como se reparte el costo que no se pudo atribuir (SIN_ASIGNAR) y el costo
+  # compartido (plataforma, gobierno, monitoreo).
+  #   proportional : proporcional al costo directo de cada unidad
+  #   even         : partes iguales
+  #   none         : se deja en una unidad "SIN_ASIGNAR"
+  unallocated_strategy: proportional
+  shared_cost_strategy: proportional
+  # Entidades cuyo costo se considera compartido (comodines admitidos).
+  shared_entity_patterns:
+    - "*finops*"
+    - "*platform*"
+    - "*plataforma*"
+    - "*governance*"
+  # Recargo administrativo aplicado al chargeback (0.05 = 5%).
+  overhead_pct: 0.0

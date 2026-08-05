@@ -1,0 +1,315 @@
+# =============================================================================
+# Configuracion base de la plataforma FinOps.
+# Se fusiona (deep-merge) con conf/<env>.yml y con los parametros de job.
+# Precedencia:  base.yml  <  <env>.yml  <  parametros de job/widgets  <  variables de entorno FINOPS_*
+# =============================================================================
+
+project:
+  name: finops
+  code: bananacode
+  owner_email: "finops@dataknow.com.co"
+  timezone: "America/Bogota"
+
+# ---------------------------------------------------------------------------
+# Destino de datos (Unity Catalog)
+# ---------------------------------------------------------------------------
+catalog:
+  catalog: finops
+  bronze_schema: bronze
+  silver_schema: silver
+  gold_schema: gold
+  # Ubicacion externa opcional para tablas managed (null = default del schema)
+  storage_root: null
+  table_properties:
+    delta.autoOptimize.optimizeWrite: "true"
+    delta.autoOptimize.autoCompact: "true"
+    delta.enableChangeDataFeed: "false"
+
+# ---------------------------------------------------------------------------
+# Tablas de sistema origen. Las marcadas como opcionales no rompen el pipeline
+# si no existen o si el principal no tiene permisos de lectura.
+# ---------------------------------------------------------------------------
+sources:
+  billing_usage:
+    table: system.billing.usage
+    optional: false
+  billing_list_prices:
+    table: system.billing.list_prices
+    optional: false
+  compute_clusters:
+    table: system.compute.clusters
+    optional: true
+  compute_node_types:
+    table: system.compute.node_types
+    optional: true
+  compute_warehouses:
+    table: system.compute.warehouses
+    optional: true
+  lakeflow_jobs:
+    table: system.lakeflow.jobs
+    optional: true
+    fallback_tables: ["system.workflow.jobs"]
+  lakeflow_job_run_timeline:
+    table: system.lakeflow.job_run_timeline
+    optional: true
+    fallback_tables: ["system.workflow.job_run_timeline"]
+  lakeflow_job_task_run_timeline:
+    table: system.lakeflow.job_task_run_timeline
+    optional: true
+    fallback_tables: ["system.workflow.job_task_run_timeline"]
+  query_history:
+    table: system.query.history
+    optional: true
+  access_workspaces_latest:
+    table: system.access.workspaces_latest
+    optional: true
+
+# ---------------------------------------------------------------------------
+# Ingesta incremental
+# ---------------------------------------------------------------------------
+ingestion:
+  # Dias hacia atras que se reprocesan en cada corrida (los registros de billing
+  # pueden llegar con retraso; 7 dias cubre el SLA tipico de Databricks).
+  lookback_days: 7
+  # Corte historico inicial en el primer backfill.
+  initial_load_days: 400
+  full_refresh: false
+  # Fecha maxima a procesar (ISO). null = hoy.
+  max_usage_date: null
+  # Workspaces a excluir del analisis (IDs como string).
+  exclude_workspace_ids: []
+
+# ---------------------------------------------------------------------------
+# Modelo de costos
+# ---------------------------------------------------------------------------
+pricing:
+  currency: USD
+  # Tasa de cambio opcional para reportes en moneda local.
+  fx_rate_to_local: null
+  local_currency: COP
+  # Reglas de descuento aplicadas sobre el precio de lista.
+  # Se evalua la PRIMERA regla que haga match (orden importa).
+  # match admite: workspace_id, sku_name (con comodin *), billing_origin_product, cloud
+  discounts:
+    - name: default
+      match: {}
+      discount_pct: 0.0
+  # Estimacion del costo de infraestructura cloud (VMs Azure) asociado al DBU.
+  # Databricks system.billing.usage NO incluye el costo de la VM. Este factor es
+  # una aproximacion; ver docs/06-modelo-costos.md antes de activarlo.
+  infra_estimate:
+    enabled: false
+    # Factor multiplicativo sobre el costo DBU, por familia de compute.
+    factor_by_compute:
+      ALL_PURPOSE: 0.85
+      JOBS: 0.85
+      DLT: 0.70
+      SQL: 0.60
+      SERVERLESS: 0.0   # serverless ya incluye infra en el DBU
+      OTHER: 0.60
+
+# ---------------------------------------------------------------------------
+# Normalizacion de etiquetas / atribucion de costo
+# ---------------------------------------------------------------------------
+tagging:
+  # Dimensiones canonicas que expone el modelo gold.
+  dimensions: [cost_center, team, project, environment, application, owner]
+  # Alias aceptados por dimension (case-insensitive, se ignoran _ - y espacios).
+  aliases:
+    cost_center: [cost_center, costcenter, cc, centro_costo, centrocosto, cost-center]
+    team: [team, equipo, squad, area, grupo]
+    project: [project, proyecto, initiative, producto, product]
+    environment: [environment, env, ambiente, stage, entorno]
+    application: [application, app, aplicacion, sistema, system]
+    owner: [owner, responsable, dueno, contact, email]
+  # Valor asignado cuando no se puede resolver la dimension.
+  unallocated_value: "SIN_ASIGNAR"
+  # Normalizacion de valores (mapea variantes a un valor canonico).
+  value_map:
+    environment:
+      prod: PRD
+      produccion: PRD
+      production: PRD
+      prd: PRD
+      qa: QA
+      staging: QA
+      stg: QA
+      test: QA
+      dev: DEV
+      desarrollo: DEV
+      development: DEV
+      sandbox: DEV
+  # Mapeo directo workspace_id -> valores por defecto (ultimo recurso).
+  workspace_defaults: {}
+  # Cobertura minima de etiquetado esperada (0-1) para el chequeo de calidad.
+  min_coverage_ratio: 0.80
+
+# ---------------------------------------------------------------------------
+# Deteccion de anomalias de costo
+# ---------------------------------------------------------------------------
+anomaly:
+  enabled: true
+  # Ventana movil de referencia (dias) y minimo de historia requerida.
+  window_days: 28
+  min_history_days: 14
+  # 'mad' = mediana + desviacion absoluta mediana (robusto). 'zscore' = media/desv.
+  method: mad
+  score_threshold: 3.5
+  # Ignora series con costo diario promedio por debajo de este umbral (USD).
+  min_avg_cost_usd: 20.0
+  # Cambio relativo minimo para reportar (evita ruido en series pequenas).
+  min_pct_change: 0.30
+  # Ajuste por dia de la semana (compara lunes con lunes, etc).
+  day_of_week_aware: true
+  severity:
+    critical: 8.0
+    high: 6.0
+    medium: 4.5
+  # Dimensiones sobre las que se buscan anomalias.
+  group_by_dimensions: [team, cost_center, project, workspace_id, sku_group, entity_key]
+
+# ---------------------------------------------------------------------------
+# Pronostico de costo
+# ---------------------------------------------------------------------------
+forecast:
+  enabled: true
+  horizon_days: 45
+  # 'holt' (tendencia amortiguada), 'seasonal_naive', 'moving_average'
+  method: holt
+  alpha: 0.35
+  beta: 0.12
+  damping: 0.92
+  weekly_seasonality: true
+  min_history_days: 21
+  train_window_days: 120
+  group_by_dimensions: [team, cost_center, workspace_id]
+
+# ---------------------------------------------------------------------------
+# Recomendaciones de optimizacion
+# ---------------------------------------------------------------------------
+optimization:
+  enabled: true
+  # Solo se emiten recomendaciones con ahorro estimado mensual >= este valor.
+  min_monthly_savings_usd: 25.0
+  lookback_days: 30
+  rules:
+    no_autotermination:
+      enabled: true
+      max_autotermination_minutes: 60
+      # Fraccion del costo del cluster que se asume desperdiciada.
+      assumed_waste_ratio: 0.15
+    all_purpose_for_jobs:
+      enabled: true
+      min_runs: 5
+      # Diferencia tipica de precio DBU jobs vs all-purpose.
+      assumed_savings_ratio: 0.45
+    legacy_runtime:
+      enabled: true
+      min_dbr_major: 14
+      assumed_savings_ratio: 0.10
+    failed_run_waste:
+      enabled: true
+      min_failed_runs: 3
+      min_failure_ratio: 0.15
+    zombie_entity:
+      enabled: true
+      idle_days: 14
+    no_autoscale:
+      enabled: true
+      min_workers_fixed: 4
+      assumed_savings_ratio: 0.15
+    oversized_warehouse:
+      enabled: true
+      max_queries_per_hour: 5
+      assumed_savings_ratio: 0.40
+    serverless_candidate:
+      enabled: true
+      max_avg_runtime_minutes: 12
+      min_runs: 20
+      assumed_savings_ratio: 0.20
+    untagged_spend:
+      enabled: true
+      min_untagged_cost_usd: 100.0
+    photon_opportunity:
+      enabled: true
+      min_monthly_cost_usd: 500.0
+      assumed_savings_ratio: 0.12
+
+# ---------------------------------------------------------------------------
+# Alertamiento
+# ---------------------------------------------------------------------------
+alerting:
+  enabled: true
+  # Horas de silencio por huella de alerta (evita spam en corridas frecuentes).
+  cooldown_hours: 24
+  # Severidad minima que se despacha a canales externos.
+  min_severity: medium
+  # Maximo de alertas por corrida (proteccion anti-tormenta).
+  max_alerts_per_run: 50
+  channels:
+    - name: teams
+      type: webhook
+      enabled: false
+      # Secreto de Databricks que contiene la URL del webhook.
+      secret_scope: finops
+      secret_key: teams_webhook_url
+      format: teams
+      min_severity: high
+    - name: slack
+      type: webhook
+      enabled: false
+      secret_scope: finops
+      secret_key: slack_webhook_url
+      format: slack
+      min_severity: high
+    - name: tabla
+      type: table
+      enabled: true
+      min_severity: low
+  rules:
+    budget_threshold:
+      enabled: true
+      thresholds_pct: [50, 80, 90, 100]
+    cost_anomaly:
+      enabled: true
+      min_severity: high
+    daily_spend_spike:
+      enabled: true
+      pct_increase: 0.35
+      min_cost_usd: 200.0
+    forecast_overrun:
+      enabled: true
+      # Alerta si el pronostico de fin de mes supera el presupuesto en este %.
+      pct_over_budget: 0.05
+    tag_coverage_drop:
+      enabled: true
+      min_coverage_ratio: 0.80
+    new_expensive_entity:
+      enabled: true
+      min_cost_usd: 150.0
+      lookback_days: 7
+    pipeline_health:
+      enabled: true
+
+# ---------------------------------------------------------------------------
+# Calidad de datos
+# ---------------------------------------------------------------------------
+quality:
+  enabled: true
+  fail_pipeline_on_error: true
+  checks:
+    freshness_max_lag_hours: 36
+    max_null_ratio_cost: 0.001
+    min_daily_rows: 1
+    max_negative_cost_rows: 0
+    price_match_min_ratio: 0.98
+
+# ---------------------------------------------------------------------------
+# Ejecucion / rendimiento
+# ---------------------------------------------------------------------------
+runtime:
+  log_level: INFO
+  shuffle_partitions: auto
+  # Numero de dias a mantener en las tablas gold de series (0 = sin limite).
+  gold_retention_days: 0
+  dry_run: false

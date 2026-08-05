@@ -1,0 +1,83 @@
+name: Deploy
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      entorno:
+        description: Entorno destino
+        required: true
+        default: qa
+        type: choice
+        options: [dev, qa, prd]
+      ejecutar_pipeline:
+        description: Ejecutar el pipeline tras desplegar
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: deploy-${{ inputs.entorno || 'prd' }}
+  cancel-in-progress: false
+
+jobs:
+  desplegar:
+    name: Desplegar a ${{ inputs.entorno || 'prd' }}
+    runs-on: ubuntu-latest
+    # El entorno de GitHub permite exigir aprobacion manual antes de tocar prd.
+    environment: ${{ inputs.entorno || 'prd' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]" build
+
+      - name: Pruebas
+        run: pytest -q
+
+      - name: Determinar entorno
+        id: env
+        run: echo "target=${{ inputs.entorno || 'prd' }}" >> "$GITHUB_OUTPUT"
+
+      - name: Validar configuracion
+        run: python -m finops.cli validate --env "${{ steps.env.outputs.target }}"
+
+      - name: Renderizar dashboards
+        run: python scripts/dashboards.py render --env "${{ steps.env.outputs.target }}"
+
+      - uses: databricks/setup-cli@main
+
+      - name: Desplegar bundle
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+          DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+          DATABRICKS_BUNDLE_ENV: ${{ steps.env.outputs.target }}
+        run: |
+          databricks bundle validate -t "${{ steps.env.outputs.target }}"
+          databricks bundle deploy  -t "${{ steps.env.outputs.target }}"
+
+      - name: Ejecutar el pipeline
+        if: inputs.ejecutar_pipeline
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+          DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+        run: databricks bundle run finops_pipeline_diario -t "${{ steps.env.outputs.target }}"
+
+      - name: Resumen del despliegue
+        if: always()
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+          DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+        run: databricks bundle summary -t "${{ steps.env.outputs.target }}" || true

@@ -1,0 +1,295 @@
+# =============================================================================
+# Jobs de la plataforma FinOps.
+#
+#   finops_pipeline_diario  ingesta + modelo + analitica + calidad + alertas
+#   finops_alertas          solo alertamiento, con mayor frecuencia
+#   finops_backfill         recarga historica manual (full refresh)
+#
+# Las tres tareas usan el mismo notebook `10_etapa` con distinto parametro
+# `stages`: el codigo no se duplica y cada etapa aparece por separado en la UI
+# de Workflows, con su propia duracion, reintentos y estado.
+# =============================================================================
+
+resources:
+  jobs:
+    # -------------------------------------------------------------------------
+    finops_pipeline_diario:
+      name: "[FinOps] Pipeline diario (${bundle.target})"
+      description: >-
+        Ingesta las system tables de facturacion, construye el modelo FinOps
+        (bronze/silver/gold), ejecuta la analitica (anomalias, pronostico,
+        presupuestos, recomendaciones, chargeback), valida la calidad de los
+        datos y despacha las alertas.
+      tags:
+        proyecto: finops
+        entorno: ${bundle.target}
+        gestionado_por: databricks-asset-bundle
+
+      schedule:
+        quartz_cron_expression: ${var.cron_pipeline}
+        timezone_id: ${var.timezone}
+        pause_status: ${var.pipeline_paused}
+
+      # Una sola corrida a la vez: las escrituras son idempotentes por rango de
+      # fechas, pero dos corridas simultaneas sobre el mismo rango compiten.
+      max_concurrent_runs: 1
+
+      email_notifications:
+        on_failure:
+          - ${var.notification_email}
+        on_duration_warning_threshold_exceeded:
+          - ${var.notification_email}
+
+      health:
+        rules:
+          - metric: RUN_DURATION_SECONDS
+            op: GREATER_THAN
+            value: 5400          # 90 minutos
+
+      job_clusters:
+        - job_cluster_key: finops_cluster
+          new_cluster:
+            spark_version: ${var.spark_version}
+            node_type_id: ${var.node_type_id}
+            num_workers: ${var.num_workers}
+            data_security_mode: SINGLE_USER
+            runtime_engine: PHOTON
+            spark_conf:
+              spark.sql.adaptive.enabled: "true"
+              spark.databricks.delta.schema.autoMerge.enabled: "true"
+            azure_attributes:
+              availability: ON_DEMAND_AZURE
+              first_on_demand: 1
+            custom_tags:
+              proyecto: finops
+              cost_center: PLATAFORMA
+              team: FINOPS
+              environment: ${bundle.target}
+
+      parameters:
+        - name: env
+          default: ${bundle.target}
+        - name: run_date
+          default: ""
+        - name: full_refresh
+          default: "false"
+        - name: dry_run
+          default: "false"
+        - name: overrides
+          default: ""
+
+      tasks:
+        - task_key: ingesta_bronze
+          description: Copia incremental de las system tables a bronze.
+          job_cluster_key: finops_cluster
+          notebook_task:
+            notebook_path: ../notebooks/10_etapa.py
+            base_parameters:
+              stages: "setup,bronze"
+          libraries:
+            - whl: ../dist/*.whl
+          timeout_seconds: 3600
+          max_retries: 2
+          min_retry_interval_millis: 120000
+
+        - task_key: modelo_silver
+          description: Valorizacion del consumo, entidades y etiquetas.
+          depends_on:
+            - task_key: ingesta_bronze
+          job_cluster_key: finops_cluster
+          notebook_task:
+            notebook_path: ../notebooks/10_etapa.py
+            base_parameters:
+              stages: "silver"
+          libraries:
+            - whl: ../dist/*.whl
+          timeout_seconds: 3600
+          max_retries: 1
+
+        - task_key: modelo_gold
+          description: Modelo dimensional y KPIs.
+          depends_on:
+            - task_key: modelo_silver
+          job_cluster_key: finops_cluster
+          notebook_task:
+            notebook_path: ../notebooks/10_etapa.py
+            base_parameters:
+              stages: "gold"
+          libraries:
+            - whl: ../dist/*.whl
+          timeout_seconds: 3600
+          max_retries: 1
+
+        - task_key: calidad
+          description: Chequeos de calidad sobre silver y gold.
+          depends_on:
+            - task_key: modelo_gold
+          job_cluster_key: finops_cluster
+          notebook_task:
+            notebook_path: ../notebooks/10_etapa.py
+            base_parameters:
+              stages: "quality"
+          libraries:
+            - whl: ../dist/*.whl
+          timeout_seconds: 1800
+
+        - task_key: analitica
+          description: Anomalias, pronostico, presupuestos, recomendaciones y chargeback.
+          depends_on:
+            - task_key: modelo_gold
+          job_cluster_key: finops_cluster
+          notebook_task:
+            notebook_path: ../notebooks/10_etapa.py
+            base_parameters:
+              stages: "analytics"
+          libraries:
+            - whl: ../dist/*.whl
+          timeout_seconds: 3600
+          max_retries: 1
+
+        - task_key: alertas
+          description: >-
+            Genera y despacha alertas. Depende de analitica y calidad, pero se
+            ejecuta aunque una de ellas falle: una falla del pipeline es
+            justamente algo que hay que notificar.
+          depends_on:
+            - task_key: analitica
+            - task_key: calidad
+          run_if: AT_LEAST_ONE_SUCCESS
+          job_cluster_key: finops_cluster
+          notebook_task:
+            notebook_path: ../notebooks/10_etapa.py
+            base_parameters:
+              stages: "alerts"
+          libraries:
+            - whl: ../dist/*.whl
+          timeout_seconds: 1800
+
+        - task_key: mantenimiento
+          description: OPTIMIZE/ZORDER y comentarios de catalogo.
+          depends_on:
+            - task_key: alertas
+          run_if: ALL_DONE
+          job_cluster_key: finops_cluster
+          notebook_task:
+            notebook_path: ../notebooks/10_etapa.py
+            base_parameters:
+              stages: "maintenance"
+          libraries:
+            - whl: ../dist/*.whl
+          timeout_seconds: 3600
+
+    # -------------------------------------------------------------------------
+    finops_alertas:
+      name: "[FinOps] Alertamiento (${bundle.target})"
+      description: >-
+        Reevalua las reglas de alerta sobre el modelo gold ya construido. Corre
+        con mayor frecuencia que el pipeline para acortar el tiempo de deteccion
+        de un desbordamiento de presupuesto. La deduplicacion por huella evita
+        repetir notificaciones dentro del periodo de enfriamiento.
+      tags:
+        proyecto: finops
+        entorno: ${bundle.target}
+
+      schedule:
+        quartz_cron_expression: ${var.cron_alertas}
+        timezone_id: ${var.timezone}
+        pause_status: ${var.pipeline_paused}
+
+      max_concurrent_runs: 1
+
+      email_notifications:
+        on_failure:
+          - ${var.notification_email}
+
+      job_clusters:
+        - job_cluster_key: finops_cluster_alertas
+          new_cluster:
+            spark_version: ${var.spark_version}
+            node_type_id: ${var.node_type_id}
+            num_workers: 0
+            data_security_mode: SINGLE_USER
+            spark_conf:
+              # Single node: el alertamiento solo lee agregados de gold.
+              spark.master: "local[*]"
+              spark.databricks.cluster.profile: singleNode
+            custom_tags:
+              ResourceClass: SingleNode
+              proyecto: finops
+              cost_center: PLATAFORMA
+              team: FINOPS
+              environment: ${bundle.target}
+
+      tasks:
+        - task_key: alertas
+          job_cluster_key: finops_cluster_alertas
+          notebook_task:
+            notebook_path: ../notebooks/10_etapa.py
+            base_parameters:
+              env: ${bundle.target}
+              stages: "alerts"
+          libraries:
+            - whl: ../dist/*.whl
+          timeout_seconds: 1800
+          max_retries: 1
+
+    # -------------------------------------------------------------------------
+    finops_backfill:
+      name: "[FinOps] Backfill historico (${bundle.target})"
+      description: >-
+        Recarga completa del historico disponible en las system tables. Se
+        ejecuta manualmente: no tiene schedule. Usa `ingestion.initial_load_days`
+        del entorno para determinar cuanto historico traer.
+      tags:
+        proyecto: finops
+        entorno: ${bundle.target}
+        tipo: manual
+
+      max_concurrent_runs: 1
+
+      email_notifications:
+        on_failure:
+          - ${var.notification_email}
+        on_success:
+          - ${var.notification_email}
+
+      job_clusters:
+        - job_cluster_key: finops_cluster_backfill
+          new_cluster:
+            spark_version: ${var.spark_version}
+            node_type_id: ${var.node_type_id}
+            # El backfill procesa cientos de dias: conviene mas capacidad.
+            autoscale:
+              min_workers: 2
+              max_workers: 8
+            data_security_mode: SINGLE_USER
+            runtime_engine: PHOTON
+            azure_attributes:
+              availability: SPOT_WITH_FALLBACK_AZURE
+              first_on_demand: 1
+              spot_bid_max_price: -1
+            custom_tags:
+              proyecto: finops
+              cost_center: PLATAFORMA
+              team: FINOPS
+              environment: ${bundle.target}
+
+      parameters:
+        - name: env
+          default: ${bundle.target}
+        - name: run_date
+          default: ""
+        - name: overrides
+          default: ""
+
+      tasks:
+        - task_key: backfill_completo
+          job_cluster_key: finops_cluster_backfill
+          notebook_task:
+            notebook_path: ../notebooks/00_orquestador.py
+            base_parameters:
+              full_refresh: "true"
+              stages: "setup,bronze,silver,gold,analytics,quality,maintenance"
+          libraries:
+            - whl: ../dist/*.whl
+          timeout_seconds: 21600     # 6 horas

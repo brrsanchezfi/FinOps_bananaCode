@@ -1,0 +1,135 @@
+# =============================================================================
+# Databricks Asset Bundle — Plataforma de analitica FinOps
+#
+# Despliegue:
+#   python scripts/dashboards.py render --env dev   # obligatorio antes de deploy
+#   databricks bundle validate -t dev
+#   databricks bundle deploy   -t dev
+#   databricks bundle run finops_pipeline_diario -t dev
+#
+# O bien, con el script que encadena los tres pasos:
+#   pwsh scripts/deploy.ps1 -Env dev
+#   bash scripts/deploy.sh dev
+# =============================================================================
+
+bundle:
+  name: finops-bananacode
+
+include:
+  - resources/*.yml
+
+# El wheel se instala en los clusters de job. Los notebooks tambien funcionan sin
+# el (agregan `src/` al sys.path), pero el wheel es el camino soportado.
+artifacts:
+  finops_wheel:
+    type: whl
+    build: python -m build --wheel
+    path: .
+
+sync:
+  exclude:
+    - .git/**
+    - .venv/**
+    - .pytest_cache/**
+    - .ruff_cache/**
+    - __pycache__/**
+    - dist/**
+    - build/**
+    - tests/**
+    - "*.egg-info/**"
+
+variables:
+  catalog:
+    description: Catalogo de Unity Catalog donde vive el modelo FinOps.
+    default: finops_dev
+
+  warehouse_id:
+    description: >-
+      ID del SQL warehouse que alimenta los dashboards. Obtenerlo con
+      `databricks warehouses list -p <perfil>`. Es obligatorio para desplegar
+      los dashboards.
+    default: ""
+
+  node_type_id:
+    description: Tipo de nodo del cluster de job (Azure).
+    default: Standard_D4ds_v5
+
+  spark_version:
+    description: Version de Databricks Runtime (LTS recomendado).
+    default: 15.4.x-scala2.12
+
+  num_workers:
+    description: Workers del cluster de job. El pipeline es liviano; 1-2 basta.
+    default: 1
+
+  notification_email:
+    description: Correo que recibe las notificaciones de fallo de los jobs.
+    default: finops@dataknow.com.co
+
+  cron_pipeline:
+    description: >-
+      Cron (formato Quartz) del pipeline diario. Por defecto 07:00 hora Bogota,
+      con margen suficiente sobre la latencia de publicacion de system.billing.usage.
+    default: "0 0 7 * * ?"
+
+  cron_alertas:
+    description: Cron del job de alertamiento (mas frecuente que el pipeline).
+    default: "0 0 7,13,19 * * ?"
+
+  timezone:
+    description: Zona horaria de los schedules.
+    default: America/Bogota
+
+  pipeline_paused:
+    description: PAUSED para desplegar sin activar el schedule, UNPAUSED para activarlo.
+    default: PAUSED
+
+targets:
+  # ---------------------------------------------------------------------------
+  dev:
+    mode: development     # prefija los recursos con el usuario y pausa schedules
+    default: true
+    workspace:
+      host: https://adb-4473276016800208.8.azuredatabricks.net
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+    variables:
+      catalog: finops_dev
+      num_workers: 1
+      pipeline_paused: PAUSED
+      # TODO: reemplazar por el ID real del warehouse de dev antes de desplegar
+      #       los dashboards (`databricks warehouses list -p dev`).
+      warehouse_id: ""
+
+  # ---------------------------------------------------------------------------
+  qa:
+    mode: production
+    workspace:
+      host: https://adb-2370424844216896.16.azuredatabricks.net
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
+    variables:
+      catalog: finops_qa
+      num_workers: 1
+      pipeline_paused: UNPAUSED
+      warehouse_id: ""      # TODO: warehouse de qa
+    run_as:
+      # TODO: reemplazar por el service principal de qa. Con `mode: production`
+      #       Databricks exige que el propietario del despliegue sea explicito.
+      user_name: ${workspace.current_user.userName}
+
+  # ---------------------------------------------------------------------------
+  prd:
+    mode: production
+    workspace:
+      host: https://adb-7042033821150253.13.azuredatabricks.net
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
+    variables:
+      catalog: finops
+      num_workers: 2
+      pipeline_paused: UNPAUSED
+      warehouse_id: ""      # TODO: warehouse de produccion
+    run_as:
+      # TODO: reemplazar por el service principal de produccion.
+      user_name: ${workspace.current_user.userName}
+    permissions:
+      - level: CAN_VIEW
+        group_name: users

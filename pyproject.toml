@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "finops-bananacode"
+version = "0.1.0"
+description = "Plataforma de analitica FinOps para Databricks (Unity Catalog system tables)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Proprietary" }
+authors = [{ name = "DATAKNOW S.A.S" }]
+
+# Dependencias en runtime de Databricks (DBR 15.4 LTS+) ya disponibles:
+#   pyspark, pandas, requests, pyyaml
+# Se declaran igualmente para entornos serverless / locales.
+dependencies = [
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.5",
+    "pandas>=2.0",
+]
+spark = [
+    "pyspark>=3.5",
+]
+
+[project.scripts]
+finops = "finops.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["finops*"]
+
+[tool.setuptools.package-data]
+finops = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q --strict-markers"
+markers = [
+    "spark: pruebas que requieren una SparkSession local (se omiten si no hay pyspark)",
+]
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"notebooks/*" = ["E402", "F821"]

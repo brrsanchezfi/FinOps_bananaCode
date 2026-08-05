@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Databricks Asset Bundles
+.databricks/
+*.lock.json
+
+# Dashboards renderizados por entorno (artefacto de build, se regenera con
+# `python scripts/dashboards.py render --env <env>`)
+.build/
+
+# Secretos / credenciales (nunca commitear)
+.env
+*.pem
+*.key
+conf/local.yml
+conf/*.secret.yml
+
+# Sistema operativo / editores
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+!.vscode/extensions.json
+
+# Salidas locales
+out/
+tmp/
+*.log
