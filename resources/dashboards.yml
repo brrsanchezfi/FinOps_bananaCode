@@ -1,13 +1,14 @@
 # =============================================================================
 # Dashboards Lakeview.
 #
-# IMPORTANTE: los archivos apuntan a `.build/dashboards/<target>/`, que produce
+# Los archivos apuntan a `dashboards/<target>/`, que estan VERSIONADOS y se
+# generan con:
 #
-#     python scripts/dashboards.py render --env <target>
+#     python scripts/dashboards.py generate
 #
-# Ese paso sustituye los marcadores `{{clave_tabla}}` de los JSON versionados por
-# los nombres completamente calificados del catalogo del entorno. Sin el, el
-# deploy falla porque los archivos no existen.
+# No hay paso de build previo al deploy: `databricks bundle deploy` funciona
+# directamente sobre el repositorio. Si cambias el SQL o el layout, edita
+# `scripts/dashboards.py`, regenera y commitea (CI verifica que no haya deriva).
 #
 # `warehouse_id` es obligatorio: definirlo en el bloque `variables` del target
 # correspondiente en databricks.yml, o pasarlo con
@@ -18,18 +19,18 @@ resources:
   dashboards:
     finops_ejecutivo:
       display_name: "[FinOps] Vista ejecutiva (${bundle.target})"
-      file_path: ../.build/dashboards/${bundle.target}/finops_ejecutivo.lvdash.json
+      file_path: ../dashboards/${bundle.target}/finops_ejecutivo.lvdash.json
       warehouse_id: ${var.warehouse_id}
       parent_path: ${workspace.root_path}/dashboards
 
     finops_costos:
       display_name: "[FinOps] Costos y chargeback (${bundle.target})"
-      file_path: ../.build/dashboards/${bundle.target}/finops_costos.lvdash.json
+      file_path: ../dashboards/${bundle.target}/finops_costos.lvdash.json
       warehouse_id: ${var.warehouse_id}
       parent_path: ${workspace.root_path}/dashboards
 
     finops_optimizacion:
       display_name: "[FinOps] Optimizacion y gobierno (${bundle.target})"
-      file_path: ../.build/dashboards/${bundle.target}/finops_optimizacion.lvdash.json
+      file_path: ../dashboards/${bundle.target}/finops_optimizacion.lvdash.json
       warehouse_id: ${var.warehouse_id}
       parent_path: ${workspace.root_path}/dashboards

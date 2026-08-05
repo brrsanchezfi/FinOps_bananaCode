@@ -9,8 +9,8 @@
         "  SUM(CASE WHEN confidence = 'alta' THEN estimated_monthly_savings_usd ELSE 0 END) AS ahorro_alta_confianza_usd,\n",
         "  COUNT(*) AS recomendaciones,\n",
         "  COUNT(DISTINCT entity_key) AS recursos_afectados\n",
-        "FROM {{fct_recommendation}}\n",
-        "WHERE analysis_date = (SELECT MAX(analysis_date) FROM {{fct_recommendation}})\n"
+        "FROM finops_dev.gold.fct_recommendation\n",
+        "WHERE analysis_date = (SELECT MAX(analysis_date) FROM finops_dev.gold.fct_recommendation)\n"
       ]
     },
     {
@@ -21,8 +21,8 @@
         "  rule_id,\n",
         "  COUNT(*) AS hallazgos,\n",
         "  SUM(estimated_monthly_savings_usd) AS ahorro_mensual_usd\n",
-        "FROM {{fct_recommendation}}\n",
-        "WHERE analysis_date = (SELECT MAX(analysis_date) FROM {{fct_recommendation}})\n",
+        "FROM finops_dev.gold.fct_recommendation\n",
+        "WHERE analysis_date = (SELECT MAX(analysis_date) FROM finops_dev.gold.fct_recommendation)\n",
         "GROUP BY rule_id\n",
         "ORDER BY ahorro_mensual_usd DESC\n"
       ]
@@ -45,8 +45,8 @@
         "  severity,\n",
         "  recommendation,\n",
         "  estimation_method\n",
-        "FROM {{fct_recommendation}}\n",
-        "WHERE analysis_date = (SELECT MAX(analysis_date) FROM {{fct_recommendation}})\n",
+        "FROM finops_dev.gold.fct_recommendation\n",
+        "WHERE analysis_date = (SELECT MAX(analysis_date) FROM finops_dev.gold.fct_recommendation)\n",
         "ORDER BY estimated_monthly_savings_usd DESC\n",
         "LIMIT 200\n"
       ]
@@ -61,7 +61,7 @@
         "  ROUND(COALESCE(all_purpose_share, 0) * 100, 2) AS all_purpose_pct,\n",
         "  ROUND(COALESCE(allocation_coverage_ratio, 0) * 100, 2) AS cobertura_pct,\n",
         "  cost_per_dbu_usd\n",
-        "FROM {{fct_kpi_daily}}\n",
+        "FROM finops_dev.gold.fct_kpi_daily\n",
         "WHERE usage_date >= CURRENT_DATE() - INTERVAL 90 DAYS\n",
         "ORDER BY usage_date\n"
       ]
@@ -75,7 +75,7 @@
         "  entity_type,\n",
         "  workspace_id,\n",
         "  SUM(total_cost_usd) AS costo_usd\n",
-        "FROM {{fct_cost_daily}}\n",
+        "FROM finops_dev.gold.fct_cost_daily\n",
         "WHERE usage_date >= CURRENT_DATE() - INTERVAL 30 DAYS\n",
         "  AND is_untagged = true\n",
         "GROUP BY entity_name, entity_type, workspace_id\n",
@@ -94,7 +94,7 @@
         "  SUM(CASE WHEN is_failed THEN 1 ELSE 0 END) AS fallidas,\n",
         "  ROUND(SUM(CASE WHEN is_failed THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0) * 100, 1) AS tasa_fallo_pct,\n",
         "  ROUND(SUM(CASE WHEN is_failed THEN run_cost_usd ELSE 0 END), 2) AS costo_fallido_usd\n",
-        "FROM {{fct_job_run_cost}}\n",
+        "FROM finops_dev.gold.fct_job_run_cost\n",
         "WHERE run_date >= CURRENT_DATE() - INTERVAL 30 DAYS\n",
         "GROUP BY job, team\n",
         "HAVING SUM(CASE WHEN is_failed THEN 1 ELSE 0 END) > 0\n",
@@ -115,7 +115,7 @@
         "  e.spark_version,\n",
         "  e.days_since_activity,\n",
         "  e.lifetime_cost_usd\n",
-        "FROM {{dim_entity}} e\n",
+        "FROM finops_dev.gold.dim_entity e\n",
         "WHERE e.entity_type = 'CLUSTER'\n",
         "ORDER BY e.lifetime_cost_usd DESC\n",
         "LIMIT 100\n"
@@ -133,7 +133,7 @@
         "  duration_seconds,\n",
         "  rows_written,\n",
         "  error_message\n",
-        "FROM {{ops_run_log}}\n",
+        "FROM finops_dev.gold.ops_run_log\n",
         "WHERE run_started_at >= CURRENT_TIMESTAMP() - INTERVAL 7 DAYS\n",
         "ORDER BY run_started_at DESC, stage\n",
         "LIMIT 200\n"
@@ -152,7 +152,7 @@
         "  dispatch_status,\n",
         "  channels,\n",
         "  delivered\n",
-        "FROM {{ops_alert_log}}\n",
+        "FROM finops_dev.gold.ops_alert_log\n",
         "WHERE created_at >= CURRENT_TIMESTAMP() - INTERVAL 14 DAYS\n",
         "ORDER BY created_at DESC\n",
         "LIMIT 200\n"

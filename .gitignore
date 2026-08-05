@@ -16,9 +16,11 @@ htmlcov/
 .databricks/
 *.lock.json
 
-# Dashboards renderizados por entorno (artefacto de build, se regenera con
-# `python scripts/dashboards.py render --env <env>`)
-.build/
+# NOTA: dashboards/<env>/*.lvdash.json SI se versionan aunque sean generados.
+# El CLI de Databricks excluye del arbol del bundle todo lo que git ignora, asi
+# que un dashboard en una ruta ignorada da "no such file or directory" al
+# desplegar. Se regeneran con `python scripts/dashboards.py generate` y CI
+# verifica que no haya deriva.
 
 # Secretos / credenciales (nunca commitear)
 .env

@@ -13,8 +13,8 @@
         "  total_chargeback_usd,\n",
         "  ROUND(pct_of_total * 100, 2) AS pct_of_total,\n",
         "  entity_count\n",
-        "FROM {{fct_chargeback_monthly}}\n",
-        "WHERE period = (SELECT MAX(period) FROM {{fct_chargeback_monthly}})\n",
+        "FROM finops_dev.gold.fct_chargeback_monthly\n",
+        "WHERE period = (SELECT MAX(period) FROM finops_dev.gold.fct_chargeback_monthly)\n",
         "ORDER BY total_chargeback_usd DESC\n"
       ]
     },
@@ -26,7 +26,7 @@
         "  period,\n",
         "  unit,\n",
         "  total_chargeback_usd\n",
-        "FROM {{fct_chargeback_monthly}}\n",
+        "FROM finops_dev.gold.fct_chargeback_monthly\n",
         "WHERE period >= DATE_FORMAT(ADD_MONTHS(CURRENT_DATE(), -12), 'yyyy-MM')\n",
         "ORDER BY period, total_chargeback_usd DESC\n"
       ]
@@ -40,7 +40,7 @@
         "  sku_group,\n",
         "  SUM(total_cost_usd) AS total_cost_usd,\n",
         "  SUM(usage_quantity) AS total_dbus\n",
-        "FROM {{agg_cost_monthly}}\n",
+        "FROM finops_dev.gold.agg_cost_monthly\n",
         "WHERE year_month >= DATE_FORMAT(ADD_MONTHS(CURRENT_DATE(), -12), 'yyyy-MM')\n",
         "GROUP BY year_month, sku_group\n",
         "ORDER BY year_month, total_cost_usd DESC\n"
@@ -54,8 +54,8 @@
         "  w.workspace_name,\n",
         "  c.workspace_id,\n",
         "  SUM(c.total_cost_usd) AS total_cost_usd\n",
-        "FROM {{fct_cost_daily}} c\n",
-        "LEFT JOIN {{dim_workspace}} w ON c.workspace_id = w.workspace_id\n",
+        "FROM finops_dev.gold.fct_cost_daily c\n",
+        "LEFT JOIN finops_dev.gold.dim_workspace w ON c.workspace_id = w.workspace_id\n",
         "WHERE c.usage_date >= CURRENT_DATE() - INTERVAL 30 DAYS\n",
         "GROUP BY w.workspace_name, c.workspace_id\n",
         "ORDER BY total_cost_usd DESC\n"
@@ -71,7 +71,7 @@
         "  SUM(total_cost_usd) AS total_cost_usd,\n",
         "  SUM(unattributed_cost_usd) AS unattributed_cost_usd,\n",
         "  ROUND(SUM(attributed_cost_usd) / NULLIF(SUM(total_cost_usd), 0) * 100, 2) AS coverage_pct\n",
-        "FROM {{fct_tag_coverage_daily}}\n",
+        "FROM finops_dev.gold.fct_tag_coverage_daily\n",
         "WHERE usage_date >= CURRENT_DATE() - INTERVAL 60 DAYS\n",
         "GROUP BY usage_date, dimension\n",
         "ORDER BY usage_date\n"
@@ -90,7 +90,7 @@
         "  ROUND(AVG(duration_minutes), 2) AS duracion_promedio_min,\n",
         "  ROUND(SUM(run_cost_usd), 2) AS costo_usd,\n",
         "  ROUND(SUM(run_cost_usd) / NULLIF(COUNT(*), 0), 4) AS costo_por_ejecucion_usd\n",
-        "FROM {{fct_job_run_cost}}\n",
+        "FROM finops_dev.gold.fct_job_run_cost\n",
         "WHERE run_date >= CURRENT_DATE() - INTERVAL 30 DAYS\n",
         "GROUP BY job, team, cost_center\n",
         "ORDER BY costo_usd DESC\n",
@@ -110,7 +110,7 @@
         "  ROUND(SUM(active_hours), 2) AS horas_activas,\n",
         "  ROUND(SUM(total_cost_usd) / NULLIF(SUM(query_count), 0), 4) AS costo_por_consulta_usd,\n",
         "  MAX(auto_stop_minutes) AS auto_stop_min\n",
-        "FROM {{fct_warehouse_cost_daily}}\n",
+        "FROM finops_dev.gold.fct_warehouse_cost_daily\n",
         "WHERE usage_date >= CURRENT_DATE() - INTERVAL 30 DAYS\n",
         "GROUP BY warehouse, warehouse_size, warehouse_type\n",
         "ORDER BY costo_usd DESC\n",
@@ -132,7 +132,7 @@
         "  environment,\n",
         "  ROUND(usage_quantity, 4) AS dbus,\n",
         "  ROUND(total_cost_usd, 4) AS costo_usd\n",
-        "FROM {{fct_cost_daily}}\n",
+        "FROM finops_dev.gold.fct_cost_daily\n",
         "WHERE usage_date >= CURRENT_DATE() - INTERVAL 7 DAYS\n",
         "ORDER BY costo_usd DESC\n",
         "LIMIT 500\n"

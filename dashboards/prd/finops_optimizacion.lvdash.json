@@ -1,0 +1,1160 @@
+{
+  "datasets": [
+    {
+      "name": "resumen_ahorro",
+      "displayName": "Potencial de ahorro identificado",
+      "queryLines": [
+        "SELECT\n",
+        "  SUM(estimated_monthly_savings_usd) AS ahorro_mensual_usd,\n",
+        "  SUM(CASE WHEN confidence = 'alta' THEN estimated_monthly_savings_usd ELSE 0 END) AS ahorro_alta_confianza_usd,\n",
+        "  COUNT(*) AS recomendaciones,\n",
+        "  COUNT(DISTINCT entity_key) AS recursos_afectados\n",
+        "FROM finops.gold.fct_recommendation\n",
+        "WHERE analysis_date = (SELECT MAX(analysis_date) FROM finops.gold.fct_recommendation)\n"
+      ]
+    },
+    {
+      "name": "ahorro_por_regla",
+      "displayName": "Ahorro estimado por tipo de hallazgo",
+      "queryLines": [
+        "SELECT\n",
+        "  rule_id,\n",
+        "  COUNT(*) AS hallazgos,\n",
+        "  SUM(estimated_monthly_savings_usd) AS ahorro_mensual_usd\n",
+        "FROM finops.gold.fct_recommendation\n",
+        "WHERE analysis_date = (SELECT MAX(analysis_date) FROM finops.gold.fct_recommendation)\n",
+        "GROUP BY rule_id\n",
+        "ORDER BY ahorro_mensual_usd DESC\n"
+      ]
+    },
+    {
+      "name": "recomendaciones",
+      "displayName": "Recomendaciones accionables",
+      "queryLines": [
+        "SELECT\n",
+        "  rule_id,\n",
+        "  title,\n",
+        "  entity_name,\n",
+        "  entity_type,\n",
+        "  team,\n",
+        "  cost_center,\n",
+        "  environment,\n",
+        "  observed_cost_usd,\n",
+        "  estimated_monthly_savings_usd,\n",
+        "  confidence,\n",
+        "  severity,\n",
+        "  recommendation,\n",
+        "  estimation_method\n",
+        "FROM finops.gold.fct_recommendation\n",
+        "WHERE analysis_date = (SELECT MAX(analysis_date) FROM finops.gold.fct_recommendation)\n",
+        "ORDER BY estimated_monthly_savings_usd DESC\n",
+        "LIMIT 200\n"
+      ]
+    },
+    {
+      "name": "eficiencia",
+      "displayName": "Indicadores de eficiencia",
+      "queryLines": [
+        "SELECT\n",
+        "  usage_date,\n",
+        "  ROUND(COALESCE(serverless_share, 0) * 100, 2) AS serverless_pct,\n",
+        "  ROUND(COALESCE(all_purpose_share, 0) * 100, 2) AS all_purpose_pct,\n",
+        "  ROUND(COALESCE(allocation_coverage_ratio, 0) * 100, 2) AS cobertura_pct,\n",
+        "  cost_per_dbu_usd\n",
+        "FROM finops.gold.fct_kpi_daily\n",
+        "WHERE usage_date >= CURRENT_DATE() - INTERVAL 90 DAYS\n",
+        "ORDER BY usage_date\n"
+      ]
+    },
+    {
+      "name": "gasto_sin_atribuir",
+      "displayName": "Gasto sin atribucion por recurso (30 dias)",
+      "queryLines": [
+        "SELECT\n",
+        "  entity_name,\n",
+        "  entity_type,\n",
+        "  workspace_id,\n",
+        "  SUM(total_cost_usd) AS costo_usd\n",
+        "FROM finops.gold.fct_cost_daily\n",
+        "WHERE usage_date >= CURRENT_DATE() - INTERVAL 30 DAYS\n",
+        "  AND is_untagged = true\n",
+        "GROUP BY entity_name, entity_type, workspace_id\n",
+        "ORDER BY costo_usd DESC\n",
+        "LIMIT 50\n"
+      ]
+    },
+    {
+      "name": "jobs_inestables",
+      "displayName": "Jobs con mayor desperdicio por fallos (30 dias)",
+      "queryLines": [
+        "SELECT\n",
+        "  COALESCE(job_name, CAST(job_id AS STRING)) AS job,\n",
+        "  team,\n",
+        "  COUNT(*) AS ejecuciones,\n",
+        "  SUM(CASE WHEN is_failed THEN 1 ELSE 0 END) AS fallidas,\n",
+        "  ROUND(SUM(CASE WHEN is_failed THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0) * 100, 1) AS tasa_fallo_pct,\n",
+        "  ROUND(SUM(CASE WHEN is_failed THEN run_cost_usd ELSE 0 END), 2) AS costo_fallido_usd\n",
+        "FROM finops.gold.fct_job_run_cost\n",
+        "WHERE run_date >= CURRENT_DATE() - INTERVAL 30 DAYS\n",
+        "GROUP BY job, team\n",
+        "HAVING SUM(CASE WHEN is_failed THEN 1 ELSE 0 END) > 0\n",
+        "ORDER BY costo_fallido_usd DESC\n",
+        "LIMIT 30\n"
+      ]
+    },
+    {
+      "name": "config_clusters",
+      "displayName": "Configuracion de clusters con costo",
+      "queryLines": [
+        "SELECT\n",
+        "  e.entity_name,\n",
+        "  e.workspace_id,\n",
+        "  e.autotermination_minutes,\n",
+        "  e.autoscale_enabled,\n",
+        "  e.num_workers,\n",
+        "  e.spark_version,\n",
+        "  e.days_since_activity,\n",
+        "  e.lifetime_cost_usd\n",
+        "FROM finops.gold.dim_entity e\n",
+        "WHERE e.entity_type = 'CLUSTER'\n",
+        "ORDER BY e.lifetime_cost_usd DESC\n",
+        "LIMIT 100\n"
+      ]
+    },
+    {
+      "name": "salud_pipeline",
+      "displayName": "Ultimas corridas del pipeline FinOps",
+      "queryLines": [
+        "SELECT\n",
+        "  run_id,\n",
+        "  run_date,\n",
+        "  stage,\n",
+        "  status,\n",
+        "  duration_seconds,\n",
+        "  rows_written,\n",
+        "  error_message\n",
+        "FROM finops.gold.ops_run_log\n",
+        "WHERE run_started_at >= CURRENT_TIMESTAMP() - INTERVAL 7 DAYS\n",
+        "ORDER BY run_started_at DESC, stage\n",
+        "LIMIT 200\n"
+      ]
+    },
+    {
+      "name": "alertas",
+      "displayName": "Alertas recientes",
+      "queryLines": [
+        "SELECT\n",
+        "  created_at,\n",
+        "  rule_id,\n",
+        "  severity,\n",
+        "  title,\n",
+        "  scope,\n",
+        "  dispatch_status,\n",
+        "  channels,\n",
+        "  delivered\n",
+        "FROM finops.gold.ops_alert_log\n",
+        "WHERE created_at >= CURRENT_TIMESTAMP() - INTERVAL 14 DAYS\n",
+        "ORDER BY created_at DESC\n",
+        "LIMIT 200\n"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "optimizacion",
+      "displayName": "Optimizacion y gobierno",
+      "layout": [
+        {
+          "widget": {
+            "name": "titulo",
+            "textbox_spec": "# Optimizacion y gobierno\nOportunidades de ahorro, calidad del etiquetado y salud de la plataforma. **Los ahorros son estimaciones**: cada recomendacion declara su metodo de calculo y su nivel de confianza en la columna correspondiente. Validar antes de comprometer cifras."
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 6,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "ahorro_total",
+            "queries": [
+              {
+                "name": "ahorro_total_query",
+                "query": {
+                  "datasetName": "resumen_ahorro",
+                  "fields": [
+                    {
+                      "name": "ahorro_mensual_usd",
+                      "expression": "`ahorro_mensual_usd`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "ahorro_mensual_usd",
+                  "displayName": "Ahorro mensual estimado",
+                  "format": {
+                    "type": "number-currency-usd",
+                    "decimalPlaces": {
+                      "type": "exact",
+                      "places": 0
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "title": "Ahorro mensual estimado",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "ahorro_confiable",
+            "queries": [
+              {
+                "name": "ahorro_confiable_query",
+                "query": {
+                  "datasetName": "resumen_ahorro",
+                  "fields": [
+                    {
+                      "name": "ahorro_alta_confianza_usd",
+                      "expression": "`ahorro_alta_confianza_usd`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "ahorro_alta_confianza_usd",
+                  "displayName": "Ahorro de alta confianza",
+                  "format": {
+                    "type": "number-currency-usd",
+                    "decimalPlaces": {
+                      "type": "exact",
+                      "places": 0
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "title": "Ahorro de alta confianza",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 2,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "num_recomendaciones",
+            "queries": [
+              {
+                "name": "num_recomendaciones_query",
+                "query": {
+                  "datasetName": "resumen_ahorro",
+                  "fields": [
+                    {
+                      "name": "recomendaciones",
+                      "expression": "`recomendaciones`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "recomendaciones",
+                  "displayName": "Recomendaciones abiertas",
+                  "format": {
+                    "type": "number-plain",
+                    "decimalPlaces": {
+                      "type": "exact",
+                      "places": 0
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "title": "Recomendaciones abiertas",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 2,
+            "width": 1,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "recursos_afectados",
+            "queries": [
+              {
+                "name": "recursos_afectados_query",
+                "query": {
+                  "datasetName": "resumen_ahorro",
+                  "fields": [
+                    {
+                      "name": "recursos_afectados",
+                      "expression": "`recursos_afectados`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "recursos_afectados",
+                  "displayName": "Recursos involucrados",
+                  "format": {
+                    "type": "number-plain",
+                    "decimalPlaces": {
+                      "type": "exact",
+                      "places": 0
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "title": "Recursos involucrados",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 5,
+            "y": 2,
+            "width": 1,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "por_regla",
+            "queries": [
+              {
+                "name": "por_regla_query",
+                "query": {
+                  "datasetName": "ahorro_por_regla",
+                  "fields": [
+                    {
+                      "name": "rule_id",
+                      "expression": "`rule_id`"
+                    },
+                    {
+                      "name": "sum(ahorro_mensual_usd)",
+                      "expression": "SUM(`ahorro_mensual_usd`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "rule_id",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Hallazgo"
+                },
+                "y": {
+                  "fieldName": "sum(ahorro_mensual_usd)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "USD/mes"
+                }
+              },
+              "frame": {
+                "title": "Ahorro estimado por tipo de hallazgo",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 5,
+            "width": 3,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "eficiencia_serie",
+            "queries": [
+              {
+                "name": "eficiencia_serie_query",
+                "query": {
+                  "datasetName": "eficiencia",
+                  "fields": [
+                    {
+                      "name": "usage_date",
+                      "expression": "`usage_date`"
+                    },
+                    {
+                      "name": "avg(serverless_pct)",
+                      "expression": "AVG(`serverless_pct`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "usage_date",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "displayName": "Fecha"
+                },
+                "y": {
+                  "fieldName": "avg(serverless_pct)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "% serverless"
+                }
+              },
+              "frame": {
+                "title": "Indicadores de eficiencia (%)",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 5,
+            "width": 3,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "sub_reco",
+            "textbox_spec": "## Recomendaciones"
+          },
+          "position": {
+            "x": 0,
+            "y": 12,
+            "width": 6,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "tabla_reco",
+            "queries": [
+              {
+                "name": "tabla_reco_query",
+                "query": {
+                  "datasetName": "recomendaciones",
+                  "fields": [
+                    {
+                      "name": "rule_id",
+                      "expression": "`rule_id`"
+                    },
+                    {
+                      "name": "title",
+                      "expression": "`title`"
+                    },
+                    {
+                      "name": "entity_name",
+                      "expression": "`entity_name`"
+                    },
+                    {
+                      "name": "entity_type",
+                      "expression": "`entity_type`"
+                    },
+                    {
+                      "name": "team",
+                      "expression": "`team`"
+                    },
+                    {
+                      "name": "environment",
+                      "expression": "`environment`"
+                    },
+                    {
+                      "name": "observed_cost_usd",
+                      "expression": "`observed_cost_usd`"
+                    },
+                    {
+                      "name": "estimated_monthly_savings_usd",
+                      "expression": "`estimated_monthly_savings_usd`"
+                    },
+                    {
+                      "name": "confidence",
+                      "expression": "`confidence`"
+                    },
+                    {
+                      "name": "severity",
+                      "expression": "`severity`"
+                    },
+                    {
+                      "name": "recommendation",
+                      "expression": "`recommendation`"
+                    },
+                    {
+                      "name": "estimation_method",
+                      "expression": "`estimation_method`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "rule_id",
+                    "displayName": "Hallazgo",
+                    "visible": true,
+                    "order": 0
+                  },
+                  {
+                    "fieldName": "title",
+                    "displayName": "Titulo",
+                    "visible": true,
+                    "order": 1
+                  },
+                  {
+                    "fieldName": "entity_name",
+                    "displayName": "Recurso",
+                    "visible": true,
+                    "order": 2
+                  },
+                  {
+                    "fieldName": "entity_type",
+                    "displayName": "Tipo",
+                    "visible": true,
+                    "order": 3
+                  },
+                  {
+                    "fieldName": "team",
+                    "displayName": "Equipo",
+                    "visible": true,
+                    "order": 4
+                  },
+                  {
+                    "fieldName": "environment",
+                    "displayName": "Ambiente",
+                    "visible": true,
+                    "order": 5
+                  },
+                  {
+                    "fieldName": "observed_cost_usd",
+                    "displayName": "Costo observado USD",
+                    "visible": true,
+                    "order": 6
+                  },
+                  {
+                    "fieldName": "estimated_monthly_savings_usd",
+                    "displayName": "Ahorro estimado USD/mes",
+                    "visible": true,
+                    "order": 7
+                  },
+                  {
+                    "fieldName": "confidence",
+                    "displayName": "Confianza",
+                    "visible": true,
+                    "order": 8
+                  },
+                  {
+                    "fieldName": "severity",
+                    "displayName": "Prioridad",
+                    "visible": true,
+                    "order": 9
+                  },
+                  {
+                    "fieldName": "recommendation",
+                    "displayName": "Accion sugerida",
+                    "visible": true,
+                    "order": 10
+                  },
+                  {
+                    "fieldName": "estimation_method",
+                    "displayName": "Metodo de estimacion",
+                    "visible": true,
+                    "order": 11
+                  }
+                ]
+              },
+              "frame": {
+                "title": "Recomendaciones priorizadas por ahorro",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 13,
+            "width": 6,
+            "height": 10
+          }
+        },
+        {
+          "widget": {
+            "name": "sub_gobierno",
+            "textbox_spec": "## Gobierno del etiquetado"
+          },
+          "position": {
+            "x": 0,
+            "y": 23,
+            "width": 6,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "tabla_sin_tag",
+            "queries": [
+              {
+                "name": "tabla_sin_tag_query",
+                "query": {
+                  "datasetName": "gasto_sin_atribuir",
+                  "fields": [
+                    {
+                      "name": "entity_name",
+                      "expression": "`entity_name`"
+                    },
+                    {
+                      "name": "entity_type",
+                      "expression": "`entity_type`"
+                    },
+                    {
+                      "name": "workspace_id",
+                      "expression": "`workspace_id`"
+                    },
+                    {
+                      "name": "costo_usd",
+                      "expression": "`costo_usd`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "entity_name",
+                    "displayName": "Recurso",
+                    "visible": true,
+                    "order": 0
+                  },
+                  {
+                    "fieldName": "entity_type",
+                    "displayName": "Tipo",
+                    "visible": true,
+                    "order": 1
+                  },
+                  {
+                    "fieldName": "workspace_id",
+                    "displayName": "Workspace",
+                    "visible": true,
+                    "order": 2
+                  },
+                  {
+                    "fieldName": "costo_usd",
+                    "displayName": "Costo USD",
+                    "visible": true,
+                    "order": 3
+                  }
+                ]
+              },
+              "frame": {
+                "title": "Gasto sin atribucion (30 dias)",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 24,
+            "width": 3,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "tabla_clusters",
+            "queries": [
+              {
+                "name": "tabla_clusters_query",
+                "query": {
+                  "datasetName": "config_clusters",
+                  "fields": [
+                    {
+                      "name": "entity_name",
+                      "expression": "`entity_name`"
+                    },
+                    {
+                      "name": "autotermination_minutes",
+                      "expression": "`autotermination_minutes`"
+                    },
+                    {
+                      "name": "autoscale_enabled",
+                      "expression": "`autoscale_enabled`"
+                    },
+                    {
+                      "name": "num_workers",
+                      "expression": "`num_workers`"
+                    },
+                    {
+                      "name": "spark_version",
+                      "expression": "`spark_version`"
+                    },
+                    {
+                      "name": "days_since_activity",
+                      "expression": "`days_since_activity`"
+                    },
+                    {
+                      "name": "lifetime_cost_usd",
+                      "expression": "`lifetime_cost_usd`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "entity_name",
+                    "displayName": "Cluster",
+                    "visible": true,
+                    "order": 0
+                  },
+                  {
+                    "fieldName": "autotermination_minutes",
+                    "displayName": "Auto-term (min)",
+                    "visible": true,
+                    "order": 1
+                  },
+                  {
+                    "fieldName": "autoscale_enabled",
+                    "displayName": "Autoescalado",
+                    "visible": true,
+                    "order": 2
+                  },
+                  {
+                    "fieldName": "num_workers",
+                    "displayName": "Workers",
+                    "visible": true,
+                    "order": 3
+                  },
+                  {
+                    "fieldName": "spark_version",
+                    "displayName": "DBR",
+                    "visible": true,
+                    "order": 4
+                  },
+                  {
+                    "fieldName": "days_since_activity",
+                    "displayName": "Dias sin uso",
+                    "visible": true,
+                    "order": 5
+                  },
+                  {
+                    "fieldName": "lifetime_cost_usd",
+                    "displayName": "Costo acumulado USD",
+                    "visible": true,
+                    "order": 6
+                  }
+                ]
+              },
+              "frame": {
+                "title": "Configuracion de clusters",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 24,
+            "width": 3,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "sub_jobs",
+            "textbox_spec": "## Desperdicio por fallos"
+          },
+          "position": {
+            "x": 0,
+            "y": 32,
+            "width": 6,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "tabla_jobs_malos",
+            "queries": [
+              {
+                "name": "tabla_jobs_malos_query",
+                "query": {
+                  "datasetName": "jobs_inestables",
+                  "fields": [
+                    {
+                      "name": "job",
+                      "expression": "`job`"
+                    },
+                    {
+                      "name": "team",
+                      "expression": "`team`"
+                    },
+                    {
+                      "name": "ejecuciones",
+                      "expression": "`ejecuciones`"
+                    },
+                    {
+                      "name": "fallidas",
+                      "expression": "`fallidas`"
+                    },
+                    {
+                      "name": "tasa_fallo_pct",
+                      "expression": "`tasa_fallo_pct`"
+                    },
+                    {
+                      "name": "costo_fallido_usd",
+                      "expression": "`costo_fallido_usd`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "job",
+                    "displayName": "Job",
+                    "visible": true,
+                    "order": 0
+                  },
+                  {
+                    "fieldName": "team",
+                    "displayName": "Equipo",
+                    "visible": true,
+                    "order": 1
+                  },
+                  {
+                    "fieldName": "ejecuciones",
+                    "displayName": "Ejecuciones",
+                    "visible": true,
+                    "order": 2
+                  },
+                  {
+                    "fieldName": "fallidas",
+                    "displayName": "Fallidas",
+                    "visible": true,
+                    "order": 3
+                  },
+                  {
+                    "fieldName": "tasa_fallo_pct",
+                    "displayName": "% fallo",
+                    "visible": true,
+                    "order": 4
+                  },
+                  {
+                    "fieldName": "costo_fallido_usd",
+                    "displayName": "Costo desperdiciado USD",
+                    "visible": true,
+                    "order": 5
+                  }
+                ]
+              },
+              "frame": {
+                "title": "Jobs con ejecuciones fallidas (30 dias)",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 33,
+            "width": 6,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "sub_plataforma",
+            "textbox_spec": "## Salud de la plataforma FinOps"
+          },
+          "position": {
+            "x": 0,
+            "y": 41,
+            "width": 6,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "tabla_corridas",
+            "queries": [
+              {
+                "name": "tabla_corridas_query",
+                "query": {
+                  "datasetName": "salud_pipeline",
+                  "fields": [
+                    {
+                      "name": "run_date",
+                      "expression": "`run_date`"
+                    },
+                    {
+                      "name": "stage",
+                      "expression": "`stage`"
+                    },
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    },
+                    {
+                      "name": "duration_seconds",
+                      "expression": "`duration_seconds`"
+                    },
+                    {
+                      "name": "rows_written",
+                      "expression": "`rows_written`"
+                    },
+                    {
+                      "name": "error_message",
+                      "expression": "`error_message`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "run_date",
+                    "displayName": "Fecha",
+                    "visible": true,
+                    "order": 0
+                  },
+                  {
+                    "fieldName": "stage",
+                    "displayName": "Etapa",
+                    "visible": true,
+                    "order": 1
+                  },
+                  {
+                    "fieldName": "status",
+                    "displayName": "Estado",
+                    "visible": true,
+                    "order": 2
+                  },
+                  {
+                    "fieldName": "duration_seconds",
+                    "displayName": "Duracion (s)",
+                    "visible": true,
+                    "order": 3
+                  },
+                  {
+                    "fieldName": "rows_written",
+                    "displayName": "Filas",
+                    "visible": true,
+                    "order": 4
+                  },
+                  {
+                    "fieldName": "error_message",
+                    "displayName": "Error",
+                    "visible": true,
+                    "order": 5
+                  }
+                ]
+              },
+              "frame": {
+                "title": "Corridas del pipeline (7 dias)",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 42,
+            "width": 3,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "tabla_alertas",
+            "queries": [
+              {
+                "name": "tabla_alertas_query",
+                "query": {
+                  "datasetName": "alertas",
+                  "fields": [
+                    {
+                      "name": "created_at",
+                      "expression": "`created_at`"
+                    },
+                    {
+                      "name": "rule_id",
+                      "expression": "`rule_id`"
+                    },
+                    {
+                      "name": "severity",
+                      "expression": "`severity`"
+                    },
+                    {
+                      "name": "title",
+                      "expression": "`title`"
+                    },
+                    {
+                      "name": "scope",
+                      "expression": "`scope`"
+                    },
+                    {
+                      "name": "dispatch_status",
+                      "expression": "`dispatch_status`"
+                    },
+                    {
+                      "name": "channels",
+                      "expression": "`channels`"
+                    },
+                    {
+                      "name": "delivered",
+                      "expression": "`delivered`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "created_at",
+                    "displayName": "Momento",
+                    "visible": true,
+                    "order": 0
+                  },
+                  {
+                    "fieldName": "rule_id",
+                    "displayName": "Regla",
+                    "visible": true,
+                    "order": 1
+                  },
+                  {
+                    "fieldName": "severity",
+                    "displayName": "Severidad",
+                    "visible": true,
+                    "order": 2
+                  },
+                  {
+                    "fieldName": "title",
+                    "displayName": "Titulo",
+                    "visible": true,
+                    "order": 3
+                  },
+                  {
+                    "fieldName": "scope",
+                    "displayName": "Ambito",
+                    "visible": true,
+                    "order": 4
+                  },
+                  {
+                    "fieldName": "dispatch_status",
+                    "displayName": "Estado",
+                    "visible": true,
+                    "order": 5
+                  },
+                  {
+                    "fieldName": "channels",
+                    "displayName": "Canales",
+                    "visible": true,
+                    "order": 6
+                  },
+                  {
+                    "fieldName": "delivered",
+                    "displayName": "Entregada",
+                    "visible": true,
+                    "order": 7
+                  }
+                ]
+              },
+              "frame": {
+                "title": "Alertas emitidas (14 dias)",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 42,
+            "width": 3,
+            "height": 8
+          }
+        }
+      ]
+    }
+  ]
+}

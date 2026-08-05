@@ -13,7 +13,7 @@
         "  COALESCE(allocation_coverage_ratio, 0) * 100 AS allocation_coverage_pct,\n",
         "  active_entities,\n",
         "  usage_date\n",
-        "FROM {{fct_kpi_daily}}\n",
+        "FROM finops_qa.gold.fct_kpi_daily\n",
         "QUALIFY ROW_NUMBER() OVER (ORDER BY usage_date DESC) = 1\n"
       ]
     },
@@ -26,7 +26,7 @@
         "  total_cost_usd,\n",
         "  rolling_7d_avg_usd,\n",
         "  rolling_28d_avg_usd\n",
-        "FROM {{fct_kpi_daily}}\n",
+        "FROM finops_qa.gold.fct_kpi_daily\n",
         "WHERE usage_date >= CURRENT_DATE() - INTERVAL 90 DAYS\n",
         "ORDER BY usage_date\n"
       ]
@@ -38,7 +38,7 @@
         "SELECT\n",
         "  team,\n",
         "  SUM(total_cost_usd) AS total_cost_usd\n",
-        "FROM {{fct_cost_daily}}\n",
+        "FROM finops_qa.gold.fct_cost_daily\n",
         "WHERE usage_date >= CURRENT_DATE() - INTERVAL 30 DAYS\n",
         "GROUP BY team\n",
         "ORDER BY total_cost_usd DESC\n",
@@ -52,7 +52,7 @@
         "SELECT\n",
         "  sku_group,\n",
         "  SUM(total_cost_usd) AS total_cost_usd\n",
-        "FROM {{fct_cost_daily}}\n",
+        "FROM finops_qa.gold.fct_cost_daily\n",
         "WHERE usage_date >= CURRENT_DATE() - INTERVAL 30 DAYS\n",
         "GROUP BY sku_group\n",
         "ORDER BY total_cost_usd DESC\n"
@@ -73,7 +73,7 @@
         "  status,\n",
         "  remaining_days,\n",
         "  required_daily_cost_usd\n",
-        "FROM {{fct_budget_status}}\n",
+        "FROM finops_qa.gold.fct_budget_status\n",
         "QUALIFY ROW_NUMBER() OVER (PARTITION BY budget_id ORDER BY as_of_date DESC) = 1\n",
         "ORDER BY consumed_pct DESC\n"
       ]
@@ -86,7 +86,7 @@
         "  usage_date AS fecha,\n",
         "  total_cost_usd AS costo_usd,\n",
         "  'Ejecutado' AS serie\n",
-        "FROM {{fct_kpi_daily}}\n",
+        "FROM finops_qa.gold.fct_kpi_daily\n",
         "WHERE usage_date >= CURRENT_DATE() - INTERVAL 60 DAYS\n",
         "\n",
         "UNION ALL\n",
@@ -95,7 +95,7 @@
         "  forecast_date AS fecha,\n",
         "  predicted_cost_usd AS costo_usd,\n",
         "  'Pronosticado' AS serie\n",
-        "FROM {{fct_cost_forecast}}\n",
+        "FROM finops_qa.gold.fct_cost_forecast\n",
         "WHERE dimension = 'organizacion'\n"
       ]
     },
@@ -114,7 +114,7 @@
         "  deviation_usd,\n",
         "  ROUND(pct_change * 100, 1) AS pct_change,\n",
         "  score\n",
-        "FROM {{fct_cost_anomaly}}\n",
+        "FROM finops_qa.gold.fct_cost_anomaly\n",
         "WHERE usage_date >= CURRENT_DATE() - INTERVAL 14 DAYS\n",
         "  AND severity IN ('high', 'critical')\n",
         "ORDER BY usage_date DESC, ABS(score) DESC\n",
@@ -132,7 +132,7 @@
         "  cost_center,\n",
         "  environment,\n",
         "  SUM(total_cost_usd) AS total_cost_usd\n",
-        "FROM {{fct_cost_daily}}\n",
+        "FROM finops_qa.gold.fct_cost_daily\n",
         "WHERE usage_date >= CURRENT_DATE() - INTERVAL 30 DAYS\n",
         "GROUP BY entity_name, entity_type, team, cost_center, environment\n",
         "ORDER BY total_cost_usd DESC\n",

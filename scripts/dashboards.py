@@ -1,21 +1,23 @@
 #!/usr/bin/env python
-"""Generacion y renderizado de los dashboards Lakeview de FinOps.
+"""Generador de los dashboards Lakeview de FinOps.
 
-Dos subcomandos:
+    python scripts/dashboards.py generate          # los tres entornos
+    python scripts/dashboards.py generate --env dev
+    python scripts/dashboards.py check             # verifica que esten al dia
 
-    python scripts/dashboards.py generate
-        Reconstruye `dashboards/*.lvdash.json` desde las definiciones de este
-        archivo. Los JSON quedan versionados con marcadores `{{clave_tabla}}`
-        en lugar de nombres de tabla fijos, para que sirvan en los tres entornos.
+Este archivo es la **unica fuente de verdad** de los dashboards: aqui viven el
+SQL y el layout como codigo Python revisable. `generate` escribe un JSON ya
+resuelto por entorno en `dashboards/<env>/*.lvdash.json`, que se versiona y es
+lo que despliega el bundle.
 
-    python scripts/dashboards.py render --env prd
-        Sustituye los marcadores por los nombres completamente calificados del
-        entorno y escribe el resultado en `.build/dashboards/<env>/`. Es el paso
-        previo obligatorio a `databricks bundle deploy`.
+Un dashboard Lakeview lleva el SQL embebido con nombres de tabla literales, asi
+que no existe un JSON unico valido para los tres catalogos (`finops_dev`,
+`finops_qa`, `finops`). En el SQL de este archivo las tablas se escriben como
+marcadores `{{clave}}` del registro de `finops.catalog`, y se sustituyen por el
+nombre completamente calificado al generar.
 
-Motivo del diseno: un dashboard Lakeview lleva el SQL embebido con nombres de
-tabla literales. Versionar el catalogo de un entorno dentro del JSON haria el
-repositorio no promocionable entre dev/qa/prd.
+> Los JSON generados **no se editan a mano**: el siguiente `generate` los
+> sobrescribe y CI falla si difieren de lo que produce este archivo.
 """
 
 from __future__ import annotations
@@ -29,8 +31,8 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DASHBOARDS_DIR = REPO_ROOT / "dashboards"
-BUILD_DIR = REPO_ROOT / ".build" / "dashboards"
 PLACEHOLDER = re.compile(r"\{\{([a-z0-9_]+)\}\}")
+ENVIRONMENTS = ("dev", "qa", "prd")
 
 GRID_WIDTH = 6  # Lakeview usa una grilla de 6 columnas
 
@@ -783,28 +785,19 @@ DASHBOARDS = {
 # ---------------------------------------------------------------------------
 # Subcomandos
 # ---------------------------------------------------------------------------
-def cmd_generate(args: argparse.Namespace) -> int:
-    DASHBOARDS_DIR.mkdir(parents=True, exist_ok=True)
-    for nombre, constructor in DASHBOARDS.items():
-        destino = DASHBOARDS_DIR / f"{nombre}.lvdash.json"
-        destino.write_text(
-            json.dumps(constructor(), indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-        )
-        print(f"generado {destino.relative_to(REPO_ROOT)}")
-    return 0
+def render_env(env: str) -> dict[str, str]:
+    """Genera el JSON de cada dashboard con las tablas resueltas para un entorno.
 
-
-def cmd_render(args: argparse.Namespace) -> int:
+    Devuelve {nombre_archivo: contenido}. Lanza si algun marcador no corresponde
+    a una tabla del registro: es la guarda que impide desplegar un dashboard que
+    consulte una tabla inexistente.
+    """
     sys.path.insert(0, str(REPO_ROOT / "src"))
     from finops.catalog import TABLES_BY_KEY, table_map
     from finops.config import load_config
 
-    cfg = load_config(args.env, conf_dir=REPO_ROOT / "conf", use_env_vars=False)
+    cfg = load_config(env, conf_dir=REPO_ROOT / "conf", use_env_vars=False)
     mapa = table_map(cfg)
-
-    destino_dir = BUILD_DIR / args.env
-    destino_dir.mkdir(parents=True, exist_ok=True)
-
     faltantes: set[str] = set()
 
     def sustituir(match: re.Match[str]) -> str:
@@ -814,24 +807,47 @@ def cmd_render(args: argparse.Namespace) -> int:
             return match.group(0)
         return mapa[clave]
 
-    archivos = sorted(DASHBOARDS_DIR.glob("*.lvdash.json"))
-    if not archivos:
-        print("No hay dashboards para renderizar. Ejecuta primero 'generate'.", file=sys.stderr)
-        return 1
+    salida: dict[str, str] = {}
+    for nombre, constructor in DASHBOARDS.items():
+        crudo = json.dumps(constructor(), indent=2, ensure_ascii=False) + "\n"
+        salida[f"{nombre}.lvdash.json"] = PLACEHOLDER.sub(sustituir, crudo)
 
-    # Se resuelve todo primero: si algun marcador no existe se aborta sin
-    # escribir nada, para no dejar un directorio de build a medias.
-    renderizados = {a: PLACEHOLDER.sub(sustituir, a.read_text(encoding="utf-8")) for a in archivos}
     if faltantes:
-        print(f"ERROR: marcadores sin tabla registrada: {sorted(faltantes)}", file=sys.stderr)
+        raise SystemExit(
+            f"ERROR: marcadores sin tabla registrada en finops.catalog: {sorted(faltantes)}"
+        )
+    return salida
+
+
+def cmd_generate(args: argparse.Namespace) -> int:
+    entornos = [args.env] if getattr(args, "env", None) else list(ENVIRONMENTS)
+    for env in entornos:
+        destino_dir = DASHBOARDS_DIR / env
+        destino_dir.mkdir(parents=True, exist_ok=True)
+        for nombre, contenido in render_env(env).items():
+            destino = destino_dir / nombre
+            destino.write_text(contenido, encoding="utf-8")
+            print(f"generado {destino.relative_to(REPO_ROOT).as_posix()}")
+    return 0
+
+
+def cmd_check(args: argparse.Namespace) -> int:
+    """Verifica que los archivos versionados coincidan con lo que produce este script."""
+    desactualizados: list[str] = []
+    for env in ENVIRONMENTS:
+        for nombre, contenido in render_env(env).items():
+            archivo = DASHBOARDS_DIR / env / nombre
+            actual = archivo.read_text(encoding="utf-8") if archivo.exists() else None
+            if actual != contenido:
+                desactualizados.append(f"{env}/{nombre}")
+
+    if desactualizados:
+        print("Dashboards desactualizados:", file=sys.stderr)
+        for ruta in desactualizados:
+            print(f"  - dashboards/{ruta}", file=sys.stderr)
+        print("\nEjecuta: python scripts/dashboards.py generate", file=sys.stderr)
         return 1
-
-    for archivo, texto in renderizados.items():
-        salida = destino_dir / archivo.name
-        salida.write_text(texto, encoding="utf-8")
-        print(f"renderizado {salida.relative_to(REPO_ROOT)}")
-
-    print(f"\nCatalogo objetivo: {cfg.catalog}")
+    print(f"Dashboards al dia ({len(ENVIRONMENTS) * len(DASHBOARDS)} archivos).")
     return 0
 
 
@@ -839,12 +855,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Dashboards Lakeview de FinOps")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p_gen = sub.add_parser("generate", help="Reconstruye los .lvdash.json versionados")
+    p_gen = sub.add_parser("generate", help="Genera dashboards/<env>/*.lvdash.json")
+    p_gen.add_argument("--env", choices=ENVIRONMENTS, help="Solo este entorno (por defecto, los tres)")
     p_gen.set_defaults(func=cmd_generate)
 
-    p_render = sub.add_parser("render", help="Sustituye marcadores por tablas del entorno")
-    p_render.add_argument("--env", required=True, choices=["dev", "qa", "prd"])
-    p_render.set_defaults(func=cmd_render)
+    p_check = sub.add_parser("check", help="Verifica que los archivos versionados esten al dia")
+    p_check.set_defaults(func=cmd_check)
 
     args = parser.parse_args(argv)
     return int(args.func(args))
