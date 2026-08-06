@@ -267,6 +267,29 @@ subir temporalmente `alerting.min_severity` a `critical` y atacar la causa: casi
 siempre es un cambio masivo de etiquetado o una anomalia sistemica que dispara
 muchas series a la vez.
 
+### `DELTA_FAILED_TO_MERGE_FIELDS` al escribir una tabla ops
+
+Sintoma: el pipeline falla al escribir `ops_watermark`, `ops_run_log`,
+`ops_data_quality` u `ops_alert_log` con *Failed to merge fields 'details'*.
+
+Causa: la tabla se creo con una version anterior que dejaba inferir el esquema.
+El runtime de Databricks infiere los diccionarios anidados como `struct`, y hoy
+esas columnas se escriben como `map` — que es lo correcto, porque con `struct`
+cada clave nueva en `details` cambiaria el esquema de la tabla.
+
+Solucion: recrear la tabla. Son bitacoras operativas, no se pierde informacion
+de negocio.
+
+```sql
+DROP TABLE IF EXISTS finops_dev.bronze.ops_watermark;
+DROP TABLE IF EXISTS finops_dev.gold.ops_run_log;
+DROP TABLE IF EXISTS finops_dev.gold.ops_data_quality;
+DROP TABLE IF EXISTS finops_dev.gold.ops_alert_log;
+```
+
+El pipeline las recrea en la siguiente corrida con el esquema explicito. El
+error ya viene con estas instrucciones incluidas (`SchemaMismatchError`).
+
 ### Datos de costo evidentemente erroneos
 
 1. Revisar `ops_data_quality` de la corrida.

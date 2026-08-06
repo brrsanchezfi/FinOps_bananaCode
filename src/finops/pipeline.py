@@ -53,6 +53,7 @@ from .ingestion.system_tables import run_bronze
 from .ingestion.watermark import compute_window, read_watermarks, write_watermark
 from .logging_utils import RunRecorder, configure_logging, get_logger, stage
 from .quality.checks import enforce, run_checks
+from .schemas import esquemas as _esquemas
 from .spark_utils import (
     append_rows,
     configure_session,
@@ -73,81 +74,6 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger("pipeline")
 
 ALL_STAGES = ("setup", "bronze", "silver", "gold", "analytics", "quality", "alerts", "maintenance")
-
-
-# ---------------------------------------------------------------------------
-# Esquemas explicitos de las tablas que se escriben desde Python
-#
-# No se deja inferir el esquema a Spark: falla con `CANNOT_MERGE_TYPE` cuando una
-# columna es entera en unas filas y decimal en otras, y produce `NullType`
-# (que Delta rechaza) cuando una columna opcional resulta nula en todas las
-# filas de la primera corrida. Ambos casos ocurren con datos reales.
-# ---------------------------------------------------------------------------
-#: Columnas de auditoria comunes a todas las tablas derivadas.
-_AUDITORIA = {"run_id": str, "pipeline_environment": str, "generated_at": datetime}
-
-
-#: El pronostico aplana ForecastResult + ForecastPoint, asi que no proviene de
-#: una sola dataclass y se declara explicitamente. Igual las tablas operativas,
-#: cuyas filas son dicts construidos a mano.
-FORECAST_SPEC: dict[str, Any] = {
-    "series_key": str, "dimension": str, "dimension_value": str, "method": str,
-    "generated_for_date": date, "history_days": int, "mape": float,
-    "forecast_date": date, "predicted_cost_usd": float,
-    "lower_bound_usd": float, "upper_bound_usd": float, "horizon_day": int,
-    **_AUDITORIA,
-}
-
-RUN_LOG_SPEC: dict[str, Any] = {
-    "run_id": str, "pipeline_environment": str, "stage": str, "status": str,
-    "duration_seconds": float, "rows_written": int, "details": dict,
-    "error_message": str, "run_started_at": datetime, "run_date": date,
-}
-
-WATERMARK_SPEC: dict[str, Any] = {
-    "source_key": str, "watermark_date": date, "rows_ingested": int,
-    "run_id": str, "pipeline_environment": str, "updated_at": datetime, "details": dict,
-}
-
-
-def _esquemas():
-    """Se construyen de forma perezosa: requieren pyspark."""
-    from .alerting.rules import Alert
-    from .analytics.anomaly import AnomalyResult
-    from .analytics.budgets import BudgetStatus
-    from .analytics.chargeback import ChargebackLine
-    from .analytics.optimization import Recommendation
-    from .quality.checks import CheckResult
-    from .spark_utils import schema_from_dataclass
-
-    return {
-        "anomaly": schema_from_dataclass(AnomalyResult, extra=_AUDITORIA),
-        "budget": schema_from_dataclass(BudgetStatus, extra=_AUDITORIA),
-        "recommendation": schema_from_dataclass(
-            Recommendation, extra={**_AUDITORIA, "analysis_date": date}
-        ),
-        "chargeback": schema_from_dataclass(ChargebackLine, extra=_AUDITORIA),
-        "quality": schema_from_dataclass(CheckResult, extra={"run_id": str, "pipeline_environment": str}),
-        "alert": schema_from_dataclass(
-            Alert,
-            extra={
-                "run_id": str, "pipeline_environment": str, "dispatch_status": str,
-                "channels": str, "delivered": bool, "delivery_detail": str,
-            },
-        ),
-        "forecast": _struct(FORECAST_SPEC),
-        "run_log": _struct(RUN_LOG_SPEC),
-        "watermark": _struct(WATERMARK_SPEC),
-    }
-
-
-def _struct(campos: dict[str, Any]):
-    """StructType desde {nombre: tipo_python}, para filas que no son dataclass."""
-    from pyspark.sql import types as T
-
-    from .spark_utils import spark_type_for
-
-    return T.StructType([T.StructField(n, spark_type_for(tp), True) for n, tp in campos.items()])
 
 
 class PipelineResult:

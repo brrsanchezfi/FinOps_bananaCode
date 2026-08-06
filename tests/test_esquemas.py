@@ -17,8 +17,8 @@ from finops.analytics.budgets import evaluate_budget
 from finops.analytics.chargeback import allocate
 from finops.analytics.forecast import forecast_series
 from finops.analytics.optimization import evaluate_all as evaluar_recomendaciones
-from finops.pipeline import _AUDITORIA, FORECAST_SPEC, RUN_LOG_SPEC, WATERMARK_SPEC
 from finops.quality.checks import evaluate_row_count
+from finops.schemas import AUDITORIA, FORECAST_SPEC, RUN_LOG_SPEC, WATERMARK_SPEC
 
 
 def campos(cls) -> set[str]:
@@ -80,7 +80,7 @@ class TestEspecificacionesPlanas:
             dimension_value="A",
         )
         claves_fila = set(resultado.to_rows()[0])
-        declaradas = set(FORECAST_SPEC) - set(_AUDITORIA)
+        declaradas = set(FORECAST_SPEC) - set(AUDITORIA)
         assert claves_fila == declaradas, (
             f"faltan en el esquema: {claves_fila - declaradas}; "
             f"sobran: {declaradas - claves_fila}"
@@ -115,7 +115,7 @@ class TestEspecificacionesPlanas:
 
 class TestAuditoria:
     def test_columnas_de_auditoria_declaradas(self):
-        assert set(_AUDITORIA) == {"run_id", "pipeline_environment", "generated_at"}
+        assert set(AUDITORIA) == {"run_id", "pipeline_environment", "generated_at"}
 
 
 class TestColisionDeNombres:
@@ -134,13 +134,13 @@ class TestColisionDeNombres:
         from finops.quality.checks import CheckResult
 
         for cls in (AnomalyResult, BudgetStatus, ChargebackLine, Recommendation, CheckResult, Alert):
-            choques = campos(cls) & set(_AUDITORIA)
+            choques = campos(cls) & set(AUDITORIA)
             assert choques == set(), f"{cls.__name__} choca con la auditoria en {choques}"
 
     def test_recommendation_conserva_su_environment_de_etiqueta(self):
         """El ambiente del recurso sigue disponible: lo usa el dashboard."""
         assert "environment" in campos(Recommendation)
-        assert "environment" not in _AUDITORIA
+        assert "environment" not in AUDITORIA
 
 
 def _importar_recommendation():
@@ -150,3 +150,62 @@ def _importar_recommendation():
 
 
 Recommendation = _importar_recommendation()
+
+
+class TestTiposDeSpark:
+    """`spark_type_for` debe cubrir tambien los tipos pelados de las specs planas."""
+
+    def _simple(self, anotacion) -> str:
+        from finops.spark_utils import spark_type_for
+
+        return spark_type_for(anotacion).simpleString()
+
+    def test_dict_pelado_es_map(self):
+        """Regresion: `dict` sin parametrizar caia al respaldo StringType y la
+        columna `details` se escribia como texto en vez de mapa."""
+        assert self._simple(dict) == "map<string,string>"
+
+    def test_dict_parametrizado_es_map(self):
+        assert self._simple(dict[str, str]) == "map<string,string>"
+
+    def test_list_pelada_es_array(self):
+        assert self._simple(list) == "array<string>"
+
+    def test_opcionales(self):
+        assert self._simple(float | None) == "double"
+        assert self._simple(int | None) == "bigint"
+        assert self._simple(str | None) == "string"
+
+    def test_bool_antes_que_int(self):
+        """bool es subclase de int en Python; el orden importa."""
+        assert self._simple(bool) == "boolean"
+        assert self._simple(int) == "bigint"
+
+    def test_fechas(self):
+        assert self._simple(date) == "date"
+        assert self._simple(datetime) == "timestamp"
+
+
+class TestTiposDeLasTablasOperativas:
+    """Las columnas de metadatos deben ser MAP, no STRUCT ni STRING.
+
+    Con STRUCT, cada clave nueva en `details` cambiaria el esquema de la tabla.
+    """
+
+    def test_columnas_de_metadatos_son_map(self):
+        from finops.schemas import esquemas
+
+        esperado = {
+            "watermark": "details",
+            "run_log": "details",
+            "budget": "details",
+            "alert": "context",
+            "recommendation": "evidence",
+            "chargeback": "details",
+        }
+        esq = esquemas()
+        for tabla, columna in esperado.items():
+            campo = next(f for f in esq[tabla].fields if f.name == columna)
+            assert campo.dataType.simpleString() == "map<string,string>", (
+                f"{tabla}.{columna} es {campo.dataType.simpleString()}"
+            )

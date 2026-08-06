@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 from typing import TYPE_CHECKING, Any
 
-from .errors import ConfigError, SourceUnavailableError
+from .errors import ConfigError, SchemaMismatchError, SourceUnavailableError
 from .logging_utils import get_logger
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -53,6 +53,11 @@ def configure_session(spark: SparkSession, shuffle_partitions: Any = "auto") -> 
     spark.conf.set("spark.sql.adaptive.coalescePartitions.enabled", "true")
     spark.conf.set("spark.databricks.delta.schema.autoMerge.enabled", "true")
     spark.conf.set("spark.sql.sources.partitionOverwriteMode", PARTITION_OVERWRITE_MODE)
+    # El runtime de Databricks infiere los dicts anidados como STRUCT. Para las
+    # columnas de metadatos (details, context, evidence) eso significa que cada
+    # clave nueva cambia el esquema de la tabla, y que una tabla creada por
+    # inferencia ya no admite escrituras con MapType. Se fuerza MAP.
+    spark.conf.set("spark.sql.pyspark.inferNestedDictAsStruct.enabled", "false")
     if shuffle_partitions and str(shuffle_partitions).lower() != "auto":
         spark.conf.set("spark.sql.shuffle.partitions", str(shuffle_partitions))
 
@@ -428,9 +433,12 @@ def spark_type_for(annotation: Any) -> Any:
             return spark_type_for(internos[0])
         return T.StringType()
 
-    if origen in (dict, typing.Dict):  # noqa: UP006
+    # `dict[str, str]` llega con origen; el `dict` pelado que usan las
+    # especificaciones planas no tiene origen y hay que reconocerlo aparte, o
+    # caeria al respaldo StringType y la columna se escribiria como texto.
+    if origen in (dict, typing.Dict) or annotation is dict:  # noqa: UP006
         return T.MapType(T.StringType(), T.StringType())
-    if origen in (list, typing.List):  # noqa: UP006
+    if origen in (list, typing.List) or annotation is list:  # noqa: UP006
         args = typing.get_args(annotation)
         return T.ArrayType(spark_type_for(args[0]) if args else T.StringType())
 
@@ -529,7 +537,12 @@ def append_rows(
         log.info("[dry-run] append %s filas a %s", len(rows), fqn)
         return len(rows)
     df = rows_to_dataframe(spark, rows, schema)
-    df.write.format("delta").mode("append").option("mergeSchema", "true").saveAsTable(fqn)
+    try:
+        df.write.format("delta").mode("append").option("mergeSchema", "true").saveAsTable(fqn)
+    except Exception as exc:  # noqa: BLE001
+        if "FAILED_TO_MERGE_FIELDS" not in str(exc) and "MERGE_INCOMPATIBLE" not in str(exc):
+            raise
+        raise SchemaMismatchError(fqn, str(exc)) from exc
     return len(rows)
 
 

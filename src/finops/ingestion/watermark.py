@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 from ..catalog import OPS_WATERMARK
 from ..config import FinOpsConfig
 from ..logging_utils import get_logger
+from ..schemas import esquemas
 
 if TYPE_CHECKING:  # pragma: no cover
     from pyspark.sql import SparkSession
@@ -81,7 +82,5 @@ def write_watermark(
         "updated_at": datetime.now(timezone.utc),
         "details": {k: str(v) for k, v in (details or {}).items()},
     }
-    from ..pipeline import _esquemas
-
-    append_rows(spark, [fila], OPS_WATERMARK.fqn(cfg), _esquemas()["watermark"], dry_run=cfg.dry_run)
+    append_rows(spark, [fila], OPS_WATERMARK.fqn(cfg), esquemas()["watermark"], dry_run=cfg.dry_run)
     log.debug("Marca de agua %s -> %s", source_key, watermark_date)

@@ -40,3 +40,35 @@ class PipelineError(FinOpsError):
         self.stage = stage
         self.cause = cause
         super().__init__(f"Fallo la etapa '{stage}': {cause}")
+
+
+class SchemaMismatchError(FinOpsError):
+    """El esquema de una tabla existente es incompatible con el que se escribe.
+
+    Ocurre con tablas creadas por una version anterior que dejaba inferir el
+    esquema a Spark: los diccionarios de metadatos quedaron como `struct` y hoy
+    se escriben como `map`, que es lo correcto (con `struct`, cada clave nueva
+    cambiaria el esquema de la tabla).
+
+    Las tablas afectadas son bitacoras operativas, asi que recrearlas no pierde
+    informacion de negocio.
+    """
+
+    def __init__(self, table: str, reason: str = "") -> None:
+        self.table = table
+        self.reason = reason
+        super().__init__(
+            "\n".join(
+                [
+                    f"El esquema de '{table}' es incompatible con el que produce esta version.",
+                    f"Detalle: {reason}",
+                    "",
+                    "Causa habitual: la tabla se creo con una version que dejaba inferir el",
+                    "esquema, y las columnas de metadatos quedaron como STRUCT en vez de MAP.",
+                    "",
+                    "Solucion (es una bitacora operativa, no se pierde informacion de negocio):",
+                    f"    DROP TABLE IF EXISTS {table};",
+                    "y volver a ejecutar el pipeline.",
+                ]
+            )
+        )
