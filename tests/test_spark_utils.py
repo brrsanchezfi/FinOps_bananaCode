@@ -155,3 +155,64 @@ class TestDeleteDateRange:
             min_date=date(2026, 1, 1), max_date=date(2026, 1, 5), dry_run=True,
         )
         assert not any(s.startswith("DELETE") for s in spark.sql_ejecutado)
+
+
+class TestNormalizacionDeTipos:
+    """Regresion: Spark no puede inferir un esquema con LongType y DoubleType
+    en la misma columna.
+
+        [CANNOT_MERGE_TYPE] Can not merge type `DoubleType` and `LongType`
+
+    Es facil de provocar: `sum()` de una secuencia vacia devuelve el entero 0 y
+    `round(0, 2)` sigue siendo entero, asi que un presupuesto sin consumo
+    cambiaba el tipo de la columna respecto a los que si tenian.
+    """
+
+    def test_promueve_enteros_a_decimales(self):
+        from finops.spark_utils import normalize_row_types
+
+        filas = [{"costo": 0}, {"costo": 12.5}]
+        assert normalize_row_types(filas) == [{"costo": 0.0}, {"costo": 12.5}]
+        assert all(isinstance(f["costo"], float) for f in normalize_row_types(filas))
+
+    def test_no_toca_columnas_enteras(self):
+        from finops.spark_utils import normalize_row_types
+
+        filas = [{"dias": 0}, {"dias": 31}]
+        assert normalize_row_types(filas) == filas
+        assert all(isinstance(f["dias"], int) for f in normalize_row_types(filas))
+
+    def test_los_booleanos_no_se_convierten(self):
+        """bool es subclase de int en Python, pero su tipo en Spark es BooleanType."""
+        from finops.spark_utils import normalize_row_types
+
+        filas = [{"activo": True, "costo": 1}, {"activo": False, "costo": 2.5}]
+        salida = normalize_row_types(filas)
+        assert salida[0]["activo"] is True
+        assert isinstance(salida[0]["costo"], float)
+
+    def test_respeta_los_nulos(self):
+        from finops.spark_utils import normalize_row_types
+
+        filas = [{"costo": None}, {"costo": 3.0}]
+        assert normalize_row_types(filas) == [{"costo": None}, {"costo": 3.0}]
+
+    def test_claves_ausentes_en_algunas_filas(self):
+        from finops.spark_utils import normalize_row_types
+
+        filas = [{"a": 1}, {"a": 2.0, "b": 5}]
+        salida = normalize_row_types(filas)
+        assert isinstance(salida[0]["a"], float)
+        assert "b" not in salida[0]
+
+    def test_lista_vacia(self):
+        from finops.spark_utils import normalize_row_types
+
+        assert normalize_row_types([]) == []
+
+    def test_no_muta_la_entrada(self):
+        from finops.spark_utils import normalize_row_types
+
+        filas = [{"costo": 0}, {"costo": 1.5}]
+        normalize_row_types(filas)
+        assert isinstance(filas[0]["costo"], int)

@@ -60,6 +60,7 @@ from .spark_utils import (
     merge_table,
     overwrite_table,
     replace_date_range,
+    rows_to_dataframe,
     rows_to_dicts,
     table_exists,
 )
@@ -72,6 +73,81 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger("pipeline")
 
 ALL_STAGES = ("setup", "bronze", "silver", "gold", "analytics", "quality", "alerts", "maintenance")
+
+
+# ---------------------------------------------------------------------------
+# Esquemas explicitos de las tablas que se escriben desde Python
+#
+# No se deja inferir el esquema a Spark: falla con `CANNOT_MERGE_TYPE` cuando una
+# columna es entera en unas filas y decimal en otras, y produce `NullType`
+# (que Delta rechaza) cuando una columna opcional resulta nula en todas las
+# filas de la primera corrida. Ambos casos ocurren con datos reales.
+# ---------------------------------------------------------------------------
+#: Columnas de auditoria comunes a todas las tablas derivadas.
+_AUDITORIA = {"run_id": str, "environment": str, "generated_at": datetime}
+
+
+#: El pronostico aplana ForecastResult + ForecastPoint, asi que no proviene de
+#: una sola dataclass y se declara explicitamente. Igual las tablas operativas,
+#: cuyas filas son dicts construidos a mano.
+FORECAST_SPEC: dict[str, Any] = {
+    "series_key": str, "dimension": str, "dimension_value": str, "method": str,
+    "generated_for_date": date, "history_days": int, "mape": float,
+    "forecast_date": date, "predicted_cost_usd": float,
+    "lower_bound_usd": float, "upper_bound_usd": float, "horizon_day": int,
+    **_AUDITORIA,
+}
+
+RUN_LOG_SPEC: dict[str, Any] = {
+    "run_id": str, "environment": str, "stage": str, "status": str,
+    "duration_seconds": float, "rows_written": int, "details": dict,
+    "error_message": str, "run_started_at": datetime, "run_date": date,
+}
+
+WATERMARK_SPEC: dict[str, Any] = {
+    "source_key": str, "watermark_date": date, "rows_ingested": int,
+    "run_id": str, "environment": str, "updated_at": datetime, "details": dict,
+}
+
+
+def _esquemas():
+    """Se construyen de forma perezosa: requieren pyspark."""
+    from .alerting.rules import Alert
+    from .analytics.anomaly import AnomalyResult
+    from .analytics.budgets import BudgetStatus
+    from .analytics.chargeback import ChargebackLine
+    from .analytics.optimization import Recommendation
+    from .quality.checks import CheckResult
+    from .spark_utils import schema_from_dataclass
+
+    return {
+        "anomaly": schema_from_dataclass(AnomalyResult, extra=_AUDITORIA),
+        "budget": schema_from_dataclass(BudgetStatus, extra=_AUDITORIA),
+        "recommendation": schema_from_dataclass(
+            Recommendation, extra={**_AUDITORIA, "analysis_date": date}
+        ),
+        "chargeback": schema_from_dataclass(ChargebackLine, extra=_AUDITORIA),
+        "quality": schema_from_dataclass(CheckResult, extra={"run_id": str, "environment": str}),
+        "alert": schema_from_dataclass(
+            Alert,
+            extra={
+                "run_id": str, "environment": str, "dispatch_status": str,
+                "channels": str, "delivered": bool, "delivery_detail": str,
+            },
+        ),
+        "forecast": _struct(FORECAST_SPEC),
+        "run_log": _struct(RUN_LOG_SPEC),
+        "watermark": _struct(WATERMARK_SPEC),
+    }
+
+
+def _struct(campos: dict[str, Any]):
+    """StructType desde {nombre: tipo_python}, para filas que no son dataclass."""
+    from pyspark.sql import types as T
+
+    from .spark_utils import spark_type_for
+
+    return T.StructType([T.StructField(n, spark_type_for(tp), True) for n, tp in campos.items()])
 
 
 class PipelineResult:
@@ -137,7 +213,9 @@ def stage_quality(spark: SparkSession, cfg: FinOpsConfig, result: PipelineResult
         filas = [
             {**r.to_row(), "run_id": result.run_id, "environment": cfg.env} for r in resultados
         ]
-        metrica.rows = append_rows(spark, filas, OPS_QUALITY.fqn(cfg), dry_run=cfg.dry_run)
+        metrica.rows = append_rows(
+            spark, filas, OPS_QUALITY.fqn(cfg), _esquemas()["quality"], dry_run=cfg.dry_run
+        )
         fallidos = [r for r in resultados if not r.passed]
         metrica.details["fallidos"] = len(fallidos)
         result.outputs["quality"] = [
@@ -175,6 +253,7 @@ def stage_analytics(spark: SparkSession, cfg: FinOpsConfig, result: PipelineResu
 
     propiedades = cfg.get("catalog.table_properties", {}) or {}
     hoy = cfg.max_date
+    esquemas = _esquemas()
 
     # --- Anomalias ---
     anomalias_cfg = cfg.get("anomaly", {}) or {}
@@ -217,7 +296,7 @@ def stage_analytics(spark: SparkSession, cfg: FinOpsConfig, result: PipelineResu
             metrica.details["ventana_evaluada"] = f"{desde_eval} .. {hoy}"
             if filas:
                 metrica.rows = replace_date_range(
-                    spark, spark.createDataFrame(filas), GOLD_ANOMALY.fqn(cfg),
+                    spark, rows_to_dataframe(spark, filas, esquemas["anomaly"]), GOLD_ANOMALY.fqn(cfg),
                     date_column="usage_date", min_date=desde_eval, max_date=hoy,
                     properties=propiedades, dry_run=cfg.dry_run,
                 )
@@ -262,7 +341,7 @@ def stage_analytics(spark: SparkSession, cfg: FinOpsConfig, result: PipelineResu
                 )
             if filas:
                 metrica.rows = overwrite_table(
-                    spark, spark.createDataFrame(filas), GOLD_FORECAST.fqn(cfg),
+                    spark, rows_to_dataframe(spark, filas, esquemas["forecast"]), GOLD_FORECAST.fqn(cfg),
                     properties=propiedades, dry_run=cfg.dry_run,
                 )
             else:
@@ -302,7 +381,7 @@ def stage_analytics(spark: SparkSession, cfg: FinOpsConfig, result: PipelineResu
         ]
         if filas:
             metrica.rows = merge_table(
-                spark, spark.createDataFrame(filas), GOLD_BUDGET_STATUS.fqn(cfg),
+                spark, rows_to_dataframe(spark, filas, esquemas["budget"]), GOLD_BUDGET_STATUS.fqn(cfg),
                 keys=["budget_id", "period_start", "as_of_date"],
                 properties=propiedades, dry_run=cfg.dry_run,
             )
@@ -327,7 +406,7 @@ def stage_analytics(spark: SparkSession, cfg: FinOpsConfig, result: PipelineResu
             ]
             if filas:
                 metrica.rows = overwrite_table(
-                    spark, spark.createDataFrame(filas), GOLD_RECOMMENDATION.fqn(cfg),
+                    spark, rows_to_dataframe(spark, filas, esquemas["recommendation"]), GOLD_RECOMMENDATION.fqn(cfg),
                     properties=propiedades, dry_run=cfg.dry_run,
                 )
             else:
@@ -375,7 +454,7 @@ def stage_analytics(spark: SparkSession, cfg: FinOpsConfig, result: PipelineResu
                 )
             if filas:
                 metrica.rows = merge_table(
-                    spark, spark.createDataFrame(filas), GOLD_CHARGEBACK.fqn(cfg),
+                    spark, rows_to_dataframe(spark, filas, esquemas["chargeback"]), GOLD_CHARGEBACK.fqn(cfg),
                     keys=["period", "allocation_dimension", "unit"],
                     properties=propiedades, dry_run=cfg.dry_run,
                 )
@@ -584,7 +663,9 @@ def stage_alerts(
             reporte.alerts, reporte.deliveries, run_id=result.run_id, env=cfg.env, suppressed=suprimidas
         )
         if filas_alerta:
-            append_rows(spark, filas_alerta, OPS_ALERTS.fqn(cfg), dry_run=cfg.dry_run)
+            append_rows(
+                spark, filas_alerta, OPS_ALERTS.fqn(cfg), _esquemas()["alert"], dry_run=cfg.dry_run
+            )
 
         metrica.rows = len(filas_alerta)
         metrica.details.update(
@@ -673,6 +754,6 @@ def _persist_run_log(spark: SparkSession, cfg: FinOpsConfig, result: PipelineRes
             {**fila, "run_started_at": result.started_at, "run_date": cfg.max_date}
             for fila in result.recorder.as_rows(result.run_id, cfg.env)
         ]
-        append_rows(spark, filas, OPS_RUN_LOG.fqn(cfg), dry_run=cfg.dry_run)
+        append_rows(spark, filas, OPS_RUN_LOG.fqn(cfg), _esquemas()["run_log"], dry_run=cfg.dry_run)
     except Exception as exc:  # noqa: BLE001
         log.warning("No se pudo persistir la bitacora de la corrida: %s", exc)

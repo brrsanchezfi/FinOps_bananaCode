@@ -312,7 +312,11 @@ def project_period_total(
     Si no hay pronostico disponible se extrapola con el ritmo diario promedio de
     lo ya ejecutado (o con `fallback_daily_rate`).
     """
-    ejecutado = sum(v for f, v in actual_points if period_start <= f <= period_end)
+    # `float(...)` explicito: sum() sobre una secuencia vacia devuelve el entero
+    # 0, y un ambito de presupuesto sin consumo produciria entonces una columna
+    # de tipo distinto al de los ambitos con consumo. Spark no puede inferir un
+    # esquema con LongType y DoubleType en la misma columna.
+    ejecutado = float(sum(v for f, v in actual_points if period_start <= f <= period_end))
     dias_ejecutados = len({f for f, _ in actual_points if period_start <= f <= period_end})
     ultimo_dia_real = max((f for f, _ in actual_points if period_start <= f <= period_end), default=None)
 
@@ -321,7 +325,7 @@ def project_period_total(
 
     if forecast_points:
         indice_fc = {p.forecast_date: p.predicted_cost_usd for p in forecast_points}
-        pronosticado = sum(v for f, v in indice_fc.items() if inicio_restante <= f <= period_end)
+        pronosticado = float(sum(v for f, v in indice_fc.items() if inicio_restante <= f <= period_end))
         dias_cubiertos = sum(1 for f in indice_fc if inicio_restante <= f <= period_end)
         if dias_cubiertos < dias_restantes and dias_cubiertos > 0:
             # El horizonte no cubre todo el periodo: se extiende con el promedio.
@@ -331,7 +335,7 @@ def project_period_total(
         ritmo = fallback_daily_rate
         if ritmo is None:
             ritmo = (ejecutado / dias_ejecutados) if dias_ejecutados > 0 else 0.0
-        pronosticado = ritmo * dias_restantes
+        pronosticado = float(ritmo * dias_restantes)
 
     return {
         "actual_cost_usd": round(ejecutado, 4),

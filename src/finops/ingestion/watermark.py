@@ -81,5 +81,7 @@ def write_watermark(
         "updated_at": datetime.now(timezone.utc),
         "details": {k: str(v) for k, v in (details or {}).items()},
     }
-    append_rows(spark, [fila], OPS_WATERMARK.fqn(cfg), dry_run=cfg.dry_run)
+    from ..pipeline import _esquemas
+
+    append_rows(spark, [fila], OPS_WATERMARK.fqn(cfg), _esquemas()["watermark"], dry_run=cfg.dry_run)
     log.debug("Marca de agua %s -> %s", source_key, watermark_date)

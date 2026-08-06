@@ -370,6 +370,136 @@ def merge_table(
     return filas
 
 
+def normalize_row_types(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Homogeneiza los tipos numericos entre filas antes de `createDataFrame`.
+
+    Spark infiere el esquema de una lista de dicts fila a fila y falla si una
+    misma clave aparece como entero en una fila y como decimal en otra:
+
+        [CANNOT_MERGE_TYPE] Can not merge type `DoubleType` and `LongType`
+
+    Es facil de provocar sin darse cuenta: `sum()` de una secuencia vacia
+    devuelve el entero 0, y `round(0, 2)` sigue siendo entero. Basta con que un
+    presupuesto no tenga consumo, o una serie no tenga puntos, para que una
+    columna cambie de tipo entre filas.
+
+    Aqui se detectan las claves con al menos un decimal y se promueven a decimal
+    todos sus enteros. Los booleanos se excluyen a proposito: en Python son
+    subclase de int, pero su tipo en Spark es BooleanType.
+    """
+    if not rows:
+        return rows
+
+    claves_decimales = {
+        clave
+        for fila in rows
+        for clave, valor in fila.items()
+        if isinstance(valor, float)
+    }
+    if not claves_decimales:
+        return rows
+
+    salida: list[dict[str, Any]] = []
+    for fila in rows:
+        copia = dict(fila)
+        for clave in claves_decimales:
+            valor = copia.get(clave)
+            if isinstance(valor, int) and not isinstance(valor, bool):
+                copia[clave] = float(valor)
+        salida.append(copia)
+    return salida
+
+
+def spark_type_for(annotation: Any) -> Any:
+    """Traduce una anotacion de tipo de Python al tipo de Spark equivalente."""
+    import types as _types
+    import typing
+    from datetime import date as _date
+    from datetime import datetime as _datetime
+
+    from pyspark.sql import types as T
+
+    origen = typing.get_origin(annotation)
+
+    # Optional[X] / X | None -> el tipo de X (en Spark todo es nullable)
+    if origen in (typing.Union, getattr(_types, "UnionType", None)):
+        internos = [a for a in typing.get_args(annotation) if a is not type(None)]
+        if len(internos) == 1:
+            return spark_type_for(internos[0])
+        return T.StringType()
+
+    if origen in (dict, typing.Dict):  # noqa: UP006
+        return T.MapType(T.StringType(), T.StringType())
+    if origen in (list, typing.List):  # noqa: UP006
+        args = typing.get_args(annotation)
+        return T.ArrayType(spark_type_for(args[0]) if args else T.StringType())
+
+    # `bool` antes que `int`: en Python es subclase suya.
+    simples = {
+        bool: T.BooleanType(),
+        str: T.StringType(),
+        float: T.DoubleType(),
+        int: T.LongType(),
+        _datetime: T.TimestampType(),
+        _date: T.DateType(),
+    }
+    for tipo_py, tipo_spark in simples.items():
+        if annotation is tipo_py:
+            return tipo_spark
+    return T.StringType()
+
+
+def schema_from_dataclass(cls: Any, *, extra: dict[str, Any] | None = None, exclude: set[str] | None = None):
+    """Construye un StructType explicito a partir de una dataclass.
+
+    Evita depender de la inferencia de esquema de Spark, que falla de dos formas
+    distintas con datos reales:
+
+      * `CANNOT_MERGE_TYPE` si una columna es entera en unas filas y decimal en
+        otras (por ejemplo un presupuesto sin consumo frente a otro con consumo).
+      * `NullType` si una columna opcional resulta nula en **todas** las filas de
+        la primera corrida, y entonces Delta se niega a crear la tabla.
+
+    Con el esquema derivado de las anotaciones ninguna de las dos puede ocurrir.
+
+    Args:
+        extra: columnas que se agregan al escribir (run_id, environment, ...),
+            como {nombre: tipo_python}.
+        exclude: campos de la dataclass que no se persisten.
+    """
+    import dataclasses
+    import typing
+
+    from pyspark.sql import types as T
+
+    omitidos = exclude or set()
+    anotaciones = typing.get_type_hints(cls)
+
+    campos = [
+        T.StructField(f.name, spark_type_for(anotaciones.get(f.name, str)), True)
+        for f in dataclasses.fields(cls)
+        if f.name not in omitidos
+    ]
+    campos += [
+        T.StructField(nombre, spark_type_for(tipo), True) for nombre, tipo in (extra or {}).items()
+    ]
+    return T.StructType(campos)
+
+
+def rows_to_dataframe(spark: SparkSession, rows: list[dict[str, Any]], schema: Any = None):
+    """Crea un DataFrame desde filas de Python.
+
+    Con `schema` explicito se respeta tal cual (camino preferido). Sin el, se
+    homogeneizan los tipos numericos para que la inferencia no falle.
+    """
+    if schema is not None:
+        # El orden de las claves debe coincidir con el del esquema.
+        nombres = [f.name for f in schema.fields]
+        ordenadas = [tuple(fila.get(n) for n in nombres) for fila in rows]
+        return spark.createDataFrame(ordenadas, schema=schema)
+    return spark.createDataFrame(normalize_row_types(rows))
+
+
 def append_rows(
     spark: SparkSession,
     rows: list[dict[str, Any]],
@@ -384,7 +514,7 @@ def append_rows(
     if dry_run:
         log.info("[dry-run] append %s filas a %s", len(rows), fqn)
         return len(rows)
-    df = spark.createDataFrame(rows, schema=schema) if schema else spark.createDataFrame(rows)
+    df = rows_to_dataframe(spark, rows, schema)
     df.write.format("delta").mode("append").option("mergeSchema", "true").saveAsTable(fqn)
     return len(rows)
 

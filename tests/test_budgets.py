@@ -229,3 +229,72 @@ class TestResumenDeRitmo:
             registros(10, 100.0), as_of=date(2026, 3, 10),
         )
         assert "agota" in burn_rate_summary(estado)
+
+
+class TestTiposHomogeneos:
+    """Regresion: un presupuesto sin consumo no puede cambiar el tipo de una
+    columna respecto a los que si tienen consumo, o Spark no puede inferir el
+    esquema al escribir fct_budget_status.
+    """
+
+    PRESUPUESTO = {
+        "id": "p1", "name": "P", "scope": {}, "period": "monthly", "amount_usd": 1000.0,
+    }
+
+    def _tipos(self, registros):
+        estado = evaluate_budget(self.PRESUPUESTO, registros, as_of=date(2026, 3, 15))
+        return {k: type(v).__name__ for k, v in estado.to_row().items()}
+
+    def test_con_y_sin_consumo_dan_los_mismos_tipos(self):
+        """Ningun valor NO nulo puede cambiar de tipo segun haya consumo o no.
+
+        Los None si son legitimos: corresponden a campos declarados opcionales
+        (`days_to_exhaustion`, `threshold_reached_pct`) y el esquema explicito de
+        la tabla les asigna su tipo, asi que no dependen de la inferencia.
+        """
+        sin_datos = self._tipos([])
+        con_datos = self._tipos(registros(10, 100.0))
+        diferencias = {
+            k: (sin_datos[k], con_datos[k])
+            for k in sin_datos
+            if sin_datos[k] != con_datos[k] and "NoneType" not in (sin_datos[k], con_datos[k])
+        }
+        assert diferencias == {}, f"columnas con tipo inconsistente: {diferencias}"
+
+    def test_los_campos_que_pueden_ser_nulos_estan_declarados_opcionales(self):
+        import dataclasses
+        import typing
+
+        from finops.analytics.budgets import BudgetStatus
+
+        anotaciones = typing.get_type_hints(BudgetStatus)
+        sin_datos = evaluate_budget(self.PRESUPUESTO, [], as_of=date(2026, 3, 15))
+        nulos = [k for k, v in sin_datos.to_row().items() if v is None]
+        campos = {f.name for f in dataclasses.fields(BudgetStatus)}
+
+        for columna in nulos:
+            assert columna in campos, f"{columna} no es un campo de la dataclass"
+            assert type(None) in typing.get_args(anotaciones[columna]), (
+                f"{columna} puede ser None pero no esta declarado opcional; "
+                "el esquema de la tabla no podria derivar su tipo"
+            )
+
+    def test_los_importes_siempre_son_decimales(self):
+        tipos = self._tipos([])
+        for columna in (
+            "actual_cost_usd", "forecast_remaining_usd", "projected_total_usd",
+            "budget_amount_usd", "variance_usd", "avg_daily_cost_usd",
+            "required_daily_cost_usd", "consumed_pct", "projected_pct",
+        ):
+            assert tipos[columna] == "float", f"{columna} es {tipos[columna]}, se esperaba float"
+
+    def test_ambito_sin_coincidencias(self):
+        """El caso real que rompio produccion: un presupuesto por equipo cuyo
+        equipo no aparece en los datos."""
+        estado = evaluate_budget(
+            {**self.PRESUPUESTO, "scope": {"team": "INEXISTENTE"}},
+            registros(10, 100.0, team="OTRO"),
+            as_of=date(2026, 3, 15),
+        )
+        assert isinstance(estado.actual_cost_usd, float)
+        assert estado.actual_cost_usd == 0.0
