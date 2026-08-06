@@ -19,10 +19,15 @@ include:
 
 # El wheel se instala en los clusters de job. Los notebooks tambien funcionan sin
 # el (agregan `src/` al sys.path), pero el wheel es el camino soportado.
+#
+# Se usa `pip wheel` y no `python -m build` a proposito: `build` es un paquete
+# aparte que hay que instalar, y el CLI puede ejecutarse desde entornos donde no
+# esta (un cluster de Databricks, un runner de CI minimo, una maquina limpia).
+# `pip` siempre esta, asi que el deploy no depende de un prerrequisito oculto.
 artifacts:
   finops_wheel:
     type: whl
-    build: python -m build --wheel
+    build: python -m pip wheel . --no-deps --wheel-dir dist
     path: .
 
 sync:

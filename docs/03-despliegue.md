@@ -11,11 +11,11 @@
 | Git | cualquiera | `git --version` |
 
 ```bash
-pip install -e ".[dev]" build
+pip install -e ".[dev]"
 ```
 
-`build` es necesario para que el bundle construya el wheel (`artifacts` en
-`databricks.yml`).
+El bundle construye el wheel con `pip wheel` (ver `artifacts` en
+`databricks.yml`), asi que no hace falta instalar el paquete `build`.
 
 ### Permisos en Databricks
 
