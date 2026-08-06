@@ -254,3 +254,38 @@ class TestWidgetsDeDashboard:
                 assert columna["fieldName"] in disponibles, (
                     f"{archivo}:{nombre}: la columna '{columna['fieldName']}' no se consulta"
                 )
+
+    def test_toda_consulta_agrega_o_esta_desagregada(self):
+        """Regresion: un campo sin agregar con `disaggregated=false` da "NO DATA".
+
+        Con `disaggregated=false` Lakeview construye una consulta agrupada y
+        espera expresiones de agregacion. Una columna suelta ahi no devuelve
+        filas, y el widget aparece vacio sin mensaje de error.
+        """
+        for archivo in sorted((DASHBOARDS_DIR / "dev").glob("*.lvdash.json")):
+            contenido = json.loads(archivo.read_text(encoding="utf-8"))
+            for pagina in contenido["pages"]:
+                for elemento in pagina["layout"]:
+                    for consulta in elemento["widget"].get("queries", []):
+                        query = consulta["query"]
+                        if query["disaggregated"]:
+                            continue
+                        agregados = [c for c in query["fields"] if "(" in c["expression"]]
+                        assert agregados, (
+                            f"{archivo.name}: el widget '{elemento['widget']['name']}' no agrega "
+                            "ningun campo y no esta desagregado; devolvera NO DATA"
+                        )
+
+    def test_los_contadores_leen_una_sola_fila(self):
+        for archivo, nombre, _spec in self._widgets("counter"):
+            widget = next(
+                w["widget"]
+                for f in [DASHBOARDS_DIR / "dev" / archivo]
+                for p in json.loads(f.read_text(encoding="utf-8"))["pages"]
+                for w in p["layout"]
+                if w["widget"]["name"] == nombre
+            )
+            assert widget["queries"][0]["query"]["disaggregated"] is True, (
+                f"{archivo}:{nombre}: un contador lee un valor ya calculado, "
+                "debe consultarse desagregado"
+            )

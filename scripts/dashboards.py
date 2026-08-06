@@ -74,7 +74,12 @@ def counter(
     return {
         "widget": {
             "name": name,
-            "queries": [_query(name, ds, [(campo, f"`{campo}`")])],
+            # `disaggregated=True` a proposito: los datasets que alimentan los
+            # contadores ya devuelven UNA fila (agregan o aplican QUALIFY), asi
+            # que el campo se lee tal cual. Con `disaggregated=False` Lakeview
+            # espera una expresion de agregacion y una columna suelta produce
+            # "NO DATA" sin mensaje de error.
+            "queries": [_query(name, ds, [(campo, f"`{campo}`")], disagg=True)],
             "spec": {
                 "version": 2,
                 "widgetType": "counter",

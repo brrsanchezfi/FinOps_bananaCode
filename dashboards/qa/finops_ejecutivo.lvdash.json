@@ -171,7 +171,7 @@
                       "expression": "`total_cost_usd`"
                     }
                   ],
-                  "disaggregated": false
+                  "disaggregated": true
                 }
               }
             ],
@@ -218,7 +218,7 @@
                       "expression": "`mtd_cost_usd`"
                     }
                   ],
-                  "disaggregated": false
+                  "disaggregated": true
                 }
               }
             ],
@@ -265,7 +265,7 @@
                       "expression": "`rolling_7d_avg_usd`"
                     }
                   ],
-                  "disaggregated": false
+                  "disaggregated": true
                 }
               }
             ],
@@ -312,7 +312,7 @@
                       "expression": "`dod_change_pct`"
                     }
                   ],
-                  "disaggregated": false
+                  "disaggregated": true
                 }
               }
             ],
@@ -359,7 +359,7 @@
                       "expression": "`wow_change_pct`"
                     }
                   ],
-                  "disaggregated": false
+                  "disaggregated": true
                 }
               }
             ],
@@ -406,7 +406,7 @@
                       "expression": "`allocation_coverage_pct`"
                     }
                   ],
-                  "disaggregated": false
+                  "disaggregated": true
                 }
               }
             ],
