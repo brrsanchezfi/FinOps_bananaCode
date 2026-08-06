@@ -242,7 +242,33 @@ def bootstrap(spark: SparkSession, cfg: FinOpsConfig) -> list[str]:
         except Exception as exc:  # noqa: BLE001
             log.debug("No se pudo comentar el schema %s: %s", schema, exc)
     log.info("Schemas listos: %s", ", ".join(creados))
+    ensure_analytics_tables(spark, cfg)
     return creados
+
+
+def ensure_analytics_tables(spark: SparkSession, cfg: FinOpsConfig) -> int:
+    """Crea vacias las tablas que se escriben desde Python, si no existen.
+
+    Varias solo reciben filas cuando hay resultados, y algunos resultados tardan
+    semanas en aparecer: la deteccion de anomalias y el pronostico necesitan
+    historia suficiente. Crearlas vacias evita que un dashboard falle con
+    TABLE_OR_VIEW_NOT_FOUND durante los primeros dias de operacion.
+    """
+    from .schemas import tablas_con_esquema
+    from .spark_utils import create_table_if_missing
+
+    propiedades = cfg.get("catalog.table_properties", {}) or {}
+    creadas = 0
+    for tabla, esquema in tablas_con_esquema():
+        if create_table_if_missing(
+            spark, tabla.fqn(cfg), esquema,
+            partition_by=list(tabla.partition_by) or None,
+            properties=propiedades, dry_run=cfg.dry_run,
+        ):
+            creadas += 1
+    if creadas:
+        log.info("Tablas vacias creadas: %s", creadas)
+    return creadas
 
 
 def apply_comments(spark: SparkSession, cfg: FinOpsConfig) -> int:

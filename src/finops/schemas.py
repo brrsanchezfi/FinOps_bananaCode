@@ -90,3 +90,38 @@ def _struct(campos: dict[str, Any]):
     return T.StructType([T.StructField(n, spark_type_for(tp), True) for n, tp in campos.items()])
 
 
+
+
+#: Tabla del modelo a la que corresponde cada esquema.
+#:
+#: Se usa para crearlas vacias en el arranque: son tablas que solo se escriben
+#: cuando hay resultados, y varias tardan semanas en tenerlos (las anomalias y
+#: el pronostico necesitan historia). Sin la tabla, los dashboards fallan con
+#: TABLE_OR_VIEW_NOT_FOUND en vez de mostrarse vacios.
+def tablas_con_esquema():
+    """Devuelve [(TableDef, StructType)] de todas las tablas escritas desde Python."""
+    from .catalog import (
+        GOLD_ANOMALY,
+        GOLD_BUDGET_STATUS,
+        GOLD_CHARGEBACK,
+        GOLD_FORECAST,
+        GOLD_RECOMMENDATION,
+        OPS_ALERTS,
+        OPS_QUALITY,
+        OPS_RUN_LOG,
+        OPS_WATERMARK,
+    )
+
+    destino = {
+        "anomaly": GOLD_ANOMALY,
+        "forecast": GOLD_FORECAST,
+        "budget": GOLD_BUDGET_STATUS,
+        "recommendation": GOLD_RECOMMENDATION,
+        "chargeback": GOLD_CHARGEBACK,
+        "quality": OPS_QUALITY,
+        "alert": OPS_ALERTS,
+        "run_log": OPS_RUN_LOG,
+        "watermark": OPS_WATERMARK,
+    }
+    construidos = esquemas()
+    return [(destino[clave], construidos[clave]) for clave in destino]

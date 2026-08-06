@@ -209,3 +209,58 @@ class TestTiposDeLasTablasOperativas:
             assert campo.dataType.simpleString() == "map<string,string>", (
                 f"{tabla}.{columna} es {campo.dataType.simpleString()}"
             )
+
+
+class TestTablasQueDebenExistirSiempre:
+    """Todo dataset de dashboard debe apuntar a una tabla que exista siempre.
+
+    Varias tablas solo reciben filas cuando hay resultados, y algunos resultados
+    tardan semanas: las anomalias necesitan >=14 dias de historia y el
+    pronostico >=21. Si la tabla no existe, el dataset falla con
+    TABLE_OR_VIEW_NOT_FOUND y el widget queda roto en vez de vacio.
+    """
+
+    def test_las_tablas_escritas_desde_python_se_crean_vacias(self):
+        from finops.schemas import esquemas, tablas_con_esquema
+
+        cubiertas = {tabla.key for tabla, _ in tablas_con_esquema()}
+        assert len(cubiertas) == len(esquemas()), "hay esquemas sin tabla destino"
+        assert {"fct_cost_anomaly", "fct_cost_forecast", "fct_recommendation"} <= cubiertas
+
+    def test_todo_lo_que_consultan_los_dashboards_se_crea_en_el_arranque(self):
+        """Ninguna consulta puede referenciar una tabla que quiza no exista."""
+        import json
+        import re
+        from pathlib import Path
+
+        from finops.catalog import ALL_TABLES, table_map
+        from finops.config import load_config
+        from finops.schemas import tablas_con_esquema
+
+        raiz = Path(__file__).resolve().parents[1]
+        cfg = load_config("dev", conf_dir=raiz / "conf", use_env_vars=False)
+        mapa = {fqn: clave for clave, fqn in table_map(cfg).items()}
+
+        # Tablas que crea siempre alguna etapa del pipeline: bronze y silver se
+        # escriben en cada corrida, y las gold derivadas se construyen desde
+        # ellas. Las escritas desde Python se crean vacias en el arranque.
+        siempre = {t.key for t in ALL_TABLES if t.layer in ("bronze", "silver")}
+        siempre |= {tabla.key for tabla, _ in tablas_con_esquema()}
+        siempre |= {
+            "fct_cost_daily", "agg_cost_monthly", "fct_kpi_daily", "fct_tag_coverage_daily",
+            "fct_job_run_cost", "fct_warehouse_cost_daily",
+            "dim_date", "dim_sku", "dim_entity", "dim_workspace",
+        }
+
+        patron = re.compile(rf"\b{re.escape(cfg.catalog)}\.[a-z0-9_]+\.[a-z0-9_]+\b")
+        sin_garantia: set[str] = set()
+        for archivo in sorted((raiz / "dashboards" / "dev").glob("*.lvdash.json")):
+            contenido = json.loads(archivo.read_text(encoding="utf-8"))
+            for ds in contenido["datasets"]:
+                for fqn in patron.findall("".join(ds["queryLines"])):
+                    clave = mapa.get(fqn)
+                    if clave and clave not in siempre:
+                        sin_garantia.add(f"{archivo.name}:{ds['name']}:{clave}")
+        assert sin_garantia == set(), (
+            f"consultan tablas que podrian no existir: {sorted(sin_garantia)}"
+        )

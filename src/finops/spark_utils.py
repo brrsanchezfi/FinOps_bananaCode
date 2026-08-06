@@ -299,6 +299,49 @@ def replace_date_range(
     return filas
 
 
+def create_table_if_missing(
+    spark: SparkSession,
+    fqn: str,
+    schema: Any,
+    *,
+    partition_by: list[str] | None = None,
+    properties: dict[str, str] | None = None,
+    dry_run: bool = False,
+) -> bool:
+    """Crea una tabla Delta vacia con el esquema dado. Devuelve True si la creo.
+
+    Las tablas de analitica solo se escriben cuando hay resultados, y hay
+    resultados que legitimamente tardan semanas en aparecer: la deteccion de
+    anomalias necesita historia suficiente para construir una base, y el
+    pronostico tambien. Sin esto, `fct_cost_anomaly` no existiria durante los
+    primeros dias y cualquier consulta contra ella fallaria con
+    TABLE_OR_VIEW_NOT_FOUND — incluidos los dashboards, donde un dataset roto
+    invalida el widget completo en vez de mostrarlo vacio.
+
+    Una tabla vacia con el esquema correcto es la diferencia entre un panel que
+    dice "sin datos" y uno que da error.
+    """
+    if table_exists(spark, fqn):
+        return False
+    if dry_run:
+        log.info("[dry-run] crear tabla vacia %s", fqn)
+        return True
+
+    writer = (
+        spark.createDataFrame([], schema)
+        .write.format("delta")
+        .mode("overwrite")
+        .option("overwriteSchema", "true")
+        .option("partitionOverwriteMode", PARTITION_OVERWRITE_MODE)
+    )
+    if partition_by:
+        writer = writer.partitionBy(*partition_by)
+    writer.saveAsTable(fqn)
+    apply_table_properties(spark, fqn, properties)
+    log.info("Tabla vacia creada: %s", fqn)
+    return True
+
+
 def delete_date_range(
     spark: SparkSession,
     fqn: str,

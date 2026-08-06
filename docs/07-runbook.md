@@ -267,6 +267,35 @@ subir temporalmente `alerting.min_severity` a `critical` y atacar la causa: casi
 siempre es un cambio masivo de etiquetado o una anomalia sistemica que dispara
 muchas series a la vez.
 
+### Un dashboard muestra "NO DATA" o TABLE_OR_VIEW_NOT_FOUND
+
+Primero distinguir las dos cosas, porque tienen causas distintas:
+
+| Sintoma | Causa |
+|---|---|
+| El widget dice **NO DATA** | La consulta corrio y devolvio cero filas |
+| El widget da **TABLE_OR_VIEW_NOT_FOUND** | La tabla no existe |
+
+**Tabla inexistente.** Las tablas de analitica solo reciben filas cuando hay
+resultados, y algunos tardan: la deteccion de anomalias necesita al menos 14
+dias de historia y el pronostico 21. Desde la etapa `setup` se crean vacias con
+su esquema, asi que esto no deberia ocurrir; si ocurre, correr:
+
+```bash
+databricks bundle run finops_pipeline_diario -t dev --params stages=setup
+```
+
+**Cero filas.** Con pocos dias de datos es lo esperado en los paneles de
+anomalias y pronostico. Verificar con:
+
+```bash
+# Ejecutar en el editor SQL, con el MISMO warehouse que usan los dashboards
+scripts/diagnostico_dashboards.sql
+```
+
+Si `fct_cost_daily` tiene filas pero el dashboard sigue vacio, revisar que el
+warehouse del dashboard este en el mismo workspace donde corrio el pipeline.
+
 ### `DELTA_FAILED_TO_MERGE_FIELDS` al escribir una tabla ops
 
 Sintoma: el pipeline falla al escribir `ops_watermark`, `ops_run_log`,
