@@ -106,7 +106,7 @@ class TestEspecificacionesPlanas:
             "watermark_date": date(2026, 3, 1),
             "rows_ingested": 10,
             "run_id": "r1",
-            "environment": "dev",
+            "pipeline_environment": "dev",
             "updated_at": datetime.now(timezone.utc),
             "details": {"k": "v"},
         }
@@ -115,4 +115,38 @@ class TestEspecificacionesPlanas:
 
 class TestAuditoria:
     def test_columnas_de_auditoria_declaradas(self):
-        assert set(_AUDITORIA) == {"run_id", "environment", "generated_at"}
+        assert set(_AUDITORIA) == {"run_id", "pipeline_environment", "generated_at"}
+
+
+class TestColisionDeNombres:
+    """La columna de auditoria no puede chocar con un campo de la dataclass.
+
+    `Recommendation` tiene un campo `environment` (el ambiente del recurso, que
+    viene de sus etiquetas). Llamar igual a la columna de auditoria (el ambiente
+    del pipeline) hacia que Delta rechazara la tabla con COLUMN_ALREADY_EXISTS.
+    """
+
+    def test_ninguna_dataclass_choca_con_la_auditoria(self):
+        from finops.analytics.anomaly import AnomalyResult
+        from finops.analytics.budgets import BudgetStatus
+        from finops.analytics.chargeback import ChargebackLine
+        from finops.analytics.optimization import Recommendation
+        from finops.quality.checks import CheckResult
+
+        for cls in (AnomalyResult, BudgetStatus, ChargebackLine, Recommendation, CheckResult, Alert):
+            choques = campos(cls) & set(_AUDITORIA)
+            assert choques == set(), f"{cls.__name__} choca con la auditoria en {choques}"
+
+    def test_recommendation_conserva_su_environment_de_etiqueta(self):
+        """El ambiente del recurso sigue disponible: lo usa el dashboard."""
+        assert "environment" in campos(Recommendation)
+        assert "environment" not in _AUDITORIA
+
+
+def _importar_recommendation():
+    from finops.analytics.optimization import Recommendation
+
+    return Recommendation
+
+
+Recommendation = _importar_recommendation()

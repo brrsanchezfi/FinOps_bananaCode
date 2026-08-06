@@ -182,6 +182,20 @@ total del periodo × (1 + `overhead_pct`). El pipeline lo verifica con
 
 ## Tablas operativas
 
+> **`environment` vs `pipeline_environment`.** Son cosas distintas y conviven en
+> `fct_recommendation`:
+>
+> - `environment` — el ambiente **del recurso**, resuelto desde sus etiquetas
+>   (`PRD`, `QA`, `DEV`). Es una dimension de negocio y es la que usan los
+>   dashboards.
+> - `pipeline_environment` — el ambiente **del pipeline** que escribio la fila
+>   (`dev`, `qa`, `prd`). Es una columna de auditoria, junto a `run_id` y
+>   `generated_at`.
+>
+> Un cluster de produccion puede aparecer en las tablas del catalogo `finops_dev`
+> si el pipeline de dev lo analizo: `environment = PRD`,
+> `pipeline_environment = dev`.
+
 | Tabla | Contenido |
 |---|---|
 | `ops_run_log` | Una fila por etapa y corrida: `status`, `duration_seconds`, `rows_written`, `error_message` |

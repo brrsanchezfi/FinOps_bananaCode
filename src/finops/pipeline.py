@@ -84,7 +84,7 @@ ALL_STAGES = ("setup", "bronze", "silver", "gold", "analytics", "quality", "aler
 # filas de la primera corrida. Ambos casos ocurren con datos reales.
 # ---------------------------------------------------------------------------
 #: Columnas de auditoria comunes a todas las tablas derivadas.
-_AUDITORIA = {"run_id": str, "environment": str, "generated_at": datetime}
+_AUDITORIA = {"run_id": str, "pipeline_environment": str, "generated_at": datetime}
 
 
 #: El pronostico aplana ForecastResult + ForecastPoint, asi que no proviene de
@@ -99,14 +99,14 @@ FORECAST_SPEC: dict[str, Any] = {
 }
 
 RUN_LOG_SPEC: dict[str, Any] = {
-    "run_id": str, "environment": str, "stage": str, "status": str,
+    "run_id": str, "pipeline_environment": str, "stage": str, "status": str,
     "duration_seconds": float, "rows_written": int, "details": dict,
     "error_message": str, "run_started_at": datetime, "run_date": date,
 }
 
 WATERMARK_SPEC: dict[str, Any] = {
     "source_key": str, "watermark_date": date, "rows_ingested": int,
-    "run_id": str, "environment": str, "updated_at": datetime, "details": dict,
+    "run_id": str, "pipeline_environment": str, "updated_at": datetime, "details": dict,
 }
 
 
@@ -127,11 +127,11 @@ def _esquemas():
             Recommendation, extra={**_AUDITORIA, "analysis_date": date}
         ),
         "chargeback": schema_from_dataclass(ChargebackLine, extra=_AUDITORIA),
-        "quality": schema_from_dataclass(CheckResult, extra={"run_id": str, "environment": str}),
+        "quality": schema_from_dataclass(CheckResult, extra={"run_id": str, "pipeline_environment": str}),
         "alert": schema_from_dataclass(
             Alert,
             extra={
-                "run_id": str, "environment": str, "dispatch_status": str,
+                "run_id": str, "pipeline_environment": str, "dispatch_status": str,
                 "channels": str, "delivered": bool, "delivery_detail": str,
             },
         ),
@@ -211,7 +211,7 @@ def stage_quality(spark: SparkSession, cfg: FinOpsConfig, result: PipelineResult
     with stage("quality.checks", result.recorder) as metrica:
         resultados = run_checks(spark, cfg)
         filas = [
-            {**r.to_row(), "run_id": result.run_id, "environment": cfg.env} for r in resultados
+            {**r.to_row(), "run_id": result.run_id, "pipeline_environment": cfg.env} for r in resultados
         ]
         metrica.rows = append_rows(
             spark, filas, OPS_QUALITY.fqn(cfg), _esquemas()["quality"], dry_run=cfg.dry_run
@@ -288,7 +288,7 @@ def stage_analytics(spark: SparkSession, cfg: FinOpsConfig, result: PipelineResu
                     {
                         **a.to_row(),
                         "run_id": result.run_id,
-                        "environment": cfg.env,
+                        "pipeline_environment": cfg.env,
                         "generated_at": datetime.now(timezone.utc),
                     }
                     for a in detectadas
@@ -335,7 +335,7 @@ def stage_analytics(spark: SparkSession, cfg: FinOpsConfig, result: PipelineResu
 
             for pronostico in pronosticos:
                 filas.extend(
-                    {**fila, "run_id": result.run_id, "environment": cfg.env,
+                    {**fila, "run_id": result.run_id, "pipeline_environment": cfg.env,
                      "generated_at": datetime.now(timezone.utc)}
                     for fila in pronostico.to_rows()
                 )
@@ -375,7 +375,7 @@ def stage_analytics(spark: SparkSession, cfg: FinOpsConfig, result: PipelineResu
 
         estados = B.evaluate_all(cfg.budgets, registros, as_of=hoy, forecasts_by_scope=por_ambito)
         filas = [
-            {**e.to_row(), "run_id": result.run_id, "environment": cfg.env,
+            {**e.to_row(), "run_id": result.run_id, "pipeline_environment": cfg.env,
              "generated_at": datetime.now(timezone.utc)}
             for e in estados
         ]
@@ -400,7 +400,7 @@ def stage_analytics(spark: SparkSession, cfg: FinOpsConfig, result: PipelineResu
             perfiles = rows_to_dicts(perfiles_df)
             recomendaciones = evaluate_recommendations(perfiles, optimizacion_cfg)
             filas = [
-                {**r.to_row(), "run_id": result.run_id, "environment": cfg.env,
+                {**r.to_row(), "run_id": result.run_id, "pipeline_environment": cfg.env,
                  "analysis_date": hoy, "generated_at": datetime.now(timezone.utc)}
                 for r in recomendaciones
             ]
@@ -448,7 +448,7 @@ def stage_analytics(spark: SparkSession, cfg: FinOpsConfig, result: PipelineResu
                 if not conciliacion["reconciled"]:
                     log.warning("Chargeback %s no concilia: %s", periodo, conciliacion)
                 filas.extend(
-                    {**line.to_row(), "run_id": result.run_id, "environment": cfg.env,
+                    {**line.to_row(), "run_id": result.run_id, "pipeline_environment": cfg.env,
                      "generated_at": datetime.now(timezone.utc)}
                     for line in lineas
                 )

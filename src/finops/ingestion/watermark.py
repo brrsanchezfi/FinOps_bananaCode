@@ -77,7 +77,7 @@ def write_watermark(
         "watermark_date": watermark_date,
         "rows_ingested": int(rows),
         "run_id": run_id,
-        "environment": cfg.env,
+        "pipeline_environment": cfg.env,
         "updated_at": datetime.now(timezone.utc),
         "details": {k: str(v) for k, v in (details or {}).items()},
     }

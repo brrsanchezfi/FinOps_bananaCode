@@ -44,7 +44,7 @@ class RunRecorder:
         return [
             {
                 "run_id": run_id,
-                "environment": env,
+                "pipeline_environment": env,
                 "stage": m.stage,
                 "status": m.status,
                 "duration_seconds": round(m.duration_seconds, 3),

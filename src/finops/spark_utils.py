@@ -480,6 +480,20 @@ def schema_from_dataclass(cls: Any, *, extra: dict[str, Any] | None = None, excl
         for f in dataclasses.fields(cls)
         if f.name not in omitidos
     ]
+    nombres_dataclass = {f.name for f in campos}
+    colisiones = nombres_dataclass & set(extra or {})
+    if colisiones:
+        # Ocurrio de verdad: `Recommendation.environment` (el ambiente del
+        # recurso, que viene de sus etiquetas) contra la columna de auditoria
+        # `environment` (el ambiente del pipeline). Son cosas distintas y
+        # Delta rechaza la tabla con COLUMN_ALREADY_EXISTS. Falla aqui, en las
+        # pruebas, en vez de a mitad del despliegue.
+        raise ConfigError(
+            f"Colision de nombres al construir el esquema de {cls.__name__}: "
+            f"{sorted(colisiones)} existe(n) como campo de la dataclass y tambien "
+            "como columna adicional. Renombra la columna adicional."
+        )
+
     campos += [
         T.StructField(nombre, spark_type_for(tipo), True) for nombre, tipo in (extra or {}).items()
     ]

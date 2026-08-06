@@ -168,7 +168,7 @@ def alerts_to_rows(
             {
                 **alerta.to_row(),
                 "run_id": run_id,
-                "environment": env,
+                "pipeline_environment": env,
                 "dispatch_status": "dispatched",
                 "channels": ",".join(sorted({e.channel for e in entregas})),
                 "delivered": all(e.delivered for e in entregas) if entregas else False,
@@ -180,7 +180,7 @@ def alerts_to_rows(
             {
                 **alerta.to_row(),
                 "run_id": run_id,
-                "environment": env,
+                "pipeline_environment": env,
                 "dispatch_status": "suppressed",
                 "channels": "",
                 "delivered": False,
