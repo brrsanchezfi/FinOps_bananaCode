@@ -128,17 +128,24 @@ bash scripts/deploy.sh prd --no-deploy
 
 ```bash
 python -m finops.cli validate --env prd
-python scripts/dashboards.py render --env prd     # OBLIGATORIO
 databricks bundle validate -t prd
 databricks bundle deploy   -t prd
 ```
 
-> **Por que el render es obligatorio.** Un dashboard Lakeview lleva el SQL con
-> nombres de tabla literales. Los JSON versionados usan marcadores
-> `{{fct_cost_daily}}` para poder promocionarse entre entornos; el render los
-> sustituye por el FQN del catalogo destino y escribe en
-> `.build/dashboards/<env>/`, que es a donde apunta `resources/dashboards.yml`.
-> Sin ese paso el deploy falla porque los archivos no existen.
+No hay paso de build previo: los dashboards estan versionados ya resueltos por
+entorno en `dashboards/<env>/`. Si cambiaste `scripts/dashboards.py`, regenera y
+commitea antes de desplegar:
+
+```bash
+python scripts/dashboards.py generate
+```
+
+> **No pongas nunca un recurso del bundle en una ruta ignorada por git.** El CLI
+> de Databricks construye el arbol de archivos del bundle respetando
+> `.gitignore`, y un `file_path` hacia una ruta ignorada falla con
+> `no such file or directory` aunque el archivo exista en disco. Es la razon por
+> la que los dashboards generados se versionan; ver
+> [ADR 0004](adr/0004-dashboards-con-marcadores-de-tabla.md).
 
 ### Verificacion
 
@@ -207,13 +214,13 @@ carpeta personal del usuario (por `mode: development`); en `qa` y `prd` es
 
 1. Lint con `ruff` y suite completa de `pytest` (Python 3.10 y 3.12).
 2. Validacion de la configuracion de los tres entornos.
-3. Verificacion de que `dashboards/*.lvdash.json` este sincronizado con
-   `scripts/dashboards.py` (falla si alguien edito el JSON a mano sin regenerar).
+3. `python scripts/dashboards.py check`: verifica que `dashboards/<env>/*.lvdash.json`
+   este sincronizado con el generador (falla si alguien edito un JSON a mano).
 4. `databricks bundle validate` si hay secretos configurados.
 
 ### `.github/workflows/deploy.yml` — manual o por tag
 
-Ejecuta pruebas, valida, renderiza y despliega. Usa GitHub Environments, lo que
+Ejecuta pruebas, valida y despliega. Usa GitHub Environments, lo que
 permite exigir aprobacion manual antes de tocar `prd`.
 
 Secretos requeridos en el repositorio:

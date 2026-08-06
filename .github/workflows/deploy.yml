@@ -51,8 +51,8 @@ jobs:
       - name: Validar configuracion
         run: python -m finops.cli validate --env "${{ steps.env.outputs.target }}"
 
-      - name: Renderizar dashboards
-        run: python scripts/dashboards.py render --env "${{ steps.env.outputs.target }}"
+      - name: Verificar que los dashboards esten al dia
+        run: python scripts/dashboards.py check
 
       - uses: databricks/setup-cli@main
 

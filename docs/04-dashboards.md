@@ -72,39 +72,62 @@ Fuentes: `fct_recommendation`, `fct_kpi_daily`, `fct_cost_daily`,
 
 ## Como se construyen y despliegan
 
-Los dashboards **no se editan a mano**. Se generan desde `scripts/dashboards.py`,
-donde el SQL y el layout viven como codigo Python legible:
+Los dashboards **no se editan a mano**. La unica fuente de verdad es
+`scripts/dashboards.py`, donde el SQL y el layout viven como codigo Python
+legible y revisable en un diff.
 
 ```bash
-python scripts/dashboards.py generate         # reconstruye dashboards/*.lvdash.json
-python scripts/dashboards.py render --env prd # sustituye marcadores → .build/dashboards/prd/
+python scripts/dashboards.py generate          # los tres entornos
+python scripts/dashboards.py generate --env dev
+python scripts/dashboards.py check             # verifica que esten al dia
 ```
 
-### Por que dos pasos
+`generate` escribe **nueve archivos versionados**:
 
-Un dashboard Lakeview lleva el SQL embebido con nombres de tabla literales.
-Versionar `finops.gold.fct_cost_daily` haria el repositorio inservible en `dev`.
+```
+dashboards/
+├── dev/   finops_ejecutivo.lvdash.json  finops_costos...  finops_optimizacion...
+├── qa/    (los mismos, con el catalogo finops_qa)
+└── prd/   (los mismos, con el catalogo finops)
+```
 
-Los JSON versionados usan marcadores con la clave logica del registro de tablas:
+`resources/dashboards.yml` apunta a `dashboards/${bundle.target}/`, asi que
+**`databricks bundle deploy` funciona directamente sobre el repositorio**: no hay
+paso de build previo.
+
+### Por que hay un archivo por entorno
+
+Un dashboard Lakeview lleva el SQL embebido con nombres de tabla **literales**.
+No existe un JSON unico valido para `finops_dev`, `finops_qa` y `finops`.
+
+En `scripts/dashboards.py` las tablas se escriben como marcadores de la clave
+logica del registro:
 
 ```sql
 FROM {{fct_cost_daily}}
 ```
 
-El `render` los sustituye por el nombre completamente calificado del catalogo del
-entorno destino. `resources/dashboards.yml` apunta a la salida del render, asi
-que **el render es obligatorio antes de `databricks bundle deploy`**.
-`scripts/deploy.sh` y `scripts/deploy.ps1` encadenan ambos pasos.
+y `generate` los sustituye por el nombre completamente calificado de cada
+entorno. El repositorio sigue siendo promocionable —el codigo fuente es
+env-agnostico— y ademas el artefacto desplegable esta listo.
+
+> **Por que se versionan archivos generados.** El CLI de Databricks excluye del
+> arbol del bundle todo lo que git ignora. Un dashboard generado en una ruta
+> ignorada (`.build/`, `dist/`, …) produce al desplegar:
+> `failed to read serialized dashboard from file_path ...: no such file or directory`.
+> Ver [ADR 0004](adr/0004-dashboards-con-marcadores-de-tabla.md).
 
 ### Guardas automaticas
 
-Dos pruebas en `tests/test_catalog.py` protegen este mecanismo:
+`tests/test_catalog.py` verifica, para cada entorno:
 
-- Ningun dashboard puede referenciar una tabla que no exista en el registro.
-- Ningun dashboard puede tener un catalogo de entorno incrustado.
+- Que no quede ningun marcador `{{...}}` sin sustituir.
+- Que toda tabla referenciada exista en el registro de `finops.catalog`.
+- Que un dashboard de un entorno no consulte el catalogo de otro.
+- Que los archivos versionados coincidan **byte a byte** con lo que produce el
+  generador (falla si alguien edito un JSON a mano).
 
-Y CI verifica que `dashboards/*.lvdash.json` este sincronizado con el generador:
-si alguien edita el JSON a mano sin regenerar, el PR falla.
+CI corre lo mismo via `python scripts/dashboards.py check`.
 
 ---
 
@@ -112,15 +135,15 @@ si alguien edita el JSON a mano sin regenerar, el PR falla.
 
 1. Editar la funcion correspondiente en `scripts/dashboards.py`
    (`dashboard_ejecutivo`, `dashboard_costos`, `dashboard_optimizacion`).
-2. Regenerar y renderizar:
+2. Regenerar y verificar:
 
 ```bash
 python scripts/dashboards.py generate
-python scripts/dashboards.py render --env dev
 pytest tests/test_catalog.py -q
 ```
 
-3. Desplegar a `dev` y revisar visualmente antes de promocionar.
+3. Commitear los nueve archivos junto con el cambio del generador.
+4. Desplegar a `dev` y revisar visualmente antes de promocionar.
 
 ### Agregar un widget
 
@@ -146,6 +169,9 @@ chart("mi_grafico", "mi_consulta", "bar", "Titulo visible",
 La grilla de Lakeview tiene **6 columnas**. `x` e `y` son coordenadas, `w` y `h`
 el tamano. Los constructores disponibles son `markdown`, `counter`, `chart`
 (tipos `line`, `bar`, `area`, `pie`, `scatter`) y `table`.
+
+Si referencias una tabla nueva, primero declarala en `src/finops/catalog.py`: el
+generador falla si un marcador no corresponde a una tabla del registro.
 
 ---
 

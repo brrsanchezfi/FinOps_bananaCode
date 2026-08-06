@@ -76,19 +76,7 @@ jobs:
           done
 
       - name: Verificar que los dashboards versionados esten al dia
-        run: |
-          python scripts/dashboards.py generate
-          if ! git diff --exit-code -- dashboards/; then
-            echo "::error::Los dashboards versionados difieren de scripts/dashboards.py."
-            echo "Ejecuta 'python scripts/dashboards.py generate' y commitea el resultado."
-            exit 1
-          fi
-
-      - name: Renderizar dashboards para cada entorno
-        run: |
-          for env in dev qa prd; do
-            python scripts/dashboards.py render --env "$env"
-          done
+        run: python scripts/dashboards.py check
 
   bundle:
     name: Validar Databricks Asset Bundle
@@ -108,9 +96,6 @@ jobs:
           pip install -e "."
 
       - uses: databricks/setup-cli@main
-
-      - name: Renderizar dashboards (dev)
-        run: python scripts/dashboards.py render --env dev
 
       - name: Validar bundle
         env:

@@ -2,7 +2,6 @@
 # Databricks Asset Bundle — Plataforma de analitica FinOps
 #
 # Despliegue:
-#   python scripts/dashboards.py render --env dev   # obligatorio antes de deploy
 #   databricks bundle validate -t dev
 #   databricks bundle deploy   -t dev
 #   databricks bundle run finops_pipeline_diario -t dev

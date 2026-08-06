@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Despliegue del bundle FinOps: render de dashboards + validate + deploy.
+# Despliegue del bundle FinOps: validar configuracion + bundle + deploy.
 #
 #   bash scripts/deploy.sh dev
 #   bash scripts/deploy.sh prd --no-deploy     # solo valida
 #
 # Requiere: databricks CLI v0.230+, python 3.10+, y `pip install -e .` en el
-# entorno virtual activo (el render lee la configuracion via el paquete finops).
+# entorno virtual activo (la verificacion de dashboards usa el paquete finops).
 set -euo pipefail
 
 ENV="${1:-}"
@@ -32,8 +32,14 @@ cd "${REPO_ROOT}"
 echo "==> 1/4 Validando la configuracion de ${ENV}"
 python -m finops.cli validate --env "${ENV}"
 
-echo "==> 2/4 Renderizando dashboards para ${ENV}"
-python scripts/dashboards.py render --env "${ENV}"
+echo "==> 2/4 Verificando que los dashboards esten al dia"
+# Los dashboards estan versionados ya resueltos por entorno. Este paso solo
+# avisa si difieren del generador; no es un paso de build previo al deploy.
+if ! python scripts/dashboards.py check; then
+  echo "Regenerando..."
+  python scripts/dashboards.py generate
+  echo "ATENCION: los dashboards cambiaron. Revisa el diff y commitea." >&2
+fi
 
 echo "==> 3/4 Validando el bundle"
 databricks bundle validate -t "${ENV}"
