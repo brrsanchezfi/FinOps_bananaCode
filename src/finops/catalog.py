@@ -216,13 +216,23 @@ def bootstrap(spark: SparkSession, cfg: FinOpsConfig) -> list[str]:
     Las tablas se crean al primer write (schema-on-write de Delta); aqui solo se
     garantiza la existencia de los contenedores.
     """
-    from .spark_utils import ensure_schema
+    from .spark_utils import ensure_catalog, ensure_schema
+
+    storage_root = cfg.get("catalog.storage_root")
+    managed_location = cfg.get("catalog.managed_location")
+    crear_catalogo = bool(cfg.get("catalog.create_if_missing", True))
+
+    # El catalogo se resuelve una sola vez, antes de los schemas: si falla, el
+    # mensaje debe ser sobre el catalogo y no repetirse tres veces.
+    ensure_catalog(spark, cfg.catalog, managed_location=managed_location, create_if_missing=crear_catalogo)
 
     creados: list[str] = []
-    storage_root = cfg.get("catalog.storage_root")
     for capa in ("bronze", "silver", "gold"):
         schema = cfg.schema(capa)
-        ensure_schema(spark, cfg.catalog, schema, storage_root)
+        ensure_schema(
+            spark, cfg.catalog, schema, storage_root,
+            managed_location=managed_location, create_catalog=crear_catalogo,
+        )
         creados.append(f"{cfg.catalog}.{schema}")
         try:
             spark.sql(

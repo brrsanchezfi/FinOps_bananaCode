@@ -121,3 +121,53 @@ class TestCoherenciaConDashboards:
                     f"dashboards/{env}/{nombre} difiere del generador. "
                     "Ejecuta: python scripts/dashboards.py generate"
                 )
+
+
+class TestSqlDeCreacion:
+    """Constructores de DDL: puros, probables sin Spark."""
+
+    def test_catalogo_sin_ubicacion(self):
+        from finops.spark_utils import build_create_catalog_sql
+
+        assert build_create_catalog_sql("finops") == "CREATE CATALOG IF NOT EXISTS finops"
+
+    def test_catalogo_con_ubicacion_gestionada(self):
+        from finops.spark_utils import build_create_catalog_sql
+
+        sql = build_create_catalog_sql("finops", "abfss://c@a.dfs.core.windows.net/uc")
+        assert sql == (
+            "CREATE CATALOG IF NOT EXISTS finops "
+            "MANAGED LOCATION 'abfss://c@a.dfs.core.windows.net/uc'"
+        )
+
+    def test_se_normaliza_la_barra_final(self):
+        from finops.spark_utils import build_create_catalog_sql
+
+        assert build_create_catalog_sql("f", "abfss://c@a/uc/").endswith("'abfss://c@a/uc'")
+
+    def test_schema_sin_ubicacion(self):
+        from finops.spark_utils import build_create_schema_sql
+
+        assert build_create_schema_sql("finops", "gold") == "CREATE SCHEMA IF NOT EXISTS finops.gold"
+
+    def test_schema_cuelga_del_storage_root(self):
+        from finops.spark_utils import build_create_schema_sql
+
+        sql = build_create_schema_sql("finops", "gold", "abfss://c@a/raiz/")
+        assert sql.endswith("MANAGED LOCATION 'abfss://c@a/raiz/gold'")
+
+
+class TestPoliticaDeCreacionDeCatalogo:
+    def test_dev_permite_crear(self, conf_dir):
+        from finops.config import load_config
+
+        cfg = load_config("dev", conf_dir=conf_dir, use_env_vars=False)
+        assert cfg.get("catalog.create_if_missing") is True
+
+    @pytest.mark.parametrize("env", ["qa", "prd"])
+    def test_entornos_gobernados_no_crean_catalogo(self, conf_dir, env):
+        """En qa/prd crear el catalogo es tarea de un administrador, no del pipeline."""
+        from finops.config import load_config
+
+        cfg = load_config(env, conf_dir=conf_dir, use_env_vars=False)
+        assert cfg.get("catalog.create_if_missing") is False

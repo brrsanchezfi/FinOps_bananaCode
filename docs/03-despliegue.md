@@ -48,14 +48,42 @@ databricks api patch /api/2.0/unity-catalog/metastores/<metastore-id>/systemsche
   --json '{"enable": true}'
 ```
 
-**2. Creacion del catalogo destino.**
+**2. Catalogo destino.**
+
+Crealo una vez con un administrador de Unity Catalog:
 
 ```sql
 CREATE CATALOG IF NOT EXISTS finops;
 GRANT CREATE SCHEMA, USE CATALOG ON CATALOG finops TO `sp-finops`;
 ```
 
-O bien conceder `CREATE CATALOG` al principal y dejar que la etapa `setup` lo cree.
+En `dev` la etapa `setup` lo crea sola si no existe (`catalog.create_if_missing:
+true`). En `qa` y `prd` esta deshabilitado a proposito: crear catalogos es una
+operacion de administracion, no de un pipeline de datos.
+
+> **Si `CREATE CATALOG` falla con "Metastore storage root URL does not exist"**
+>
+> Ocurre cuando la cuenta tiene **Default Storage** habilitado y el metastore no
+> tiene storage root definido: entonces `CREATE CATALOG` exige una ubicacion
+> explicita. Tres salidas, en orden de preferencia:
+>
+> 1. **Crearlo desde Catalog Explorer** (*Create catalog* → tipo *Standard*),
+>    que usa Default Storage sin pedir ubicacion. Es lo mas simple.
+> 2. **Crearlo por SQL con ubicacion**, si tienes una external location
+>    configurada:
+>    ```sql
+>    CREATE CATALOG finops
+>      MANAGED LOCATION 'abfss://<contenedor>@<cuenta>.dfs.core.windows.net/<ruta>';
+>    ```
+> 3. **Dejar que el pipeline lo cree**, indicandole la ubicacion en
+>    `conf/<env>.yml`:
+>    ```yaml
+>    catalog:
+>      managed_location: "abfss://<contenedor>@<cuenta>.dfs.core.windows.net/<ruta>"
+>    ```
+>
+> El pipeline no intenta crear el catalogo si ya existe, asi que una vez creado
+> el problema no reaparece.
 
 **3. Lectura para los consumidores de los dashboards.**
 

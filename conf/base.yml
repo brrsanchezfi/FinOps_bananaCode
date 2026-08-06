@@ -18,7 +18,24 @@ catalog:
   bronze_schema: bronze
   silver_schema: silver
   gold_schema: gold
-  # Ubicacion externa opcional para tablas managed (null = default del schema)
+
+  # Ubicacion gestionada del CATALOGO. Solo se usa si el pipeline tiene que
+  # crearlo. Dejala en null si el catalogo ya existe (lo recomendado) o si el
+  # metastore tiene storage root definido.
+  #
+  # Si tu cuenta tiene Default Storage habilitado y el metastore NO tiene
+  # storage root, 'CREATE CATALOG' sin ubicacion falla con
+  # "Metastore storage root URL does not exist". En ese caso: crea el catalogo
+  # una vez desde Catalog Explorer, o define aqui la ubicacion. Ejemplo:
+  #   managed_location: "abfss://finops@midatalake.dfs.core.windows.net/uc"
+  managed_location: null
+
+  # false = el pipeline nunca intenta crear el catalogo y falla con un mensaje
+  # claro si no existe. Recomendado en qa/prd: crear catalogos es una operacion
+  # de administracion, no de un pipeline de datos.
+  create_if_missing: true
+
+  # Ubicacion externa opcional para los SCHEMAS (null = heredan la del catalogo)
   storage_root: null
   table_properties:
     delta.autoOptimize.optimizeWrite: "true"

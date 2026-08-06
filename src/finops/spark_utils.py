@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 from typing import TYPE_CHECKING, Any
 
-from .errors import SourceUnavailableError
+from .errors import ConfigError, SourceUnavailableError
 from .logging_utils import get_logger
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -91,13 +91,97 @@ def read_source(spark: SparkSession, definition: dict[str, Any]) -> DataFrame | 
 # ---------------------------------------------------------------------------
 # Escritura
 # ---------------------------------------------------------------------------
-def ensure_schema(spark: SparkSession, catalog: str, schema: str, storage_root: str | None = None) -> None:
-    """Crea catalogo y schema si no existen."""
-    spark.sql(f"CREATE CATALOG IF NOT EXISTS {catalog}")
+def build_create_catalog_sql(catalog: str, managed_location: str | None = None) -> str:
+    """SQL de creacion de catalogo, con ubicacion gestionada si se configuro.
+
+    Funcion pura para poder probarla sin Spark.
+    """
+    sql = f"CREATE CATALOG IF NOT EXISTS {catalog}"
+    if managed_location:
+        sql += f" MANAGED LOCATION '{managed_location.rstrip('/')}'"
+    return sql
+
+
+def build_create_schema_sql(catalog: str, schema: str, storage_root: str | None = None) -> str:
+    """SQL de creacion de schema. Funcion pura."""
     sql = f"CREATE SCHEMA IF NOT EXISTS {catalog}.{schema}"
     if storage_root:
         sql += f" MANAGED LOCATION '{storage_root.rstrip('/')}/{schema}'"
-    spark.sql(sql)
+    return sql
+
+
+def catalog_exists(spark: SparkSession, catalog: str) -> bool:
+    """True si el catalogo existe y es visible para el principal actual."""
+    try:
+        spark.sql(f"DESCRIBE CATALOG {catalog}").limit(1).collect()
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def ensure_catalog(
+    spark: SparkSession,
+    catalog: str,
+    *,
+    managed_location: str | None = None,
+    create_if_missing: bool = True,
+) -> bool:
+    """Garantiza que el catalogo exista. Devuelve True si lo creo esta corrida.
+
+    Si el catalogo ya existe no se intenta crear: `CREATE CATALOG IF NOT EXISTS`
+    no es inocuo cuando el metastore no tiene storage root, porque falla en vez
+    de ser un no-op.
+
+    Crear un catalogo es una operacion de administracion. Si no se puede, se
+    lanza un error con las dos salidas posibles en lugar de un mensaje opaco de
+    Unity Catalog.
+    """
+    if catalog_exists(spark, catalog):
+        log.debug("El catalogo '%s' ya existe", catalog)
+        return False
+
+    if not create_if_missing:
+        raise ConfigError(
+            f"El catalogo '{catalog}' no existe y 'catalog.create_if_missing' es false.\n"
+            f"Crealo con un administrador de Unity Catalog, o pon create_if_missing en true."
+        )
+
+    try:
+        spark.sql(build_create_catalog_sql(catalog, managed_location))
+        log.info("Catalogo '%s' creado%s", catalog, f" en {managed_location}" if managed_location else "")
+        return True
+    except Exception as exc:  # noqa: BLE001
+        raise ConfigError(
+            f"No se pudo crear el catalogo '{catalog}': {exc}\n\n"
+            "Causa habitual: el metastore no tiene storage root definido (cuentas con "
+            "Default Storage habilitado), asi que 'CREATE CATALOG' necesita una ubicacion "
+            "explicita.\n\n"
+            "Dos salidas:\n"
+            f"  1. Crear el catalogo una sola vez, con un administrador:\n"
+            f"       CREATE CATALOG {catalog};                      -- si hay Default Storage\n"
+            f"       CREATE CATALOG {catalog} MANAGED LOCATION 'abfss://<contenedor>@<cuenta>"
+            f".dfs.core.windows.net/<ruta>';\n"
+            "     (o desde Catalog Explorer > Create catalog)\n"
+            f"  2. Configurar la ubicacion en conf/<env>.yml para que el pipeline lo cree:\n"
+            "       catalog:\n"
+            "         managed_location: 'abfss://<contenedor>@<cuenta>.dfs.core.windows.net/<ruta>'\n\n"
+            "La opcion 1 es la recomendada: crear catalogos no deberia ser responsabilidad "
+            "de un pipeline de datos."
+        ) from exc
+
+
+def ensure_schema(
+    spark: SparkSession,
+    catalog: str,
+    schema: str,
+    storage_root: str | None = None,
+    *,
+    managed_location: str | None = None,
+    create_catalog: bool = True,
+) -> None:
+    """Garantiza catalogo y schema."""
+    ensure_catalog(spark, catalog, managed_location=managed_location, create_if_missing=create_catalog)
+    spark.sql(build_create_schema_sql(catalog, schema, storage_root))
 
 
 def apply_table_properties(spark: SparkSession, fqn: str, properties: dict[str, str] | None) -> None:
