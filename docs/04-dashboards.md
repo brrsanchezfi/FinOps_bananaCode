@@ -189,6 +189,44 @@ las diferencias al generador.
 
 ---
 
+## Publicacion y refresco
+
+Dos cosas que sorprenden la primera vez, y que no dependen del codigo:
+
+**1. Lo que despliega el bundle es el borrador.** Un dashboard Lakeview tiene una
+version *borrador* y una *publicada*. `databricks bundle deploy` actualiza el
+borrador; quien abre el enlace publicado sigue viendo la version anterior hasta
+que alguien pulsa **Publish** en la UI.
+
+Si acabas de redesplegar y no ves los cambios, abre el dashboard y publicalo.
+
+**2. Lakeview no refresca solo.** Ejecuta sus consultas al abrirlo, y ademas
+sirve resultados en cache. Para que se actualice sin intervencion hay que
+definirle un **Schedule** en la propia UI del dashboard (boton *Schedule*),
+tipicamente poco despues de la hora del pipeline diario (07:00 America/Bogota),
+por ejemplo a las 08:00.
+
+El recurso `dashboards` del bundle no expone el horario de refresco, asi que ese
+paso es manual y hay que repetirlo si el dashboard se recrea desde cero.
+
+> **No edites el dashboard en la UI para cambiar su contenido.** El siguiente
+> `deploy` sobrescribe el borrador y pierdes el cambio. Publicar y programar si
+> son acciones de UI; el contenido se cambia en `scripts/dashboards.py`.
+
+### Comprobar que se desplegaron
+
+```bash
+databricks bundle summary -t dev
+```
+
+Deben aparecer los tres dashboards. En el workspace quedan bajo
+`${workspace.root_path}/dashboards`.
+
+Si el deploy no los creo, la causa casi siempre es `warehouse_id` vacio en el
+target correspondiente de `databricks.yml`.
+
+---
+
 ## Consumidores
 
 Para que un area pueda ver los dashboards:

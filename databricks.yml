@@ -51,7 +51,8 @@ variables:
     description: >-
       ID del SQL warehouse que alimenta los dashboards. Obtenerlo con
       `databricks warehouses list -p <perfil>`. Es obligatorio para desplegar
-      los dashboards.
+      los dashboards. Se define por target, no aqui: un default apuntando al
+      warehouse de un entorno se heredaria silenciosamente en los demas.
     default: ""
 
   node_type_id:
@@ -94,15 +95,13 @@ targets:
     mode: development     # prefija los recursos con el usuario y pausa schedules
     default: true
     workspace:
-      host: https://adb-4473276016800208.8.azuredatabricks.net
+      host: https://adb-4198581253243445.5.azuredatabricks.net
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
     variables:
       catalog: finops_dev
       num_workers: 1
       pipeline_paused: PAUSED
-      # TODO: reemplazar por el ID real del warehouse de dev antes de desplegar
-      #       los dashboards (`databricks warehouses list -p dev`).
-      warehouse_id: ""
+      warehouse_id: "730b460717eaeb62"
 
   # ---------------------------------------------------------------------------
   qa:
