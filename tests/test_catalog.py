@@ -171,3 +171,86 @@ class TestPoliticaDeCreacionDeCatalogo:
 
         cfg = load_config(env, conf_dir=conf_dir, use_env_vars=False)
         assert cfg.get("catalog.create_if_missing") is False
+
+
+class TestWidgetsDeDashboard:
+    """Invariantes de forma de los widgets Lakeview.
+
+    El JSON se autoro sin un workspace donde validarlo visualmente, asi que
+    estas pruebas fijan lo que ya se detecto que estaba mal.
+    """
+
+    def _widgets(self, tipo: str):
+        for archivo in sorted((DASHBOARDS_DIR / "dev").glob("*.lvdash.json")):
+            contenido = json.loads(archivo.read_text(encoding="utf-8"))
+            for pagina in contenido["pages"]:
+                for elemento in pagina["layout"]:
+                    spec = elemento["widget"].get("spec") or {}
+                    if spec.get("widgetType") == tipo:
+                        yield archivo.name, elemento["widget"]["name"], spec
+
+    def test_el_pie_usa_angle_y_color_no_ejes(self):
+        """Un pie no tiene ejes: con `x`/`y` el widget no renderiza."""
+        vistos = 0
+        for archivo, nombre, spec in self._widgets("pie"):
+            encodings = spec["encodings"]
+            assert set(encodings) == {"angle", "color"}, f"{archivo}:{nombre} usa {set(encodings)}"
+            assert encodings["angle"]["scale"]["type"] == "quantitative"
+            assert encodings["color"]["scale"]["type"] == "categorical"
+            vistos += 1
+        assert vistos > 0, "no se genero ningun pie"
+
+    def test_los_ejes_solo_en_graficos_cartesianos(self):
+        for tipo in ("line", "bar", "area"):
+            for archivo, nombre, spec in self._widgets(tipo):
+                assert {"x", "y"} <= set(spec["encodings"]), f"{archivo}:{nombre} sin ejes"
+
+    def test_las_columnas_de_tabla_declaran_tipo_y_formato(self):
+        """Sin `type`/`displayAs` la tabla no sabe formatear ni alinear."""
+        tipos_validos = {"string", "integer", "float", "boolean", "datetime"}
+        vistos = 0
+        for archivo, nombre, spec in self._widgets("table"):
+            for columna in spec["encodings"]["columns"]:
+                for clave in ("fieldName", "displayName", "type", "displayAs", "alignContent"):
+                    assert clave in columna, f"{archivo}:{nombre}:{columna['fieldName']} sin '{clave}'"
+                assert columna["type"] in tipos_validos, (
+                    f"{archivo}:{nombre}:{columna['fieldName']} tipo invalido {columna['type']}"
+                )
+                vistos += 1
+        assert vistos > 0
+
+    def test_los_importes_se_alinean_a_la_derecha(self):
+        for archivo, nombre, spec in self._widgets("table"):
+            for columna in spec["encodings"]["columns"]:
+                if columna["fieldName"].endswith("_usd"):
+                    assert columna["type"] == "float", f"{archivo}:{nombre}:{columna['fieldName']}"
+                    assert columna["alignContent"] == "right"
+
+    def test_cada_widget_consulta_un_dataset_declarado(self):
+        for archivo in sorted((DASHBOARDS_DIR / "dev").glob("*.lvdash.json")):
+            contenido = json.loads(archivo.read_text(encoding="utf-8"))
+            declarados = {d["name"] for d in contenido["datasets"]}
+            for pagina in contenido["pages"]:
+                for elemento in pagina["layout"]:
+                    for consulta in elemento["widget"].get("queries", []):
+                        usado = consulta["query"]["datasetName"]
+                        assert usado in declarados, (
+                            f"{archivo.name}: el widget '{elemento['widget']['name']}' "
+                            f"usa el dataset '{usado}', que no esta declarado"
+                        )
+
+    def test_los_campos_del_widget_existen_en_su_encoding(self):
+        """Todo fieldName referenciado debe estar en los campos de la consulta."""
+        for archivo, nombre, spec in self._widgets("table"):
+            widget = next(
+                w["widget"]
+                for f in [DASHBOARDS_DIR / "dev" / archivo]
+                for p in json.loads(f.read_text(encoding="utf-8"))["pages"]
+                for w in p["layout"]
+                if w["widget"]["name"] == nombre
+            )
+            disponibles = {c["name"] for c in widget["queries"][0]["query"]["fields"]}
+            for columna in spec["encodings"]["columns"]:
+                assert columna["fieldName"] in disponibles, (
+                    f"{archivo}:{nombre}: la columna '{columna['fieldName']}' no se consulta"
+                )

@@ -99,11 +99,42 @@ def chart(
     color_campo: str | None = None, color_titulo: str = "",
     x: int, y: int, w: int = 3, h: int = 6,
 ) -> dict[str, Any]:
-    campos = [(x_campo, f"`{x_campo}`"), (f"{y_agg.lower()}({y_campo})", f"{y_agg}(`{y_campo}`)")]
-    encodings: dict[str, Any] = {
+    medida = f"{y_agg.lower()}({y_campo})"
+    campos = [(x_campo, f"`{x_campo}`"), (medida, f"{y_agg}(`{y_campo}`)")]
+
+    if tipo == "pie":
+        # Un pie no tiene ejes: la magnitud va en `angle` y la categoria en
+        # `color`. Con `x`/`y` el widget no renderiza.
+        encodings: dict[str, Any] = {
+            "angle": {
+                "fieldName": medida,
+                "scale": {"type": "quantitative"},
+                "displayName": y_titulo,
+            },
+            "color": {
+                "fieldName": x_campo,
+                "scale": {"type": "categorical"},
+                "displayName": x_titulo,
+            },
+        }
+        return {
+            "widget": {
+                "name": name,
+                "queries": [_query(name, ds, campos)],
+                "spec": {
+                    "version": 3,
+                    "widgetType": "pie",
+                    "encodings": encodings,
+                    "frame": {"title": titulo, "showTitle": True},
+                },
+            },
+            "position": _pos(x, y, w, h),
+        }
+
+    encodings = {
         "x": {"fieldName": x_campo, "scale": {"type": x_escala}, "displayName": x_titulo},
         "y": {
-            "fieldName": f"{y_agg.lower()}({y_campo})",
+            "fieldName": medida,
             "scale": {"type": "quantitative"},
             "displayName": y_titulo,
         },
@@ -130,10 +161,63 @@ def chart(
     }
 
 
+#: Sufijos y fragmentos que identifican el tipo de una columna de tabla.
+#: Lakeview necesita `type` y `displayAs` en cada columna; sin ellos la tabla no
+#: sabe como formatear ni alinear el valor.
+_COLUMNAS_FECHA = ("date", "fecha", "_at", "momento", "period_start", "period_end")
+_COLUMNAS_DECIMALES = (
+    "_usd", "costo", "ahorro", "pct", "ratio", "promedio", "duracion", "score", "horas", "dbus",
+)
+_COLUMNAS_ENTERAS = (
+    "count", "ejecuciones", "fallidas", "consultas", "recursos", "dias", "days", "workers",
+    "hallazgos", "entity_count", "rows", "min", "_id_num",
+)
+_COLUMNAS_BOOLEANAS = ("delivered", "is_", "autoscale", "enabled", "passed")
+
+
+def _tipo_columna(campo: str) -> tuple[str, str]:
+    """Devuelve (type, displayAs) para una columna, deducido de su nombre.
+
+    Es una heuristica sobre las convenciones de nombres del modelo, no una
+    consulta al catalogo: el generador no se conecta al workspace.
+    """
+    nombre = campo.lower()
+    if any(t in nombre for t in _COLUMNAS_BOOLEANAS):
+        return "boolean", "boolean"
+    if any(t in nombre for t in _COLUMNAS_FECHA):
+        return "datetime", "datetime"
+    if any(t in nombre for t in _COLUMNAS_DECIMALES):
+        return "float", "number"
+    if any(t in nombre for t in _COLUMNAS_ENTERAS):
+        return "integer", "number"
+    return "string", "string"
+
+
 def table(
     name: str, ds: str, titulo: str, columnas: list[tuple[str, str]], *,
     x: int, y: int, w: int = GRID_WIDTH, h: int = 8,
 ) -> dict[str, Any]:
+    definiciones = []
+    for i, (campo, etiqueta) in enumerate(columnas):
+        tipo, mostrar_como = _tipo_columna(campo)
+        definiciones.append(
+            {
+                "fieldName": campo,
+                "displayName": etiqueta,
+                "title": etiqueta,
+                "type": tipo,
+                "displayAs": mostrar_como,
+                "booleanValues": ["false", "true"],
+                "alignContent": "right" if mostrar_como == "number" else "left",
+                "allowSearch": False,
+                "allowHTML": False,
+                "highlightLinks": False,
+                "useMonospaceFont": False,
+                "preserveWhitespace": False,
+                "visible": True,
+                "order": i,
+            }
+        )
     return {
         "widget": {
             "name": name,
@@ -141,12 +225,7 @@ def table(
             "spec": {
                 "version": 1,
                 "widgetType": "table",
-                "encodings": {
-                    "columns": [
-                        {"fieldName": campo, "displayName": etiqueta, "visible": True, "order": i}
-                        for i, (campo, etiqueta) in enumerate(columnas)
-                    ]
-                },
+                "encodings": {"columns": definiciones},
                 "frame": {"title": titulo, "showTitle": True},
             },
         },

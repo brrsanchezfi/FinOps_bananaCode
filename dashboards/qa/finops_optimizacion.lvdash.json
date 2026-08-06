@@ -554,72 +554,228 @@
                   {
                     "fieldName": "rule_id",
                     "displayName": "Hallazgo",
+                    "title": "Hallazgo",
+                    "type": "string",
+                    "displayAs": "string",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "left",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 0
                   },
                   {
                     "fieldName": "title",
                     "displayName": "Titulo",
+                    "title": "Titulo",
+                    "type": "string",
+                    "displayAs": "string",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "left",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 1
                   },
                   {
                     "fieldName": "entity_name",
                     "displayName": "Recurso",
+                    "title": "Recurso",
+                    "type": "string",
+                    "displayAs": "string",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "left",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 2
                   },
                   {
                     "fieldName": "entity_type",
                     "displayName": "Tipo",
+                    "title": "Tipo",
+                    "type": "string",
+                    "displayAs": "string",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "left",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 3
                   },
                   {
                     "fieldName": "team",
                     "displayName": "Equipo",
+                    "title": "Equipo",
+                    "type": "string",
+                    "displayAs": "string",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "left",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 4
                   },
                   {
                     "fieldName": "environment",
                     "displayName": "Ambiente",
+                    "title": "Ambiente",
+                    "type": "string",
+                    "displayAs": "string",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "left",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 5
                   },
                   {
                     "fieldName": "observed_cost_usd",
                     "displayName": "Costo observado USD",
+                    "title": "Costo observado USD",
+                    "type": "float",
+                    "displayAs": "number",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "right",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 6
                   },
                   {
                     "fieldName": "estimated_monthly_savings_usd",
                     "displayName": "Ahorro estimado USD/mes",
+                    "title": "Ahorro estimado USD/mes",
+                    "type": "float",
+                    "displayAs": "number",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "right",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 7
                   },
                   {
                     "fieldName": "confidence",
                     "displayName": "Confianza",
+                    "title": "Confianza",
+                    "type": "string",
+                    "displayAs": "string",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "left",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 8
                   },
                   {
                     "fieldName": "severity",
                     "displayName": "Prioridad",
+                    "title": "Prioridad",
+                    "type": "string",
+                    "displayAs": "string",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "left",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 9
                   },
                   {
                     "fieldName": "recommendation",
                     "displayName": "Accion sugerida",
+                    "title": "Accion sugerida",
+                    "type": "string",
+                    "displayAs": "string",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "left",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 10
                   },
                   {
                     "fieldName": "estimation_method",
                     "displayName": "Metodo de estimacion",
+                    "title": "Metodo de estimacion",
+                    "type": "string",
+                    "displayAs": "string",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "left",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 11
                   }
@@ -688,24 +844,76 @@
                   {
                     "fieldName": "entity_name",
                     "displayName": "Recurso",
+                    "title": "Recurso",
+                    "type": "string",
+                    "displayAs": "string",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "left",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 0
                   },
                   {
                     "fieldName": "entity_type",
                     "displayName": "Tipo",
+                    "title": "Tipo",
+                    "type": "string",
+                    "displayAs": "string",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "left",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 1
                   },
                   {
                     "fieldName": "workspace_id",
                     "displayName": "Workspace",
+                    "title": "Workspace",
+                    "type": "string",
+                    "displayAs": "string",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "left",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 2
                   },
                   {
                     "fieldName": "costo_usd",
                     "displayName": "Costo USD",
+                    "title": "Costo USD",
+                    "type": "float",
+                    "displayAs": "number",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "right",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 3
                   }
@@ -774,42 +982,133 @@
                   {
                     "fieldName": "entity_name",
                     "displayName": "Cluster",
+                    "title": "Cluster",
+                    "type": "string",
+                    "displayAs": "string",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "left",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 0
                   },
                   {
                     "fieldName": "autotermination_minutes",
                     "displayName": "Auto-term (min)",
+                    "title": "Auto-term (min)",
+                    "type": "integer",
+                    "displayAs": "number",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "right",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 1
                   },
                   {
                     "fieldName": "autoscale_enabled",
                     "displayName": "Autoescalado",
+                    "title": "Autoescalado",
+                    "type": "boolean",
+                    "displayAs": "boolean",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "left",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 2
                   },
                   {
                     "fieldName": "num_workers",
                     "displayName": "Workers",
+                    "title": "Workers",
+                    "type": "integer",
+                    "displayAs": "number",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "right",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 3
                   },
                   {
                     "fieldName": "spark_version",
                     "displayName": "DBR",
+                    "title": "DBR",
+                    "type": "string",
+                    "displayAs": "string",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "left",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 4
                   },
                   {
                     "fieldName": "days_since_activity",
                     "displayName": "Dias sin uso",
+                    "title": "Dias sin uso",
+                    "type": "integer",
+                    "displayAs": "number",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "right",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 5
                   },
                   {
                     "fieldName": "lifetime_cost_usd",
                     "displayName": "Costo acumulado USD",
+                    "title": "Costo acumulado USD",
+                    "type": "float",
+                    "displayAs": "number",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "right",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 6
                   }
@@ -886,36 +1185,114 @@
                   {
                     "fieldName": "job",
                     "displayName": "Job",
+                    "title": "Job",
+                    "type": "string",
+                    "displayAs": "string",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "left",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 0
                   },
                   {
                     "fieldName": "team",
                     "displayName": "Equipo",
+                    "title": "Equipo",
+                    "type": "string",
+                    "displayAs": "string",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "left",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 1
                   },
                   {
                     "fieldName": "ejecuciones",
                     "displayName": "Ejecuciones",
+                    "title": "Ejecuciones",
+                    "type": "integer",
+                    "displayAs": "number",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "right",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 2
                   },
                   {
                     "fieldName": "fallidas",
                     "displayName": "Fallidas",
+                    "title": "Fallidas",
+                    "type": "integer",
+                    "displayAs": "number",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "right",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 3
                   },
                   {
                     "fieldName": "tasa_fallo_pct",
                     "displayName": "% fallo",
+                    "title": "% fallo",
+                    "type": "float",
+                    "displayAs": "number",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "right",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 4
                   },
                   {
                     "fieldName": "costo_fallido_usd",
                     "displayName": "Costo desperdiciado USD",
+                    "title": "Costo desperdiciado USD",
+                    "type": "float",
+                    "displayAs": "number",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "right",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 5
                   }
@@ -992,36 +1369,114 @@
                   {
                     "fieldName": "run_date",
                     "displayName": "Fecha",
+                    "title": "Fecha",
+                    "type": "datetime",
+                    "displayAs": "datetime",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "left",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 0
                   },
                   {
                     "fieldName": "stage",
                     "displayName": "Etapa",
+                    "title": "Etapa",
+                    "type": "string",
+                    "displayAs": "string",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "left",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 1
                   },
                   {
                     "fieldName": "status",
                     "displayName": "Estado",
+                    "title": "Estado",
+                    "type": "string",
+                    "displayAs": "string",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "left",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 2
                   },
                   {
                     "fieldName": "duration_seconds",
                     "displayName": "Duracion (s)",
+                    "title": "Duracion (s)",
+                    "type": "float",
+                    "displayAs": "number",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "right",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 3
                   },
                   {
                     "fieldName": "rows_written",
                     "displayName": "Filas",
+                    "title": "Filas",
+                    "type": "integer",
+                    "displayAs": "number",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "right",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 4
                   },
                   {
                     "fieldName": "error_message",
                     "displayName": "Error",
+                    "title": "Error",
+                    "type": "string",
+                    "displayAs": "string",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "left",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 5
                   }
@@ -1094,48 +1549,152 @@
                   {
                     "fieldName": "created_at",
                     "displayName": "Momento",
+                    "title": "Momento",
+                    "type": "datetime",
+                    "displayAs": "datetime",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "left",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 0
                   },
                   {
                     "fieldName": "rule_id",
                     "displayName": "Regla",
+                    "title": "Regla",
+                    "type": "string",
+                    "displayAs": "string",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "left",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 1
                   },
                   {
                     "fieldName": "severity",
                     "displayName": "Severidad",
+                    "title": "Severidad",
+                    "type": "string",
+                    "displayAs": "string",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "left",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 2
                   },
                   {
                     "fieldName": "title",
                     "displayName": "Titulo",
+                    "title": "Titulo",
+                    "type": "string",
+                    "displayAs": "string",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "left",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 3
                   },
                   {
                     "fieldName": "scope",
                     "displayName": "Ambito",
+                    "title": "Ambito",
+                    "type": "string",
+                    "displayAs": "string",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "left",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 4
                   },
                   {
                     "fieldName": "dispatch_status",
                     "displayName": "Estado",
+                    "title": "Estado",
+                    "type": "string",
+                    "displayAs": "string",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "left",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 5
                   },
                   {
                     "fieldName": "channels",
                     "displayName": "Canales",
+                    "title": "Canales",
+                    "type": "string",
+                    "displayAs": "string",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "left",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 6
                   },
                   {
                     "fieldName": "delivered",
                     "displayName": "Entregada",
+                    "title": "Entregada",
+                    "type": "boolean",
+                    "displayAs": "boolean",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "alignContent": "left",
+                    "allowSearch": false,
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
                     "visible": true,
                     "order": 7
                   }
