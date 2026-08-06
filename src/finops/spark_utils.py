@@ -32,12 +32,27 @@ def get_spark(app_name: str = "finops") -> SparkSession:
     return SparkSession.builder.appName(app_name).getOrCreate()
 
 
+#: Modo de sobrescritura de particiones que exige la plataforma.
+#
+# El patron incremental de este pipeline es DELETE explicito del rango + append
+# (`replace_date_range`), nunca sobrescritura dinamica de particiones. Y las
+# tablas de snapshot se reescriben enteras con `overwriteSchema`, que Delta
+# **rechaza** si el modo dinamico esta activo:
+#
+#   [DELTA_OVERWRITE_SCHEMA_WITH_DYNAMIC_PARTITION_OVERWRITE]
+#   'overwriteSchema' cannot be used in dynamic partition overwrite mode.
+#
+# Se fija explicitamente en 'static' para no depender de la configuracion del
+# cluster, que puede traerlo en dinamico.
+PARTITION_OVERWRITE_MODE = "static"
+
+
 def configure_session(spark: SparkSession, shuffle_partitions: Any = "auto") -> None:
     """Aplica ajustes de rendimiento razonables para cargas FinOps."""
     spark.conf.set("spark.sql.adaptive.enabled", "true")
     spark.conf.set("spark.sql.adaptive.coalescePartitions.enabled", "true")
     spark.conf.set("spark.databricks.delta.schema.autoMerge.enabled", "true")
-    spark.conf.set("spark.sql.sources.partitionOverwriteMode", "dynamic")
+    spark.conf.set("spark.sql.sources.partitionOverwriteMode", PARTITION_OVERWRITE_MODE)
     if shuffle_partitions and str(shuffle_partitions).lower() != "auto":
         spark.conf.set("spark.sql.shuffle.partitions", str(shuffle_partitions))
 
@@ -218,7 +233,12 @@ def overwrite_table(
     if dry_run:
         log.info("[dry-run] overwrite %s (%s filas)", fqn, f"{filas:,}")
         return filas
-    writer = df.write.format("delta").mode("overwrite").option("overwriteSchema", "true")
+    writer = (
+        df.write.format("delta")
+        .mode("overwrite")
+        .option("overwriteSchema", "true")
+        .option("partitionOverwriteMode", PARTITION_OVERWRITE_MODE)
+    )
     if partition_by:
         writer = writer.partitionBy(*partition_by)
     writer.saveAsTable(fqn)
@@ -251,7 +271,12 @@ def replace_date_range(
         return filas
 
     if not table_exists(spark, fqn):
-        writer = df.write.format("delta").mode("overwrite").option("overwriteSchema", "true")
+        writer = (
+            df.write.format("delta")
+            .mode("overwrite")
+            .option("overwriteSchema", "true")
+            .option("partitionOverwriteMode", PARTITION_OVERWRITE_MODE)
+        )
         if partition_by:
             writer = writer.partitionBy(*partition_by)
         writer.saveAsTable(fqn)
@@ -314,7 +339,12 @@ def merge_table(
         return filas
 
     if not table_exists(spark, fqn):
-        writer = df.write.format("delta").mode("overwrite").option("overwriteSchema", "true")
+        writer = (
+            df.write.format("delta")
+            .mode("overwrite")
+            .option("overwriteSchema", "true")
+            .option("partitionOverwriteMode", PARTITION_OVERWRITE_MODE)
+        )
         if partition_by:
             writer = writer.partitionBy(*partition_by)
         writer.saveAsTable(fqn)
