@@ -175,17 +175,65 @@ generador falla si un marcador no corresponde a una tabla del registro.
 
 ---
 
-## Nota sobre la primera revision
+## La forma de un widget
 
-Los JSON fueron construidos siguiendo el esquema documentado de Lakeview, pero
-sin un workspace disponible para validarlos visualmente. Tras el primer deploy
-conviene abrirlos y revisar el detalle de cada widget; si algun encoding necesita
-ajuste, la forma correcta de arreglarlo es **editar `scripts/dashboards.py` y
-regenerar**, no editar el JSON, para que el cambio quede versionado y CI no lo
-revierta.
+El esquema de Lakeview no esta documentado al detalle, y el generador se
+construyo primero contra la documentacion publica: varias suposiciones
+resultaron equivocadas y produjeron widgets vacios. La forma que aparece abajo
+esta **verificada contra un widget construido en la UI del workspace**.
 
-Alternativamente, se puede ajustar en la UI, exportar el dashboard y trasladar
-las diferencias al generador.
+```jsonc
+{
+  "widget": {
+    "name": "ahorro_total",
+    "queries": [
+      {
+        "name": "main_query",                    // referenciado por spec.data
+        "query": {
+          "datasetName": "ahorro_por_regla",
+          "fields": [
+            {"name": "sum(ahorro_mensual_usd)",  // el alias, no la columna
+             "expression": "SUM(`ahorro_mensual_usd`)"}
+          ],
+          "disaggregated": false                 // false => hay agregacion
+        }
+      }
+    ],
+    "spec": {
+      "version": 2,                              // 2 counter, 3 graficos, 1 tabla
+      "widgetType": "counter",
+      "encodings": {"value": {"fieldName": "sum(ahorro_mensual_usd)"}},
+      "frame": {"title": "Ahorro mensual estimado", "showTitle": true},
+      "data": {"queryName": "main_query"}        // SIN esto el widget sale vacio
+    }
+  },
+  "position": {"x": 0, "y": 2, "width": 4, "height": 3}
+}
+```
+
+Los errores que costaron varias iteraciones, por si reaparecen:
+
+| Sintoma | Causa |
+|---|---|
+| "Select fields to visualize" | Falta `spec.data.queryName`, o falta `pageType`/`layoutVersion` en la pagina |
+| Widget de texto en blanco | Se uso `textbox_spec`; el esquema espera `multilineTextboxSpec.lines` |
+| Contador vacio | El campo no estaba agregado teniendo `disaggregated: false` |
+| Torta que no renderiza | Se declararon ejes `x`/`y`; un pie usa `angle` y `color` |
+| Tablero confinado a la izquierda | La grilla es de 12 columnas, no de 6 |
+
+Todos estan cubiertos por pruebas en `tests/test_catalog.py`, asi que no pueden
+volver a colarse en un despliegue.
+
+### Como obtener una referencia nueva
+
+Si hace falta un tipo de widget que el generador no cubre, la via fiable es
+construirlo en la UI, exportarlo y copiar su forma:
+
+```bash
+databricks bundle generate dashboard --existing-path "/Workspace/Users/<usuario>/<dashboard>" -t dev
+```
+
+Nunca al reves: editar el JSON a mano se pierde en el siguiente `generate`.
 
 ---
 

@@ -147,7 +147,12 @@
         {
           "widget": {
             "name": "titulo",
-            "textbox_spec": "# Costos y chargeback\nImputacion de costo por unidad de negocio, evolucion mensual y detalle por recurso. El chargeback incluye el prorrateo del costo compartido y del costo sin atribuir segun la estrategia definida en `conf/budgets.yml`."
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Costos y chargeback\n",
+                "Imputacion de costo por unidad de negocio, evolucion mensual y detalle por recurso. El chargeback incluye el prorrateo del costo compartido y del costo sin atribuir segun la estrategia definida en `conf/budgets.yml`."
+              ]
+            }
           },
           "position": {
             "x": 0,
@@ -161,7 +166,7 @@
             "name": "cb_barras",
             "queries": [
               {
-                "name": "cb_barras_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "chargeback_mes",
                   "fields": [
@@ -200,6 +205,9 @@
               "frame": {
                 "title": "Chargeback del ultimo mes",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -215,7 +223,7 @@
             "name": "cb_tendencia",
             "queries": [
               {
-                "name": "cb_tendencia_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "chargeback_tendencia",
                   "fields": [
@@ -265,6 +273,9 @@
               "frame": {
                 "title": "Evolucion mensual por unidad",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -280,7 +291,7 @@
             "name": "cb_tabla",
             "queries": [
               {
-                "name": "cb_tabla_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "chargeback_mes",
                   "fields": [
@@ -483,6 +494,9 @@
               "frame": {
                 "title": "Detalle de imputacion",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -496,7 +510,11 @@
         {
           "widget": {
             "name": "sub_tendencia",
-            "textbox_spec": "## Evolucion y distribucion"
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Evolucion y distribucion"
+              ]
+            }
           },
           "position": {
             "x": 0,
@@ -510,7 +528,7 @@
             "name": "mensual",
             "queries": [
               {
-                "name": "mensual_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "costo_mensual",
                   "fields": [
@@ -560,6 +578,9 @@
               "frame": {
                 "title": "Costo mensual por tipo de compute",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -575,7 +596,7 @@
             "name": "workspaces",
             "queries": [
               {
-                "name": "workspaces_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "costo_workspace",
                   "fields": [
@@ -614,6 +635,9 @@
               "frame": {
                 "title": "Costo por workspace (30 dias)",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -629,7 +653,7 @@
             "name": "cobertura_serie",
             "queries": [
               {
-                "name": "cobertura_serie_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "cobertura",
                   "fields": [
@@ -679,6 +703,9 @@
               "frame": {
                 "title": "Cobertura de etiquetado (%)",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -692,7 +719,11 @@
         {
           "widget": {
             "name": "sub_recursos",
-            "textbox_spec": "## Jobs y warehouses"
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Jobs y warehouses"
+              ]
+            }
           },
           "position": {
             "x": 0,
@@ -706,7 +737,7 @@
             "name": "tabla_jobs",
             "queries": [
               {
-                "name": "tabla_jobs_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "jobs_costosos",
                   "fields": [
@@ -909,6 +940,9 @@
               "frame": {
                 "title": "Jobs de mayor costo (30 dias)",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -924,7 +958,7 @@
             "name": "tabla_warehouses",
             "queries": [
               {
-                "name": "tabla_warehouses_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "warehouses",
                   "fields": [
@@ -1127,6 +1161,9 @@
               "frame": {
                 "title": "SQL warehouses (30 dias)",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -1140,7 +1177,11 @@
         {
           "widget": {
             "name": "sub_detalle",
-            "textbox_spec": "## Detalle de consumo (7 dias)"
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Detalle de consumo (7 dias)"
+              ]
+            }
           },
           "position": {
             "x": 0,
@@ -1154,7 +1195,7 @@
             "name": "tabla_detalle",
             "queries": [
               {
-                "name": "tabla_detalle_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "detalle_entidad",
                   "fields": [
@@ -1403,6 +1444,9 @@
               "frame": {
                 "title": "Consumo por recurso y dia",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },

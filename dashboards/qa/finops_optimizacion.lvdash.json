@@ -167,7 +167,12 @@
         {
           "widget": {
             "name": "titulo",
-            "textbox_spec": "# Optimizacion y gobierno\nOportunidades de ahorro, calidad del etiquetado y salud de la plataforma. **Los ahorros son estimaciones**: cada recomendacion declara su metodo de calculo y su nivel de confianza en la columna correspondiente. Validar antes de comprometer cifras."
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Optimizacion y gobierno\n",
+                "Oportunidades de ahorro, calidad del etiquetado y salud de la plataforma. **Los ahorros son estimaciones**: cada recomendacion declara su metodo de calculo y su nivel de confianza en la columna correspondiente. Validar antes de comprometer cifras."
+              ]
+            }
           },
           "position": {
             "x": 0,
@@ -181,16 +186,16 @@
             "name": "ahorro_total",
             "queries": [
               {
-                "name": "ahorro_total_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "resumen_ahorro",
                   "fields": [
                     {
-                      "name": "ahorro_mensual_usd",
-                      "expression": "`ahorro_mensual_usd`"
+                      "name": "sum(ahorro_mensual_usd)",
+                      "expression": "SUM(`ahorro_mensual_usd`)"
                     }
                   ],
-                  "disaggregated": true
+                  "disaggregated": false
                 }
               }
             ],
@@ -199,20 +204,16 @@
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "fieldName": "ahorro_mensual_usd",
-                  "displayName": "Ahorro mensual estimado",
-                  "format": {
-                    "type": "number-currency-usd",
-                    "decimalPlaces": {
-                      "type": "exact",
-                      "places": 0
-                    }
-                  }
+                  "fieldName": "sum(ahorro_mensual_usd)",
+                  "displayName": "Ahorro mensual estimado"
                 }
               },
               "frame": {
                 "title": "Ahorro mensual estimado",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -228,16 +229,16 @@
             "name": "ahorro_confiable",
             "queries": [
               {
-                "name": "ahorro_confiable_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "resumen_ahorro",
                   "fields": [
                     {
-                      "name": "ahorro_alta_confianza_usd",
-                      "expression": "`ahorro_alta_confianza_usd`"
+                      "name": "sum(ahorro_alta_confianza_usd)",
+                      "expression": "SUM(`ahorro_alta_confianza_usd`)"
                     }
                   ],
-                  "disaggregated": true
+                  "disaggregated": false
                 }
               }
             ],
@@ -246,20 +247,16 @@
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "fieldName": "ahorro_alta_confianza_usd",
-                  "displayName": "Ahorro de alta confianza",
-                  "format": {
-                    "type": "number-currency-usd",
-                    "decimalPlaces": {
-                      "type": "exact",
-                      "places": 0
-                    }
-                  }
+                  "fieldName": "sum(ahorro_alta_confianza_usd)",
+                  "displayName": "Ahorro de alta confianza"
                 }
               },
               "frame": {
                 "title": "Ahorro de alta confianza",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -275,16 +272,16 @@
             "name": "num_recomendaciones",
             "queries": [
               {
-                "name": "num_recomendaciones_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "resumen_ahorro",
                   "fields": [
                     {
-                      "name": "recomendaciones",
-                      "expression": "`recomendaciones`"
+                      "name": "sum(recomendaciones)",
+                      "expression": "SUM(`recomendaciones`)"
                     }
                   ],
-                  "disaggregated": true
+                  "disaggregated": false
                 }
               }
             ],
@@ -293,20 +290,16 @@
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "fieldName": "recomendaciones",
-                  "displayName": "Recomendaciones abiertas",
-                  "format": {
-                    "type": "number-plain",
-                    "decimalPlaces": {
-                      "type": "exact",
-                      "places": 0
-                    }
-                  }
+                  "fieldName": "sum(recomendaciones)",
+                  "displayName": "Recomendaciones abiertas"
                 }
               },
               "frame": {
                 "title": "Recomendaciones abiertas",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -322,16 +315,16 @@
             "name": "recursos_afectados",
             "queries": [
               {
-                "name": "recursos_afectados_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "resumen_ahorro",
                   "fields": [
                     {
-                      "name": "recursos_afectados",
-                      "expression": "`recursos_afectados`"
+                      "name": "sum(recursos_afectados)",
+                      "expression": "SUM(`recursos_afectados`)"
                     }
                   ],
-                  "disaggregated": true
+                  "disaggregated": false
                 }
               }
             ],
@@ -340,20 +333,16 @@
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "fieldName": "recursos_afectados",
-                  "displayName": "Recursos involucrados",
-                  "format": {
-                    "type": "number-plain",
-                    "decimalPlaces": {
-                      "type": "exact",
-                      "places": 0
-                    }
-                  }
+                  "fieldName": "sum(recursos_afectados)",
+                  "displayName": "Recursos involucrados"
                 }
               },
               "frame": {
                 "title": "Recursos involucrados",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -369,7 +358,7 @@
             "name": "por_regla",
             "queries": [
               {
-                "name": "por_regla_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "ahorro_por_regla",
                   "fields": [
@@ -408,6 +397,9 @@
               "frame": {
                 "title": "Ahorro estimado por tipo de hallazgo",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -423,7 +415,7 @@
             "name": "eficiencia_serie",
             "queries": [
               {
-                "name": "eficiencia_serie_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "eficiencia",
                   "fields": [
@@ -462,6 +454,9 @@
               "frame": {
                 "title": "Indicadores de eficiencia (%)",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -475,7 +470,11 @@
         {
           "widget": {
             "name": "sub_reco",
-            "textbox_spec": "## Recomendaciones"
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Recomendaciones"
+              ]
+            }
           },
           "position": {
             "x": 0,
@@ -489,7 +488,7 @@
             "name": "tabla_reco",
             "queries": [
               {
-                "name": "tabla_reco_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "recomendaciones",
                   "fields": [
@@ -784,6 +783,9 @@
               "frame": {
                 "title": "Recomendaciones priorizadas por ahorro",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -797,7 +799,11 @@
         {
           "widget": {
             "name": "sub_gobierno",
-            "textbox_spec": "## Gobierno del etiquetado"
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Gobierno del etiquetado"
+              ]
+            }
           },
           "position": {
             "x": 0,
@@ -811,7 +817,7 @@
             "name": "tabla_sin_tag",
             "queries": [
               {
-                "name": "tabla_sin_tag_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "gasto_sin_atribuir",
                   "fields": [
@@ -922,6 +928,9 @@
               "frame": {
                 "title": "Gasto sin atribucion (30 dias)",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -937,7 +946,7 @@
             "name": "tabla_clusters",
             "queries": [
               {
-                "name": "tabla_clusters_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "config_clusters",
                   "fields": [
@@ -1117,6 +1126,9 @@
               "frame": {
                 "title": "Configuracion de clusters",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -1130,7 +1142,11 @@
         {
           "widget": {
             "name": "sub_jobs",
-            "textbox_spec": "## Desperdicio por fallos"
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Desperdicio por fallos"
+              ]
+            }
           },
           "position": {
             "x": 0,
@@ -1144,7 +1160,7 @@
             "name": "tabla_jobs_malos",
             "queries": [
               {
-                "name": "tabla_jobs_malos_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "jobs_inestables",
                   "fields": [
@@ -1301,6 +1317,9 @@
               "frame": {
                 "title": "Jobs con ejecuciones fallidas (30 dias)",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -1314,7 +1333,11 @@
         {
           "widget": {
             "name": "sub_plataforma",
-            "textbox_spec": "## Salud de la plataforma FinOps"
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Salud de la plataforma FinOps"
+              ]
+            }
           },
           "position": {
             "x": 0,
@@ -1328,7 +1351,7 @@
             "name": "tabla_corridas",
             "queries": [
               {
-                "name": "tabla_corridas_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "salud_pipeline",
                   "fields": [
@@ -1485,6 +1508,9 @@
               "frame": {
                 "title": "Corridas del pipeline (7 dias)",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -1500,7 +1526,7 @@
             "name": "tabla_alertas",
             "queries": [
               {
-                "name": "tabla_alertas_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "alertas",
                   "fields": [
@@ -1703,6 +1729,9 @@
               "frame": {
                 "title": "Alertas emitidas (14 dias)",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },

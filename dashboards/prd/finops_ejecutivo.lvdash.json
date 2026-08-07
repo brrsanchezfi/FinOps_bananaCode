@@ -148,7 +148,12 @@
         {
           "widget": {
             "name": "titulo",
-            "textbox_spec": "# FinOps Databricks — Vista ejecutiva\nCosto, tendencia, presupuestos y desviaciones. Los importes estan en USD y corresponden al consumo facturado de Databricks (DBU) segun las tablas de sistema."
+            "multilineTextboxSpec": {
+              "lines": [
+                "# FinOps Databricks — Vista ejecutiva\n",
+                "Costo, tendencia, presupuestos y desviaciones. Los importes estan en USD y corresponden al consumo facturado de Databricks (DBU) segun las tablas de sistema."
+              ]
+            }
           },
           "position": {
             "x": 0,
@@ -162,16 +167,16 @@
             "name": "kpi_dia",
             "queries": [
               {
-                "name": "kpi_dia_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "kpi_actual",
                   "fields": [
                     {
-                      "name": "total_cost_usd",
-                      "expression": "`total_cost_usd`"
+                      "name": "sum(total_cost_usd)",
+                      "expression": "SUM(`total_cost_usd`)"
                     }
                   ],
-                  "disaggregated": true
+                  "disaggregated": false
                 }
               }
             ],
@@ -180,20 +185,16 @@
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "fieldName": "total_cost_usd",
-                  "displayName": "Costo del ultimo dia",
-                  "format": {
-                    "type": "number-currency-usd",
-                    "decimalPlaces": {
-                      "type": "exact",
-                      "places": 0
-                    }
-                  }
+                  "fieldName": "sum(total_cost_usd)",
+                  "displayName": "Costo del ultimo dia"
                 }
               },
               "frame": {
                 "title": "Costo del ultimo dia",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -209,16 +210,16 @@
             "name": "kpi_mtd",
             "queries": [
               {
-                "name": "kpi_mtd_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "kpi_actual",
                   "fields": [
                     {
-                      "name": "mtd_cost_usd",
-                      "expression": "`mtd_cost_usd`"
+                      "name": "sum(mtd_cost_usd)",
+                      "expression": "SUM(`mtd_cost_usd`)"
                     }
                   ],
-                  "disaggregated": true
+                  "disaggregated": false
                 }
               }
             ],
@@ -227,20 +228,16 @@
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "fieldName": "mtd_cost_usd",
-                  "displayName": "Acumulado del mes",
-                  "format": {
-                    "type": "number-currency-usd",
-                    "decimalPlaces": {
-                      "type": "exact",
-                      "places": 0
-                    }
-                  }
+                  "fieldName": "sum(mtd_cost_usd)",
+                  "displayName": "Acumulado del mes"
                 }
               },
               "frame": {
                 "title": "Acumulado del mes",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -256,16 +253,16 @@
             "name": "kpi_7d",
             "queries": [
               {
-                "name": "kpi_7d_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "kpi_actual",
                   "fields": [
                     {
-                      "name": "rolling_7d_avg_usd",
-                      "expression": "`rolling_7d_avg_usd`"
+                      "name": "sum(rolling_7d_avg_usd)",
+                      "expression": "SUM(`rolling_7d_avg_usd`)"
                     }
                   ],
-                  "disaggregated": true
+                  "disaggregated": false
                 }
               }
             ],
@@ -274,20 +271,16 @@
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "fieldName": "rolling_7d_avg_usd",
-                  "displayName": "Promedio 7 dias",
-                  "format": {
-                    "type": "number-currency-usd",
-                    "decimalPlaces": {
-                      "type": "exact",
-                      "places": 0
-                    }
-                  }
+                  "fieldName": "sum(rolling_7d_avg_usd)",
+                  "displayName": "Promedio 7 dias"
                 }
               },
               "frame": {
                 "title": "Promedio 7 dias",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -303,16 +296,16 @@
             "name": "kpi_dod",
             "queries": [
               {
-                "name": "kpi_dod_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "kpi_actual",
                   "fields": [
                     {
-                      "name": "dod_change_pct",
-                      "expression": "`dod_change_pct`"
+                      "name": "sum(dod_change_pct)",
+                      "expression": "SUM(`dod_change_pct`)"
                     }
                   ],
-                  "disaggregated": true
+                  "disaggregated": false
                 }
               }
             ],
@@ -321,20 +314,16 @@
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "fieldName": "dod_change_pct",
-                  "displayName": "Variacion vs dia previo (%)",
-                  "format": {
-                    "type": "number-plain",
-                    "decimalPlaces": {
-                      "type": "exact",
-                      "places": 1
-                    }
-                  }
+                  "fieldName": "sum(dod_change_pct)",
+                  "displayName": "Variacion vs dia previo (%)"
                 }
               },
               "frame": {
                 "title": "Variacion vs dia previo (%)",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -350,16 +339,16 @@
             "name": "kpi_wow",
             "queries": [
               {
-                "name": "kpi_wow_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "kpi_actual",
                   "fields": [
                     {
-                      "name": "wow_change_pct",
-                      "expression": "`wow_change_pct`"
+                      "name": "sum(wow_change_pct)",
+                      "expression": "SUM(`wow_change_pct`)"
                     }
                   ],
-                  "disaggregated": true
+                  "disaggregated": false
                 }
               }
             ],
@@ -368,20 +357,16 @@
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "fieldName": "wow_change_pct",
-                  "displayName": "Variacion vs semana previa (%)",
-                  "format": {
-                    "type": "number-plain",
-                    "decimalPlaces": {
-                      "type": "exact",
-                      "places": 1
-                    }
-                  }
+                  "fieldName": "sum(wow_change_pct)",
+                  "displayName": "Variacion vs semana previa (%)"
                 }
               },
               "frame": {
                 "title": "Variacion vs semana previa (%)",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -397,16 +382,16 @@
             "name": "kpi_cobertura",
             "queries": [
               {
-                "name": "kpi_cobertura_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "kpi_actual",
                   "fields": [
                     {
-                      "name": "allocation_coverage_pct",
-                      "expression": "`allocation_coverage_pct`"
+                      "name": "sum(allocation_coverage_pct)",
+                      "expression": "SUM(`allocation_coverage_pct`)"
                     }
                   ],
-                  "disaggregated": true
+                  "disaggregated": false
                 }
               }
             ],
@@ -415,20 +400,16 @@
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "fieldName": "allocation_coverage_pct",
-                  "displayName": "Cobertura de atribucion (%)",
-                  "format": {
-                    "type": "number-plain",
-                    "decimalPlaces": {
-                      "type": "exact",
-                      "places": 1
-                    }
-                  }
+                  "fieldName": "sum(allocation_coverage_pct)",
+                  "displayName": "Cobertura de atribucion (%)"
                 }
               },
               "frame": {
                 "title": "Cobertura de atribucion (%)",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -444,7 +425,7 @@
             "name": "serie",
             "queries": [
               {
-                "name": "serie_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "serie_costo",
                   "fields": [
@@ -483,6 +464,9 @@
               "frame": {
                 "title": "Costo diario (90 dias)",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -498,7 +482,7 @@
             "name": "mezcla",
             "queries": [
               {
-                "name": "mezcla_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "costo_por_sku",
                   "fields": [
@@ -537,6 +521,9 @@
               "frame": {
                 "title": "Mezcla por tipo de compute",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -552,7 +539,7 @@
             "name": "equipos",
             "queries": [
               {
-                "name": "equipos_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "costo_por_equipo",
                   "fields": [
@@ -591,6 +578,9 @@
               "frame": {
                 "title": "Costo por equipo (30 dias)",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -606,7 +596,7 @@
             "name": "pronostico",
             "queries": [
               {
-                "name": "pronostico_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "pronostico_org",
                   "fields": [
@@ -656,6 +646,9 @@
               "frame": {
                 "title": "Ejecutado vs pronostico",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -669,7 +662,11 @@
         {
           "widget": {
             "name": "sub_presupuestos",
-            "textbox_spec": "## Presupuestos"
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Presupuestos"
+              ]
+            }
           },
           "position": {
             "x": 0,
@@ -683,7 +680,7 @@
             "name": "tabla_presupuestos",
             "queries": [
               {
-                "name": "tabla_presupuestos_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "presupuestos",
                   "fields": [
@@ -932,6 +929,9 @@
               "frame": {
                 "title": "Estado de presupuestos",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -945,7 +945,11 @@
         {
           "widget": {
             "name": "sub_anomalias",
-            "textbox_spec": "## Desviaciones y recursos de mayor costo"
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Desviaciones y recursos de mayor costo"
+              ]
+            }
           },
           "position": {
             "x": 0,
@@ -959,7 +963,7 @@
             "name": "tabla_anomalias",
             "queries": [
               {
-                "name": "tabla_anomalias_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "anomalias",
                   "fields": [
@@ -1208,6 +1212,9 @@
               "frame": {
                 "title": "Anomalias de costo (14 dias)",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -1223,7 +1230,7 @@
             "name": "tabla_entidades",
             "queries": [
               {
-                "name": "tabla_entidades_query",
+                "name": "main_query",
                 "query": {
                   "datasetName": "top_entidades",
                   "fields": [
@@ -1380,6 +1387,9 @@
               "frame": {
                 "title": "Top 25 recursos por costo (30 dias)",
                 "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
               }
             }
           },

@@ -276,19 +276,10 @@ class TestWidgetsDeDashboard:
                             "ningun campo y no esta desagregado; devolvera NO DATA"
                         )
 
-    def test_los_contadores_leen_una_sola_fila(self):
-        for archivo, nombre, _spec in self._widgets("counter"):
-            widget = next(
-                w["widget"]
-                for f in [DASHBOARDS_DIR / "dev" / archivo]
-                for p in json.loads(f.read_text(encoding="utf-8"))["pages"]
-                for w in p["layout"]
-                if w["widget"]["name"] == nombre
-            )
-            assert widget["queries"][0]["query"]["disaggregated"] is True, (
-                f"{archivo}:{nombre}: un contador lee un valor ya calculado, "
-                "debe consultarse desagregado"
-            )
+    # NOTA: aqui hubo una prueba que exigia `disaggregated=True` en los
+    # contadores. Era una suposicion mia y resulto equivocada: un contador
+    # construido en la UI y verificado en el workspace usa una agregacion con
+    # `disaggregated=False`. La reemplaza `test_los_contadores_agregan_su_campo`.
 
     def test_las_paginas_declaran_tipo_y_version_de_layout(self):
         """Confirmado exportando un dashboard real del workspace.
@@ -341,3 +332,59 @@ class TestWidgetsDeDashboard:
                                 f"en (fila {fila}, columna {col})"
                             )
                             ocupadas[(fila, col)] = nombre
+
+    def test_todo_widget_de_datos_declara_su_consulta(self):
+        """`spec.data.queryName` es lo que ata el widget a su consulta.
+
+        Sin esa clave Lakeview no sabe de donde salen los campos y muestra
+        "Select fields to visualize", aunque los encodings sean validos.
+        Verificado contra un widget reparado en la UI del workspace.
+        """
+        for archivo in sorted((DASHBOARDS_DIR / "dev").glob("*.lvdash.json")):
+            contenido = json.loads(archivo.read_text(encoding="utf-8"))
+            for pagina in contenido["pages"]:
+                for elemento in pagina["layout"]:
+                    widget = elemento["widget"]
+                    if "queries" not in widget:
+                        continue  # widget de texto
+                    nombres = {q["name"] for q in widget["queries"]}
+                    declarada = widget["spec"].get("data", {}).get("queryName")
+                    assert declarada, (
+                        f"{archivo.name}: '{widget['name']}' no declara spec.data.queryName"
+                    )
+                    assert declarada in nombres, (
+                        f"{archivo.name}: '{widget['name']}' apunta a la consulta "
+                        f"'{declarada}', que no existe en el widget"
+                    )
+
+    def test_los_widgets_de_texto_usan_multiline_textbox(self):
+        """`textbox_spec` no existe en el esquema: el widget queda en blanco."""
+        vistos = 0
+        for archivo in sorted((DASHBOARDS_DIR / "dev").glob("*.lvdash.json")):
+            contenido = json.loads(archivo.read_text(encoding="utf-8"))
+            for pagina in contenido["pages"]:
+                for elemento in pagina["layout"]:
+                    widget = elemento["widget"]
+                    if "queries" in widget:
+                        continue
+                    assert "textbox_spec" not in widget, f"{archivo.name}:{widget['name']}"
+                    lineas = widget.get("multilineTextboxSpec", {}).get("lines")
+                    assert lineas, f"{archivo.name}:{widget['name']} sin lineas de texto"
+                    vistos += 1
+        assert vistos > 0
+
+    def test_los_contadores_agregan_su_campo(self):
+        """Forma verificada en el workspace: agregacion + consulta agrupada."""
+        for archivo, nombre, spec in self._widgets("counter"):
+            widget = next(
+                w["widget"]
+                for f in [DASHBOARDS_DIR / "dev" / archivo]
+                for p in json.loads(f.read_text(encoding="utf-8"))["pages"]
+                for w in p["layout"]
+                if w["widget"]["name"] == nombre
+            )
+            query = widget["queries"][0]["query"]
+            assert query["disaggregated"] is False, f"{archivo}:{nombre}"
+            campo = query["fields"][0]
+            assert "(" in campo["expression"], f"{archivo}:{nombre} no agrega el campo"
+            assert spec["encodings"]["value"]["fieldName"] == campo["name"]

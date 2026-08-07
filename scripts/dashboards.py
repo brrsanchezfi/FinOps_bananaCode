@@ -80,12 +80,32 @@ def _pos(x: int, y: int, w: int, h: int) -> dict[str, int]:
 
 
 def markdown(name: str, texto: str, *, x: int, y: int, w: int = GRID_WIDTH, h: int = 2) -> dict[str, Any]:
-    return {"widget": {"name": name, "textbox_spec": texto}, "position": _pos(x, y, w, h)}
+    """Widget de texto.
 
-
-def _query(name: str, ds: str, campos: list[tuple[str, str]], disagg: bool = False) -> dict[str, Any]:
+    Lakeview usa `multilineTextboxSpec` con el contenido partido en lineas; cada
+    una conserva su salto salvo la ultima. La clave `textbox_spec` no existe en
+    el esquema y el widget quedaba en blanco.
+    """
+    lineas = texto.split("\n")
     return {
-        "name": f"{name}_query",
+        "widget": {
+            "name": name,
+            "multilineTextboxSpec": {
+                "lines": [ln + "\n" for ln in lineas[:-1]] + [lineas[-1]],
+            },
+        },
+        "position": _pos(x, y, w, h),
+    }
+
+
+#: Nombre de la consulta dentro de cada widget. Es local al widget, y el `spec`
+#: lo referencia en `data.queryName`.
+QUERY_NAME = "main_query"
+
+
+def _query(ds: str, campos: list[tuple[str, str]], disagg: bool = False) -> dict[str, Any]:
+    return {
+        "name": QUERY_NAME,
         "query": {
             "datasetName": ds,
             "fields": [{"name": alias, "expression": expr} for alias, expr in campos],
@@ -94,31 +114,39 @@ def _query(name: str, ds: str, campos: list[tuple[str, str]], disagg: bool = Fal
     }
 
 
+def _spec(widget_type: str, version: int, encodings: dict[str, Any], titulo: str) -> dict[str, Any]:
+    """Spec de widget con el enlace a su consulta.
+
+    `data.queryName` es lo que ata el widget a su consulta. Sin esa clave
+    Lakeview no sabe de donde salen los campos y muestra el marcador
+    "Select fields to visualize", aunque el widget declare encodings validos.
+    """
+    return {
+        "version": version,
+        "widgetType": widget_type,
+        "encodings": encodings,
+        "frame": {"title": titulo, "showTitle": True},
+        "data": {"queryName": QUERY_NAME},
+    }
+
+
 def counter(
     name: str, ds: str, campo: str, titulo: str, *, x: int, y: int, w: int = 1, h: int = 3,
-    formato: str = "number-currency-usd", decimales: int = 0,
+    agg: str = "SUM",
 ) -> dict[str, Any]:
+    """Contador de un unico valor.
+
+    Replica la forma de un contador construido en la UI y verificado en el
+    workspace: el campo se agrega (`SUM`) y la consulta va agrupada
+    (`disaggregated=False`). Los datasets que alimentan contadores devuelven una
+    sola fila, asi que la agregacion no altera el valor.
+    """
+    medida = f"{agg.lower()}({campo})"
     return {
         "widget": {
             "name": name,
-            # `disaggregated=True` a proposito: los datasets que alimentan los
-            # contadores ya devuelven UNA fila (agregan o aplican QUALIFY), asi
-            # que el campo se lee tal cual. Con `disaggregated=False` Lakeview
-            # espera una expresion de agregacion y una columna suelta produce
-            # "NO DATA" sin mensaje de error.
-            "queries": [_query(name, ds, [(campo, f"`{campo}`")], disagg=True)],
-            "spec": {
-                "version": 2,
-                "widgetType": "counter",
-                "encodings": {
-                    "value": {
-                        "fieldName": campo,
-                        "displayName": titulo,
-                        "format": {"type": formato, "decimalPlaces": {"type": "exact", "places": decimales}},
-                    }
-                },
-                "frame": {"title": titulo, "showTitle": True},
-            },
+            "queries": [_query(ds, [(medida, f"{agg}(`{campo}`)")], disagg=False)],
+            "spec": _spec("counter", 2, {"value": {"fieldName": medida, "displayName": titulo}}, titulo),
         },
         "position": _pos(x, y, w, h),
     }
@@ -152,13 +180,8 @@ def chart(
         return {
             "widget": {
                 "name": name,
-                "queries": [_query(name, ds, campos)],
-                "spec": {
-                    "version": 3,
-                    "widgetType": "pie",
-                    "encodings": encodings,
-                    "frame": {"title": titulo, "showTitle": True},
-                },
+                "queries": [_query(ds, campos)],
+                "spec": _spec("pie", 3, encodings, titulo),
             },
             "position": _pos(x, y, w, h),
         }
@@ -181,13 +204,8 @@ def chart(
     return {
         "widget": {
             "name": name,
-            "queries": [_query(name, ds, campos)],
-            "spec": {
-                "version": 3,
-                "widgetType": tipo,
-                "encodings": encodings,
-                "frame": {"title": titulo, "showTitle": True},
-            },
+            "queries": [_query(ds, campos)],
+            "spec": _spec(tipo, 3, encodings, titulo),
         },
         "position": _pos(x, y, w, h),
     }
@@ -253,13 +271,8 @@ def table(
     return {
         "widget": {
             "name": name,
-            "queries": [_query(name, ds, [(c, f"`{c}`") for c, _ in columnas], disagg=True)],
-            "spec": {
-                "version": 1,
-                "widgetType": "table",
-                "encodings": {"columns": definiciones},
-                "frame": {"title": titulo, "showTitle": True},
-            },
+            "queries": [_query(ds, [(c, f"`{c}`") for c, _ in columnas], disagg=True)],
+            "spec": _spec("table", 1, {"columns": definiciones}, titulo),
         },
         "position": _pos(x, y, w, h),
     }
@@ -415,11 +428,11 @@ LIMIT 25
         counter("kpi_mtd", "kpi_actual", "mtd_cost_usd", "Acumulado del mes", x=1, y=2),
         counter("kpi_7d", "kpi_actual", "rolling_7d_avg_usd", "Promedio 7 dias", x=2, y=2),
         counter("kpi_dod", "kpi_actual", "dod_change_pct", "Variacion vs dia previo (%)",
-                x=3, y=2, formato="number-plain", decimales=1),
+                x=3, y=2),
         counter("kpi_wow", "kpi_actual", "wow_change_pct", "Variacion vs semana previa (%)",
-                x=4, y=2, formato="number-plain", decimales=1),
+                x=4, y=2),
         counter("kpi_cobertura", "kpi_actual", "allocation_coverage_pct", "Cobertura de atribucion (%)",
-                x=5, y=2, formato="number-plain", decimales=1),
+                x=5, y=2),
         chart("serie", "serie_costo", "line", "Costo diario (90 dias)",
               x_campo="usage_date", x_escala="temporal", x_titulo="Fecha",
               y_campo="total_cost_usd", y_titulo="USD", x=0, y=5, w=4, h=7),
@@ -849,9 +862,9 @@ LIMIT 200
         counter("ahorro_confiable", "resumen_ahorro", "ahorro_alta_confianza_usd",
                 "Ahorro de alta confianza", x=2, y=2, w=2),
         counter("num_recomendaciones", "resumen_ahorro", "recomendaciones",
-                "Recomendaciones abiertas", x=4, y=2, w=1, formato="number-plain"),
+                "Recomendaciones abiertas", x=4, y=2, w=1),
         counter("recursos_afectados", "resumen_ahorro", "recursos_afectados",
-                "Recursos involucrados", x=5, y=2, w=1, formato="number-plain"),
+                "Recursos involucrados", x=5, y=2, w=1),
         chart("por_regla", "ahorro_por_regla", "bar", "Ahorro estimado por tipo de hallazgo",
               x_campo="rule_id", x_escala="categorical", x_titulo="Hallazgo",
               y_campo="ahorro_mensual_usd", y_titulo="USD/mes", x=0, y=5, w=3, h=7),
