@@ -267,6 +267,39 @@ subir temporalmente `alerting.min_severity` a `critical` y atacar la causa: casi
 siempre es un cambio masivo de etiquetado o una anomalia sistemica que dispara
 muchas series a la vez.
 
+### `dashboard has been modified remotely` al desplegar
+
+```
+Error: dashboard "finops_optimizacion" has been modified remotely
+```
+
+No es un fallo: es una salvaguarda del CLI. Alguien edito el dashboard en la UI
+y esos cambios no estan en el repositorio, asi que el CLI se niega a
+sobrescribirlos en silencio.
+
+**Antes de forzar, decidir que version vale.** El contenido de los dashboards se
+gestiona desde `scripts/dashboards.py`; una edicion hecha en la UI se pierde en
+el siguiente deploy por diseno.
+
+- Si el cambio remoto no importa (o ya se traslado al generador):
+
+  ```bash
+  databricks bundle deploy -t dev --force
+  ```
+
+- Si el cambio remoto vale la pena conservar, primero exportarlo y trasladarlo
+  al generador:
+
+  ```bash
+  databricks bundle generate dashboard --existing-path "/Workspace/Users/<usuario>/<dashboard>" -t dev
+  ```
+
+  Luego ajustar `scripts/dashboards.py`, `generate`, commitear y desplegar sin
+  `--force`.
+
+Publicar un dashboard (boton *Publish*) no deberia disparar este aviso; editarlo
+si.
+
 ### Un dashboard muestra "NO DATA" o TABLE_OR_VIEW_NOT_FOUND
 
 Primero distinguir las dos cosas, porque tienen causas distintas:
