@@ -34,7 +34,28 @@ DASHBOARDS_DIR = REPO_ROOT / "dashboards"
 PLACEHOLDER = re.compile(r"\{\{([a-z0-9_]+)\}\}")
 ENVIRONMENTS = ("dev", "qa", "prd")
 
-GRID_WIDTH = 6  # Lakeview usa una grilla de 6 columnas
+#: Lakeview usa una grilla de 12 columnas. Se confirmo exportando un dashboard
+#: real del workspace: contenia un widget en x=7 con width=3, imposible en una
+#: grilla de 6.
+GRID_COLUMNAS_LAKEVIEW = 12
+
+#: El layout de este archivo se escribe sobre una grilla logica de 6 columnas
+#: (mas comoda de leer) y `_pos` la escala a la real. Cambiar solo esto evita
+#: reescribir las coordenadas de los cuarenta y tantos widgets.
+GRID_WIDTH = 6
+_ESCALA_GRILLA = GRID_COLUMNAS_LAKEVIEW // GRID_WIDTH
+
+#: Valores que exige el esquema de Lakeview en cada pagina. Sin ellos el
+#: dashboard se despliega pero los widgets no se enlazan con sus consultas, y
+#: aparecen con el marcador "Select fields to visualize".
+PAGE_TYPE = "PAGE_TYPE_CANVAS"
+LAYOUT_VERSION = "GRID_V1"
+
+#: Preferencias de presentacion del dashboard completo.
+UI_SETTINGS: dict[str, Any] = {
+    "theme": {"widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"},
+    "applyModeEnabled": False,
+}
 
 
 # ---------------------------------------------------------------------------
@@ -49,7 +70,13 @@ def dataset(name: str, display: str, sql: str) -> dict[str, Any]:
 
 
 def _pos(x: int, y: int, w: int, h: int) -> dict[str, int]:
-    return {"x": x, "y": y, "width": w, "height": h}
+    """Traduce coordenadas de la grilla logica de 6 a la real de 12 columnas."""
+    return {
+        "x": x * _ESCALA_GRILLA,
+        "y": y,
+        "width": w * _ESCALA_GRILLA,
+        "height": h,
+    }
 
 
 def markdown(name: str, texto: str, *, x: int, y: int, w: int = GRID_WIDTH, h: int = 2) -> dict[str, Any]:
@@ -430,7 +457,16 @@ LIMIT 25
 
     return {
         "datasets": datasets,
-        "pages": [{"name": "ejecutivo", "displayName": "Vista ejecutiva", "layout": layout}],
+        "pages": [
+            {
+                "name": "ejecutivo",
+                "displayName": "Vista ejecutiva",
+                "layout": layout,
+                "pageType": PAGE_TYPE,
+                "layoutVersion": LAYOUT_VERSION,
+            }
+        ],
+        "uiSettings": UI_SETTINGS,
     }
 
 
@@ -630,7 +666,16 @@ LIMIT 500
 
     return {
         "datasets": datasets,
-        "pages": [{"name": "costos", "displayName": "Costos y chargeback", "layout": layout}],
+        "pages": [
+            {
+                "name": "costos",
+                "displayName": "Costos y chargeback",
+                "layout": layout,
+                "pageType": PAGE_TYPE,
+                "layoutVersion": LAYOUT_VERSION,
+            }
+        ],
+        "uiSettings": UI_SETTINGS,
     }
 
 
@@ -855,7 +900,16 @@ LIMIT 200
 
     return {
         "datasets": datasets,
-        "pages": [{"name": "optimizacion", "displayName": "Optimizacion y gobierno", "layout": layout}],
+        "pages": [
+            {
+                "name": "optimizacion",
+                "displayName": "Optimizacion y gobierno",
+                "layout": layout,
+                "pageType": PAGE_TYPE,
+                "layoutVersion": LAYOUT_VERSION,
+            }
+        ],
+        "uiSettings": UI_SETTINGS,
     }
 
 

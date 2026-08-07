@@ -152,7 +152,7 @@
           "position": {
             "x": 0,
             "y": 0,
-            "width": 6,
+            "width": 12,
             "height": 2
           }
         },
@@ -206,7 +206,7 @@
           "position": {
             "x": 0,
             "y": 2,
-            "width": 3,
+            "width": 6,
             "height": 7
           }
         },
@@ -269,9 +269,9 @@
             }
           },
           "position": {
-            "x": 3,
+            "x": 6,
             "y": 2,
-            "width": 3,
+            "width": 6,
             "height": 7
           }
         },
@@ -489,7 +489,7 @@
           "position": {
             "x": 0,
             "y": 9,
-            "width": 6,
+            "width": 12,
             "height": 7
           }
         },
@@ -501,7 +501,7 @@
           "position": {
             "x": 0,
             "y": 16,
-            "width": 6,
+            "width": 12,
             "height": 1
           }
         },
@@ -566,7 +566,7 @@
           "position": {
             "x": 0,
             "y": 17,
-            "width": 3,
+            "width": 6,
             "height": 7
           }
         },
@@ -618,9 +618,9 @@
             }
           },
           "position": {
-            "x": 3,
+            "x": 6,
             "y": 17,
-            "width": 3,
+            "width": 6,
             "height": 7
           }
         },
@@ -685,7 +685,7 @@
           "position": {
             "x": 0,
             "y": 24,
-            "width": 6,
+            "width": 12,
             "height": 6
           }
         },
@@ -697,7 +697,7 @@
           "position": {
             "x": 0,
             "y": 30,
-            "width": 6,
+            "width": 12,
             "height": 1
           }
         },
@@ -915,7 +915,7 @@
           "position": {
             "x": 0,
             "y": 31,
-            "width": 6,
+            "width": 12,
             "height": 8
           }
         },
@@ -1133,7 +1133,7 @@
           "position": {
             "x": 0,
             "y": 39,
-            "width": 6,
+            "width": 12,
             "height": 8
           }
         },
@@ -1145,7 +1145,7 @@
           "position": {
             "x": 0,
             "y": 47,
-            "width": 6,
+            "width": 12,
             "height": 1
           }
         },
@@ -1409,11 +1409,19 @@
           "position": {
             "x": 0,
             "y": 48,
-            "width": 6,
+            "width": 12,
             "height": 10
           }
         }
-      ]
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
     }
-  ]
+  ],
+  "uiSettings": {
+    "theme": {
+      "widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"
+    },
+    "applyModeEnabled": false
+  }
 }

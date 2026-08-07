@@ -172,7 +172,7 @@
           "position": {
             "x": 0,
             "y": 0,
-            "width": 6,
+            "width": 12,
             "height": 2
           }
         },
@@ -219,7 +219,7 @@
           "position": {
             "x": 0,
             "y": 2,
-            "width": 2,
+            "width": 4,
             "height": 3
           }
         },
@@ -264,9 +264,9 @@
             }
           },
           "position": {
-            "x": 2,
+            "x": 4,
             "y": 2,
-            "width": 2,
+            "width": 4,
             "height": 3
           }
         },
@@ -311,9 +311,9 @@
             }
           },
           "position": {
-            "x": 4,
+            "x": 8,
             "y": 2,
-            "width": 1,
+            "width": 2,
             "height": 3
           }
         },
@@ -358,9 +358,9 @@
             }
           },
           "position": {
-            "x": 5,
+            "x": 10,
             "y": 2,
-            "width": 1,
+            "width": 2,
             "height": 3
           }
         },
@@ -414,7 +414,7 @@
           "position": {
             "x": 0,
             "y": 5,
-            "width": 3,
+            "width": 6,
             "height": 7
           }
         },
@@ -466,9 +466,9 @@
             }
           },
           "position": {
-            "x": 3,
+            "x": 6,
             "y": 5,
-            "width": 3,
+            "width": 6,
             "height": 7
           }
         },
@@ -480,7 +480,7 @@
           "position": {
             "x": 0,
             "y": 12,
-            "width": 6,
+            "width": 12,
             "height": 1
           }
         },
@@ -790,7 +790,7 @@
           "position": {
             "x": 0,
             "y": 13,
-            "width": 6,
+            "width": 12,
             "height": 10
           }
         },
@@ -802,7 +802,7 @@
           "position": {
             "x": 0,
             "y": 23,
-            "width": 6,
+            "width": 12,
             "height": 1
           }
         },
@@ -928,7 +928,7 @@
           "position": {
             "x": 0,
             "y": 24,
-            "width": 3,
+            "width": 6,
             "height": 8
           }
         },
@@ -1121,9 +1121,9 @@
             }
           },
           "position": {
-            "x": 3,
+            "x": 6,
             "y": 24,
-            "width": 3,
+            "width": 6,
             "height": 8
           }
         },
@@ -1135,7 +1135,7 @@
           "position": {
             "x": 0,
             "y": 32,
-            "width": 6,
+            "width": 12,
             "height": 1
           }
         },
@@ -1307,7 +1307,7 @@
           "position": {
             "x": 0,
             "y": 33,
-            "width": 6,
+            "width": 12,
             "height": 8
           }
         },
@@ -1319,7 +1319,7 @@
           "position": {
             "x": 0,
             "y": 41,
-            "width": 6,
+            "width": 12,
             "height": 1
           }
         },
@@ -1491,7 +1491,7 @@
           "position": {
             "x": 0,
             "y": 42,
-            "width": 3,
+            "width": 6,
             "height": 8
           }
         },
@@ -1707,13 +1707,21 @@
             }
           },
           "position": {
-            "x": 3,
+            "x": 6,
             "y": 42,
-            "width": 3,
+            "width": 6,
             "height": 8
           }
         }
-      ]
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
     }
-  ]
+  ],
+  "uiSettings": {
+    "theme": {
+      "widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"
+    },
+    "applyModeEnabled": false
+  }
 }

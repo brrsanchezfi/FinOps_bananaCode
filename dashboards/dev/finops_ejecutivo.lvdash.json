@@ -153,7 +153,7 @@
           "position": {
             "x": 0,
             "y": 0,
-            "width": 6,
+            "width": 12,
             "height": 2
           }
         },
@@ -200,7 +200,7 @@
           "position": {
             "x": 0,
             "y": 2,
-            "width": 1,
+            "width": 2,
             "height": 3
           }
         },
@@ -245,9 +245,9 @@
             }
           },
           "position": {
-            "x": 1,
+            "x": 2,
             "y": 2,
-            "width": 1,
+            "width": 2,
             "height": 3
           }
         },
@@ -292,9 +292,9 @@
             }
           },
           "position": {
-            "x": 2,
+            "x": 4,
             "y": 2,
-            "width": 1,
+            "width": 2,
             "height": 3
           }
         },
@@ -339,9 +339,9 @@
             }
           },
           "position": {
-            "x": 3,
+            "x": 6,
             "y": 2,
-            "width": 1,
+            "width": 2,
             "height": 3
           }
         },
@@ -386,9 +386,9 @@
             }
           },
           "position": {
-            "x": 4,
+            "x": 8,
             "y": 2,
-            "width": 1,
+            "width": 2,
             "height": 3
           }
         },
@@ -433,9 +433,9 @@
             }
           },
           "position": {
-            "x": 5,
+            "x": 10,
             "y": 2,
-            "width": 1,
+            "width": 2,
             "height": 3
           }
         },
@@ -489,7 +489,7 @@
           "position": {
             "x": 0,
             "y": 5,
-            "width": 4,
+            "width": 8,
             "height": 7
           }
         },
@@ -541,9 +541,9 @@
             }
           },
           "position": {
-            "x": 4,
+            "x": 8,
             "y": 5,
-            "width": 2,
+            "width": 4,
             "height": 7
           }
         },
@@ -597,7 +597,7 @@
           "position": {
             "x": 0,
             "y": 12,
-            "width": 3,
+            "width": 6,
             "height": 7
           }
         },
@@ -660,9 +660,9 @@
             }
           },
           "position": {
-            "x": 3,
+            "x": 6,
             "y": 12,
-            "width": 3,
+            "width": 6,
             "height": 7
           }
         },
@@ -674,7 +674,7 @@
           "position": {
             "x": 0,
             "y": 19,
-            "width": 6,
+            "width": 12,
             "height": 1
           }
         },
@@ -938,7 +938,7 @@
           "position": {
             "x": 0,
             "y": 20,
-            "width": 6,
+            "width": 12,
             "height": 7
           }
         },
@@ -950,7 +950,7 @@
           "position": {
             "x": 0,
             "y": 27,
-            "width": 6,
+            "width": 12,
             "height": 1
           }
         },
@@ -1214,7 +1214,7 @@
           "position": {
             "x": 0,
             "y": 28,
-            "width": 6,
+            "width": 12,
             "height": 8
           }
         },
@@ -1386,11 +1386,19 @@
           "position": {
             "x": 0,
             "y": 36,
-            "width": 6,
+            "width": 12,
             "height": 8
           }
         }
-      ]
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
     }
-  ]
+  ],
+  "uiSettings": {
+    "theme": {
+      "widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"
+    },
+    "applyModeEnabled": false
+  }
 }

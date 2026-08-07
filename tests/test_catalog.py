@@ -289,3 +289,55 @@ class TestWidgetsDeDashboard:
                 f"{archivo}:{nombre}: un contador lee un valor ya calculado, "
                 "debe consultarse desagregado"
             )
+
+    def test_las_paginas_declaran_tipo_y_version_de_layout(self):
+        """Confirmado exportando un dashboard real del workspace.
+
+        Sin `pageType` y `layoutVersion` el dashboard se despliega pero los
+        widgets no se enlazan con sus consultas: aparecen con el marcador
+        "Select fields to visualize".
+        """
+        for archivo in sorted((DASHBOARDS_DIR / "dev").glob("*.lvdash.json")):
+            contenido = json.loads(archivo.read_text(encoding="utf-8"))
+            assert "uiSettings" in contenido, f"{archivo.name} sin uiSettings"
+            for pagina in contenido["pages"]:
+                assert pagina.get("pageType") == "PAGE_TYPE_CANVAS", archivo.name
+                assert pagina.get("layoutVersion") == "GRID_V1", archivo.name
+
+    def test_el_layout_usa_la_grilla_de_doce_columnas(self):
+        """La grilla de Lakeview tiene 12 columnas, no 6.
+
+        Se dedujo de un export real: contenia un widget en x=7 con width=3,
+        imposible en una grilla de 6.
+        """
+        for archivo in sorted((DASHBOARDS_DIR / "dev").glob("*.lvdash.json")):
+            contenido = json.loads(archivo.read_text(encoding="utf-8"))
+            for pagina in contenido["pages"]:
+                for elemento in pagina["layout"]:
+                    pos = elemento["position"]
+                    fin = pos["x"] + pos["width"]
+                    assert fin <= 12, (
+                        f"{archivo.name}:{elemento['widget']['name']} termina en {fin}, "
+                        "fuera de la grilla de 12"
+                    )
+                # Al menos un widget debe aprovechar el ancho completo, o el
+                # layout quedaria confinado a la mitad izquierda del tablero.
+                anchos = [e["position"]["x"] + e["position"]["width"] for e in pagina["layout"]]
+                assert max(anchos) == 12, f"{archivo.name} no ocupa el ancho completo"
+
+    def test_los_widgets_no_se_solapan(self):
+        for archivo in sorted((DASHBOARDS_DIR / "dev").glob("*.lvdash.json")):
+            contenido = json.loads(archivo.read_text(encoding="utf-8"))
+            for pagina in contenido["pages"]:
+                ocupadas: dict[tuple[int, int], str] = {}
+                for elemento in pagina["layout"]:
+                    pos = elemento["position"]
+                    nombre = elemento["widget"]["name"]
+                    for fila in range(pos["y"], pos["y"] + pos["height"]):
+                        for col in range(pos["x"], pos["x"] + pos["width"]):
+                            previo = ocupadas.get((fila, col))
+                            assert previo is None, (
+                                f"{archivo.name}: '{nombre}' se solapa con '{previo}' "
+                                f"en (fila {fila}, columna {col})"
+                            )
+                            ocupadas[(fila, col)] = nombre
