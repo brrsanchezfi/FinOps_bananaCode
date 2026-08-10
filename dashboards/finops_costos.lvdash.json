@@ -333,161 +333,33 @@
               }
             ],
             "spec": {
-              "version": 1,
+              "version": 2,
               "widgetType": "table",
               "encodings": {
                 "columns": [
                   {
-                    "fieldName": "unit",
-                    "displayName": "Unidad",
-                    "title": "Unidad",
-                    "type": "string",
-                    "displayAs": "string",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "left",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 0
+                    "fieldName": "unit"
                   },
                   {
-                    "fieldName": "direct_cost_usd",
-                    "displayName": "Directo USD",
-                    "title": "Directo USD",
-                    "type": "float",
-                    "displayAs": "number",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "right",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 1
+                    "fieldName": "direct_cost_usd"
                   },
                   {
-                    "fieldName": "allocated_shared_usd",
-                    "displayName": "Compartido asignado USD",
-                    "title": "Compartido asignado USD",
-                    "type": "float",
-                    "displayAs": "number",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "right",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 2
+                    "fieldName": "allocated_shared_usd"
                   },
                   {
-                    "fieldName": "allocated_unallocated_usd",
-                    "displayName": "No atribuido asignado USD",
-                    "title": "No atribuido asignado USD",
-                    "type": "float",
-                    "displayAs": "number",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "right",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 3
+                    "fieldName": "allocated_unallocated_usd"
                   },
                   {
-                    "fieldName": "overhead_usd",
-                    "displayName": "Recargo USD",
-                    "title": "Recargo USD",
-                    "type": "float",
-                    "displayAs": "number",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "right",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 4
+                    "fieldName": "overhead_usd"
                   },
                   {
-                    "fieldName": "total_chargeback_usd",
-                    "displayName": "Total USD",
-                    "title": "Total USD",
-                    "type": "float",
-                    "displayAs": "number",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "right",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 5
+                    "fieldName": "total_chargeback_usd"
                   },
                   {
-                    "fieldName": "pct_of_total",
-                    "displayName": "% del total",
-                    "title": "% del total",
-                    "type": "float",
-                    "displayAs": "number",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "right",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 6
+                    "fieldName": "pct_of_total"
                   },
                   {
-                    "fieldName": "entity_count",
-                    "displayName": "Recursos",
-                    "title": "Recursos",
-                    "type": "integer",
-                    "displayAs": "number",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "right",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 7
+                    "fieldName": "entity_count"
                   }
                 ]
               },
@@ -779,161 +651,33 @@
               }
             ],
             "spec": {
-              "version": 1,
+              "version": 2,
               "widgetType": "table",
               "encodings": {
                 "columns": [
                   {
-                    "fieldName": "job",
-                    "displayName": "Job",
-                    "title": "Job",
-                    "type": "string",
-                    "displayAs": "string",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "left",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 0
+                    "fieldName": "job"
                   },
                   {
-                    "fieldName": "team",
-                    "displayName": "Equipo",
-                    "title": "Equipo",
-                    "type": "string",
-                    "displayAs": "string",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "left",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 1
+                    "fieldName": "team"
                   },
                   {
-                    "fieldName": "cost_center",
-                    "displayName": "Centro de costo",
-                    "title": "Centro de costo",
-                    "type": "string",
-                    "displayAs": "string",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "left",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 2
+                    "fieldName": "cost_center"
                   },
                   {
-                    "fieldName": "ejecuciones",
-                    "displayName": "Ejecuciones",
-                    "title": "Ejecuciones",
-                    "type": "integer",
-                    "displayAs": "number",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "right",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 3
+                    "fieldName": "ejecuciones"
                   },
                   {
-                    "fieldName": "fallidas",
-                    "displayName": "Fallidas",
-                    "title": "Fallidas",
-                    "type": "integer",
-                    "displayAs": "number",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "right",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 4
+                    "fieldName": "fallidas"
                   },
                   {
-                    "fieldName": "duracion_promedio_min",
-                    "displayName": "Duracion prom. (min)",
-                    "title": "Duracion prom. (min)",
-                    "type": "float",
-                    "displayAs": "number",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "right",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 5
+                    "fieldName": "duracion_promedio_min"
                   },
                   {
-                    "fieldName": "costo_usd",
-                    "displayName": "Costo USD",
-                    "title": "Costo USD",
-                    "type": "float",
-                    "displayAs": "number",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "right",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 6
+                    "fieldName": "costo_usd"
                   },
                   {
-                    "fieldName": "costo_por_ejecucion_usd",
-                    "displayName": "USD/ejecucion",
-                    "title": "USD/ejecucion",
-                    "type": "float",
-                    "displayAs": "number",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "right",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 7
+                    "fieldName": "costo_por_ejecucion_usd"
                   }
                 ]
               },
@@ -1000,161 +744,33 @@
               }
             ],
             "spec": {
-              "version": 1,
+              "version": 2,
               "widgetType": "table",
               "encodings": {
                 "columns": [
                   {
-                    "fieldName": "warehouse",
-                    "displayName": "Warehouse",
-                    "title": "Warehouse",
-                    "type": "string",
-                    "displayAs": "string",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "left",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 0
+                    "fieldName": "warehouse"
                   },
                   {
-                    "fieldName": "warehouse_size",
-                    "displayName": "Tamano",
-                    "title": "Tamano",
-                    "type": "string",
-                    "displayAs": "string",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "left",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 1
+                    "fieldName": "warehouse_size"
                   },
                   {
-                    "fieldName": "warehouse_type",
-                    "displayName": "Tipo",
-                    "title": "Tipo",
-                    "type": "string",
-                    "displayAs": "string",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "left",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 2
+                    "fieldName": "warehouse_type"
                   },
                   {
-                    "fieldName": "costo_usd",
-                    "displayName": "Costo USD",
-                    "title": "Costo USD",
-                    "type": "float",
-                    "displayAs": "number",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "right",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 3
+                    "fieldName": "costo_usd"
                   },
                   {
-                    "fieldName": "consultas",
-                    "displayName": "Consultas",
-                    "title": "Consultas",
-                    "type": "integer",
-                    "displayAs": "number",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "right",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 4
+                    "fieldName": "consultas"
                   },
                   {
-                    "fieldName": "horas_activas",
-                    "displayName": "Horas activas",
-                    "title": "Horas activas",
-                    "type": "float",
-                    "displayAs": "number",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "right",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 5
+                    "fieldName": "horas_activas"
                   },
                   {
-                    "fieldName": "costo_por_consulta_usd",
-                    "displayName": "USD/consulta",
-                    "title": "USD/consulta",
-                    "type": "float",
-                    "displayAs": "number",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "right",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 6
+                    "fieldName": "costo_por_consulta_usd"
                   },
                   {
-                    "fieldName": "auto_stop_min",
-                    "displayName": "Auto-stop (min)",
-                    "title": "Auto-stop (min)",
-                    "type": "integer",
-                    "displayAs": "number",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "right",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 7
+                    "fieldName": "auto_stop_min"
                   }
                 ]
               },
@@ -1245,199 +861,39 @@
               }
             ],
             "spec": {
-              "version": 1,
+              "version": 2,
               "widgetType": "table",
               "encodings": {
                 "columns": [
                   {
-                    "fieldName": "usage_date",
-                    "displayName": "Fecha",
-                    "title": "Fecha",
-                    "type": "datetime",
-                    "displayAs": "datetime",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "left",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 0
+                    "fieldName": "usage_date"
                   },
                   {
-                    "fieldName": "entity_type",
-                    "displayName": "Tipo",
-                    "title": "Tipo",
-                    "type": "string",
-                    "displayAs": "string",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "left",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 1
+                    "fieldName": "entity_type"
                   },
                   {
-                    "fieldName": "entity_name",
-                    "displayName": "Recurso",
-                    "title": "Recurso",
-                    "type": "string",
-                    "displayAs": "string",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "left",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 2
+                    "fieldName": "entity_name"
                   },
                   {
-                    "fieldName": "sku_group",
-                    "displayName": "SKU",
-                    "title": "SKU",
-                    "type": "string",
-                    "displayAs": "string",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "left",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 3
+                    "fieldName": "sku_group"
                   },
                   {
-                    "fieldName": "team",
-                    "displayName": "Equipo",
-                    "title": "Equipo",
-                    "type": "string",
-                    "displayAs": "string",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "left",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 4
+                    "fieldName": "team"
                   },
                   {
-                    "fieldName": "cost_center",
-                    "displayName": "Centro de costo",
-                    "title": "Centro de costo",
-                    "type": "string",
-                    "displayAs": "string",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "left",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 5
+                    "fieldName": "cost_center"
                   },
                   {
-                    "fieldName": "project",
-                    "displayName": "Proyecto",
-                    "title": "Proyecto",
-                    "type": "string",
-                    "displayAs": "string",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "left",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 6
+                    "fieldName": "project"
                   },
                   {
-                    "fieldName": "environment",
-                    "displayName": "Ambiente",
-                    "title": "Ambiente",
-                    "type": "string",
-                    "displayAs": "string",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "left",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 7
+                    "fieldName": "environment"
                   },
                   {
-                    "fieldName": "dbus",
-                    "displayName": "DBUs",
-                    "title": "DBUs",
-                    "type": "float",
-                    "displayAs": "number",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "right",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 8
+                    "fieldName": "dbus"
                   },
                   {
-                    "fieldName": "costo_usd",
-                    "displayName": "Costo USD",
-                    "title": "Costo USD",
-                    "type": "float",
-                    "displayAs": "number",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "alignContent": "right",
-                    "allowSearch": false,
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "visible": true,
-                    "order": 9
+                    "fieldName": "costo_usd"
                   }
                 ]
               },

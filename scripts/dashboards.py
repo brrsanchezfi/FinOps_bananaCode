@@ -212,68 +212,37 @@ def chart(
     }
 
 
-#: Sufijos y fragmentos que identifican el tipo de una columna de tabla.
-#: Lakeview necesita `type` y `displayAs` en cada columna; sin ellos la tabla no
-#: sabe como formatear ni alinear el valor.
-_COLUMNAS_FECHA = ("date", "fecha", "_at", "momento", "period_start", "period_end")
-_COLUMNAS_DECIMALES = (
-    "_usd", "costo", "ahorro", "pct", "ratio", "promedio", "duracion", "score", "horas", "dbus",
-)
-_COLUMNAS_ENTERAS = (
-    "count", "ejecuciones", "fallidas", "consultas", "recursos", "dias", "days", "workers",
-    "hallazgos", "entity_count", "rows", "min", "_id_num",
-)
-_COLUMNAS_BOOLEANAS = ("delivered", "is_", "autoscale", "enabled", "passed")
-
-
-def _tipo_columna(campo: str) -> tuple[str, str]:
-    """Devuelve (type, displayAs) para una columna, deducido de su nombre.
-
-    Es una heuristica sobre las convenciones de nombres del modelo, no una
-    consulta al catalogo: el generador no se conecta al workspace.
-    """
-    nombre = campo.lower()
-    if any(t in nombre for t in _COLUMNAS_BOOLEANAS):
-        return "boolean", "boolean"
-    if any(t in nombre for t in _COLUMNAS_FECHA):
-        return "datetime", "datetime"
-    if any(t in nombre for t in _COLUMNAS_DECIMALES):
-        return "float", "number"
-    if any(t in nombre for t in _COLUMNAS_ENTERAS):
-        return "integer", "number"
-    return "string", "string"
+# Aqui vivia `_tipo_columna`, que deducia `type` y `displayAs` por el nombre de
+# la columna. Esos metadatos pertenecen al formato de tabla version 1 y son
+# justamente lo que rompia el widget en la version 2; ver `table` mas abajo.
 
 
 def table(
     name: str, ds: str, titulo: str, columnas: list[tuple[str, str]], *,
     x: int, y: int, w: int = GRID_WIDTH, h: int = 8,
 ) -> dict[str, Any]:
-    definiciones = []
-    for i, (campo, etiqueta) in enumerate(columnas):
-        tipo, mostrar_como = _tipo_columna(campo)
-        definiciones.append(
-            {
-                "fieldName": campo,
-                "displayName": etiqueta,
-                "title": etiqueta,
-                "type": tipo,
-                "displayAs": mostrar_como,
-                "booleanValues": ["false", "true"],
-                "alignContent": "right" if mostrar_como == "number" else "left",
-                "allowSearch": False,
-                "allowHTML": False,
-                "highlightLinks": False,
-                "useMonospaceFont": False,
-                "preserveWhitespace": False,
-                "visible": True,
-                "order": i,
-            }
-        )
+    """Tabla de filas crudas.
+
+    La forma esta verificada contra un widget reparado en la UI del workspace
+    (ver docs/04-dashboards.md). Dos cosas que no son negociables:
+
+      * `version` es **2**. Con 1 el widget renderiza
+        "Visualization has no fields selected".
+      * cada columna lleva **solo** `fieldName`. Los metadatos por columna
+        (`type`, `displayAs`, `booleanValues`, `alignContent`, `order`…) son del
+        formato anterior; en la version 2 invalidan la lista completa y el
+        widget queda vacio.
+
+    Por eso `columnas` conserva la etiqueta legible aunque no se emita: es el
+    encabezado que corresponde a cada columna, y documenta la intencion para
+    cuando el esquema permita declararlo. Hoy Lakeview muestra el nombre crudo
+    de la columna.
+    """
     return {
         "widget": {
             "name": name,
             "queries": [_query(ds, [(c, f"`{c}`") for c, _ in columnas], disagg=True)],
-            "spec": _spec("table", 1, {"columns": definiciones}, titulo),
+            "spec": _spec("table", 2, {"columns": [{"fieldName": c} for c, _ in columnas]}, titulo),
         },
         "position": _pos(x, y, w, h),
     }

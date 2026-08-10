@@ -199,7 +199,7 @@ esta **verificada contra un widget construido en la UI del workspace**.
       }
     ],
     "spec": {
-      "version": 2,                              // 2 counter, 3 graficos, 1 tabla
+      "version": 2,                              // 2 counter y tabla, 3 graficos
       "widgetType": "counter",
       "encodings": {"value": {"fieldName": "sum(ahorro_mensual_usd)"}},
       "frame": {"title": "Ahorro mensual estimado", "showTitle": true},
@@ -215,10 +215,40 @@ Los errores que costaron varias iteraciones, por si reaparecen:
 | Sintoma | Causa |
 |---|---|
 | "Select fields to visualize" | Falta `spec.data.queryName`, o falta `pageType`/`layoutVersion` en la pagina |
+| "Visualization has no fields selected" (tabla) | `version: 1`, o columnas con metadatos del formato viejo |
 | Widget de texto en blanco | Se uso `textbox_spec`; el esquema espera `multilineTextboxSpec.lines` |
 | Contador vacio | El campo no estaba agregado teniendo `disaggregated: false` |
 | Torta que no renderiza | Se declararon ejes `x`/`y`; un pie usa `angle` y `color` |
 | Tablero confinado a la izquierda | La grilla es de 12 columnas, no de 6 |
+
+### La forma de una tabla
+
+Una tabla **no** sigue el mismo patron que los graficos. Verificado contra un
+widget reparado en la UI:
+
+```jsonc
+"spec": {
+  "version": 2,                       // con 1 el widget sale vacio
+  "widgetType": "table",
+  "encodings": {
+    "columns": [
+      {"fieldName": "budget_name"},   // SOLO fieldName
+      {"fieldName": "status"}
+    ]
+  },
+  "data": {"queryName": "main_query"}
+}
+```
+
+Los metadatos por columna (`displayName`, `type`, `displayAs`, `booleanValues`,
+`alignContent`, `order`) pertenecen al formato **version 1**. Incluirlos en la
+version 2 invalida la lista completa de columnas y produce
+"Visualization has no fields selected".
+
+La consecuencia practica: **los encabezados muestran el nombre crudo de la
+columna**, no una etiqueta legible. El constructor `table` conserva la etiqueta
+en su firma para documentar la intencion, pero hoy no se emite. Si hace falta un
+encabezado en espanol, la via es aliasear la columna en el SQL del dataset.
 
 Todos estan cubiertos por pruebas en `tests/test_catalog.py`, asi que no pueden
 volver a colarse en un despliegue.

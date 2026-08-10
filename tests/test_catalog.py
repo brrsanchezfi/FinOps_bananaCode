@@ -216,26 +216,13 @@ class TestWidgetsDeDashboard:
             for archivo, nombre, spec in self._widgets(tipo):
                 assert {"x", "y"} <= set(spec["encodings"]), f"{archivo}:{nombre} sin ejes"
 
-    def test_las_columnas_de_tabla_declaran_tipo_y_formato(self):
-        """Sin `type`/`displayAs` la tabla no sabe formatear ni alinear."""
-        tipos_validos = {"string", "integer", "float", "boolean", "datetime"}
-        vistos = 0
-        for archivo, nombre, spec in self._widgets("table"):
-            for columna in spec["encodings"]["columns"]:
-                for clave in ("fieldName", "displayName", "type", "displayAs", "alignContent"):
-                    assert clave in columna, f"{archivo}:{nombre}:{columna['fieldName']} sin '{clave}'"
-                assert columna["type"] in tipos_validos, (
-                    f"{archivo}:{nombre}:{columna['fieldName']} tipo invalido {columna['type']}"
-                )
-                vistos += 1
-        assert vistos > 0
-
-    def test_los_importes_se_alinean_a_la_derecha(self):
-        for archivo, nombre, spec in self._widgets("table"):
-            for columna in spec["encodings"]["columns"]:
-                if columna["fieldName"].endswith("_usd"):
-                    assert columna["type"] == "float", f"{archivo}:{nombre}:{columna['fieldName']}"
-                    assert columna["alignContent"] == "right"
+    # NOTA: aqui hubo dos pruebas que exigian `type`, `displayAs` y
+    # `alignContent` en cada columna de tabla, y alineacion a la derecha en los
+    # importes. Ambas afirmaban una suposicion, no una forma observada: esos
+    # metadatos son del formato de tabla version 1 y son exactamente lo que
+    # dejaba el widget en "Visualization has no fields selected". Las reemplazan
+    # `test_las_tablas_usan_la_version_2` y
+    # `test_las_columnas_de_tabla_solo_llevan_fieldName`.
 
     def test_cada_widget_consulta_un_dataset_declarado(self):
         for archivo in sorted(DASHBOARDS_DIR.glob("*.lvdash.json")):
@@ -399,3 +386,46 @@ class TestWidgetsDeDashboard:
             campo = query["fields"][0]
             assert "(" in campo["expression"], f"{archivo}:{nombre} no agrega el campo"
             assert spec["encodings"]["value"]["fieldName"] == campo["name"]
+
+    def test_las_tablas_usan_la_version_2(self):
+        """Regresion: con `version: 1` la tabla muestra "no fields selected".
+
+        Forma verificada contra un widget reparado en la UI del workspace.
+        """
+        vistos = 0
+        for archivo, nombre, spec in self._widgets("table"):
+            assert spec["version"] == 2, (
+                f"{archivo}:{nombre} usa version {spec['version']}; "
+                "el formato de tabla vigente es la 2"
+            )
+            vistos += 1
+        assert vistos > 0, "ninguna tabla revisada"
+
+    def test_las_columnas_de_tabla_solo_llevan_fieldName(self):
+        """Regresion: los metadatos por columna son del formato version 1.
+
+        `type`, `displayAs`, `booleanValues`, `alignContent` y `order` invalidan
+        la lista completa de columnas en la version 2, y el widget queda vacio.
+        """
+        for archivo, nombre, spec in self._widgets("table"):
+            columnas = spec["encodings"]["columns"]
+            assert columnas, f"{archivo}:{nombre} sin columnas"
+            for columna in columnas:
+                assert set(columna) == {"fieldName"}, (
+                    f"{archivo}:{nombre} columna '{columna.get('fieldName')}' "
+                    f"lleva claves de mas: {sorted(set(columna) - {'fieldName'})}"
+                )
+
+    def test_las_columnas_de_tabla_coinciden_con_los_campos(self):
+        """Una columna que no exista entre los campos de la consulta sale vacia."""
+        for archivo in DASHBOARDS_DIR.glob("*.lvdash.json"):
+            contenido = json.loads(archivo.read_text(encoding="utf-8"))
+            for pagina in contenido["pages"]:
+                for elemento in pagina["layout"]:
+                    widget = elemento["widget"]
+                    spec = widget.get("spec", {})
+                    if spec.get("widgetType") != "table":
+                        continue
+                    campos = [f["name"] for f in widget["queries"][0]["query"]["fields"]]
+                    columnas = [c["fieldName"] for c in spec["encodings"]["columns"]]
+                    assert columnas == campos, f"{archivo.name}:{widget['name']}"
