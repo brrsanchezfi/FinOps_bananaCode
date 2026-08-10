@@ -8,7 +8,8 @@ alternativas evaluadas, lo que se decidio y **que se pierde** con esa eleccion.
 | [0001](0001-logica-en-modulos-no-en-notebooks.md) | La logica de negocio vive en modulos de Python, no en notebooks | aceptada |
 | [0002](0002-escritura-idempotente-por-rango-de-fechas.md) | Escritura idempotente por reemplazo de rango de fechas | aceptada |
 | [0003](0003-deteccion-de-anomalias-con-mad.md) | Deteccion de anomalias con z-score modificado (mediana + MAD) | aceptada |
-| [0004](0004-dashboards-con-marcadores-de-tabla.md) | Dashboards generados por entorno y versionados | aceptada (corregida 2026-08-06) |
+| [0004](0004-dashboards-con-marcadores-de-tabla.md) | Dashboards generados desde configuracion y versionados | aceptada (corregida 2026-08-06) |
+| [0005](0005-un-solo-catalogo.md) | Un solo catalogo para los tres entornos | aceptada |
 
 ## Cuando escribir uno
 

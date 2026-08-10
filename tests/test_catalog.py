@@ -32,7 +32,7 @@ class TestRegistro:
         assert {t.layer for t in ALL_TABLES} <= {"bronze", "silver", "gold"}
 
     def test_fqn_usa_la_configuracion(self, cfg_dev):
-        assert TABLES_BY_KEY["fct_cost_daily"].fqn(cfg_dev) == "finops_dev.gold.fct_cost_daily"
+        assert TABLES_BY_KEY["fct_cost_daily"].fqn(cfg_dev) == "finops.gold.fct_cost_daily"
 
     def test_table_map_cubre_todas(self, cfg_dev):
         mapa = table_map(cfg_dev)
@@ -53,74 +53,85 @@ def _config(env: str):
 class TestCoherenciaConDashboards:
     """Los dashboards versionados solo pueden consultar tablas del registro.
 
-    Se generan ya resueltos por entorno (`dashboards/<env>/`), asi que la
-    verificacion es que cada FQN referenciado exista en el registro para ESE
-    entorno, y que no quede ningun marcador sin sustituir.
+    Los tres entornos comparten catalogo y schemas, asi que basta UN juego de
+    archivos en `dashboards/`. Los nombres de tabla salen de la configuracion via
+    marcadores `{{clave}}`; ninguno se escribe a mano.
     """
 
-    @pytest.mark.parametrize("env", ENTORNOS)
     @pytest.mark.parametrize("nombre", NOMBRES)
-    def test_json_valido(self, env, nombre):
-        ruta = DASHBOARDS_DIR / env / f"{nombre}.lvdash.json"
+    def test_json_valido(self, nombre):
+        ruta = DASHBOARDS_DIR / f"{nombre}.lvdash.json"
         assert ruta.exists(), f"falta {ruta}"
         contenido = json.loads(ruta.read_text(encoding="utf-8"))
         assert contenido.get("datasets"), f"{ruta} no define datasets"
         assert contenido.get("pages"), f"{ruta} no define paginas"
 
-    @pytest.mark.parametrize("env", ENTORNOS)
-    def test_no_quedan_marcadores_sin_sustituir(self, env):
+    def test_no_quedan_marcadores_sin_sustituir(self):
         patron = re.compile(r"\{\{[a-z0-9_]+\}\}")
         pendientes = {
             f"{archivo.name}:{m}"
-            for archivo in sorted((DASHBOARDS_DIR / env).glob("*.lvdash.json"))
+            for archivo in sorted(DASHBOARDS_DIR.glob("*.lvdash.json"))
             for m in patron.findall(archivo.read_text(encoding="utf-8"))
         }
-        assert pendientes == set(), f"marcadores sin resolver en {env}: {sorted(pendientes)}"
+        assert pendientes == set(), f"marcadores sin resolver: {sorted(pendientes)}"
 
-    @pytest.mark.parametrize("env", ENTORNOS)
-    def test_las_tablas_referenciadas_existen_en_el_registro(self, env):
-        cfg = _config(env)
+    def test_las_tablas_referenciadas_existen_en_el_registro(self):
+        cfg = _config("prd")
         conocidas = set(table_map(cfg).values())
-        # Captura cualquier FQN de tres partes que empiece por el catalogo del
-        # entorno; `system.*` y otros catalogos no aplican aqui.
+        # Cualquier FQN de tres partes bajo el catalogo del modelo. `system.*` y
+        # otros catalogos no aplican aqui.
         patron = re.compile(rf"\b{re.escape(cfg.catalog)}\.[a-z0-9_]+\.[a-z0-9_]+\b")
         desconocidas: set[str] = set()
-        for archivo in sorted((DASHBOARDS_DIR / env).glob("*.lvdash.json")):
+        for archivo in sorted(DASHBOARDS_DIR.glob("*.lvdash.json")):
             for fqn in patron.findall(archivo.read_text(encoding="utf-8")):
                 if fqn not in conocidas:
                     desconocidas.add(f"{archivo.name}:{fqn}")
         assert desconocidas == set(), f"tablas fuera del registro: {sorted(desconocidas)}"
 
-    @pytest.mark.parametrize("env", ENTORNOS)
-    def test_cada_entorno_usa_solo_su_catalogo(self, env):
-        """Un dashboard de qa no puede consultar el catalogo de prd."""
-        cfg = _config(env)
-        ajenos = {e: _config(e).catalog for e in ENTORNOS if e != env}
-        for archivo in sorted((DASHBOARDS_DIR / env).glob("*.lvdash.json")):
-            texto = archivo.read_text(encoding="utf-8")
-            for otro_env, catalogo in ajenos.items():
-                assert f"{catalogo}." not in texto, (
-                    f"{env}/{archivo.name} referencia el catalogo de {otro_env} ({catalogo})"
-                )
-            assert f"{cfg.catalog}." in texto, f"{env}/{archivo.name} no referencia {cfg.catalog}"
+    def test_los_tres_entornos_resuelven_a_las_mismas_tablas(self):
+        """Es la condicion que permite versionar un solo juego de dashboards.
 
-    def test_no_quedan_dashboards_sin_entorno(self):
-        """El layout viejo (dashboards/*.lvdash.json en la raiz) ya no aplica."""
-        sueltos = sorted(DASHBOARDS_DIR.glob("*.lvdash.json"))
-        assert sueltos == [], f"dashboards sin entorno: {[p.name for p in sueltos]}"
+        Si algun entorno vuelve a apuntar a otro catalogo o schema, hay que
+        generar por entorno otra vez y apuntar `resources/dashboards.yml` a
+        `dashboards/${bundle.target}/`.
+        """
+        resueltos = {env: table_map(_config(env)) for env in ENTORNOS}
+        referencia = resueltos[ENTORNOS[0]]
+        distintos = {env: m for env, m in resueltos.items() if m != referencia}
+        assert distintos == {}, (
+            f"estos entornos resuelven a tablas distintas de '{ENTORNOS[0]}': {sorted(distintos)}"
+        )
+
+    def test_ningun_catalogo_escrito_a_mano(self):
+        """Los nombres deben salir de la configuracion, no estar quemados.
+
+        Un catalogo de un entorno concreto en el JSON delataria que el generador
+        dejo de resolver desde `conf/`.
+        """
+        catalogos_de_entorno = {"finops_dev", "finops_qa", "finops_prd"}
+        for archivo in sorted(DASHBOARDS_DIR.glob("*.lvdash.json")):
+            texto = archivo.read_text(encoding="utf-8")
+            for catalogo in catalogos_de_entorno:
+                assert f"{catalogo}." not in texto, (
+                    f"{archivo.name} tiene el catalogo '{catalogo}' escrito a mano"
+                )
+
+    def test_no_quedan_subdirectorios_por_entorno(self):
+        """El layout anterior (dashboards/<env>/) ya no aplica."""
+        sobrantes = [d.name for d in DASHBOARDS_DIR.iterdir() if d.is_dir()]
+        assert sobrantes == [], f"subdirectorios sobrantes en dashboards/: {sobrantes}"
 
     def test_los_versionados_coinciden_con_el_generador(self):
         """Falla si alguien edito un JSON a mano sin regenerar."""
         sys.path.insert(0, str(REPO_ROOT / "scripts"))
         import dashboards as generador
 
-        for env in ENTORNOS:
-            for nombre, contenido in generador.render_env(env).items():
-                archivo = DASHBOARDS_DIR / env / nombre
-                assert archivo.read_text(encoding="utf-8") == contenido, (
-                    f"dashboards/{env}/{nombre} difiere del generador. "
-                    "Ejecuta: python scripts/dashboards.py generate"
-                )
+        for nombre, contenido in generador.render_env(ENTORNOS[0]).items():
+            archivo = DASHBOARDS_DIR / nombre
+            assert archivo.read_text(encoding="utf-8") == contenido, (
+                f"dashboards/{nombre} difiere del generador. "
+                "Ejecuta: python scripts/dashboards.py generate"
+            )
 
 
 class TestSqlDeCreacion:
@@ -181,7 +192,7 @@ class TestWidgetsDeDashboard:
     """
 
     def _widgets(self, tipo: str):
-        for archivo in sorted((DASHBOARDS_DIR / "dev").glob("*.lvdash.json")):
+        for archivo in sorted(DASHBOARDS_DIR.glob("*.lvdash.json")):
             contenido = json.loads(archivo.read_text(encoding="utf-8"))
             for pagina in contenido["pages"]:
                 for elemento in pagina["layout"]:
@@ -227,7 +238,7 @@ class TestWidgetsDeDashboard:
                     assert columna["alignContent"] == "right"
 
     def test_cada_widget_consulta_un_dataset_declarado(self):
-        for archivo in sorted((DASHBOARDS_DIR / "dev").glob("*.lvdash.json")):
+        for archivo in sorted(DASHBOARDS_DIR.glob("*.lvdash.json")):
             contenido = json.loads(archivo.read_text(encoding="utf-8"))
             declarados = {d["name"] for d in contenido["datasets"]}
             for pagina in contenido["pages"]:
@@ -244,7 +255,7 @@ class TestWidgetsDeDashboard:
         for archivo, nombre, spec in self._widgets("table"):
             widget = next(
                 w["widget"]
-                for f in [DASHBOARDS_DIR / "dev" / archivo]
+                for f in [DASHBOARDS_DIR / archivo]
                 for p in json.loads(f.read_text(encoding="utf-8"))["pages"]
                 for w in p["layout"]
                 if w["widget"]["name"] == nombre
@@ -262,7 +273,7 @@ class TestWidgetsDeDashboard:
         espera expresiones de agregacion. Una columna suelta ahi no devuelve
         filas, y el widget aparece vacio sin mensaje de error.
         """
-        for archivo in sorted((DASHBOARDS_DIR / "dev").glob("*.lvdash.json")):
+        for archivo in sorted(DASHBOARDS_DIR.glob("*.lvdash.json")):
             contenido = json.loads(archivo.read_text(encoding="utf-8"))
             for pagina in contenido["pages"]:
                 for elemento in pagina["layout"]:
@@ -288,7 +299,7 @@ class TestWidgetsDeDashboard:
         widgets no se enlazan con sus consultas: aparecen con el marcador
         "Select fields to visualize".
         """
-        for archivo in sorted((DASHBOARDS_DIR / "dev").glob("*.lvdash.json")):
+        for archivo in sorted(DASHBOARDS_DIR.glob("*.lvdash.json")):
             contenido = json.loads(archivo.read_text(encoding="utf-8"))
             assert "uiSettings" in contenido, f"{archivo.name} sin uiSettings"
             for pagina in contenido["pages"]:
@@ -301,7 +312,7 @@ class TestWidgetsDeDashboard:
         Se dedujo de un export real: contenia un widget en x=7 con width=3,
         imposible en una grilla de 6.
         """
-        for archivo in sorted((DASHBOARDS_DIR / "dev").glob("*.lvdash.json")):
+        for archivo in sorted(DASHBOARDS_DIR.glob("*.lvdash.json")):
             contenido = json.loads(archivo.read_text(encoding="utf-8"))
             for pagina in contenido["pages"]:
                 for elemento in pagina["layout"]:
@@ -317,7 +328,7 @@ class TestWidgetsDeDashboard:
                 assert max(anchos) == 12, f"{archivo.name} no ocupa el ancho completo"
 
     def test_los_widgets_no_se_solapan(self):
-        for archivo in sorted((DASHBOARDS_DIR / "dev").glob("*.lvdash.json")):
+        for archivo in sorted(DASHBOARDS_DIR.glob("*.lvdash.json")):
             contenido = json.loads(archivo.read_text(encoding="utf-8"))
             for pagina in contenido["pages"]:
                 ocupadas: dict[tuple[int, int], str] = {}
@@ -340,7 +351,7 @@ class TestWidgetsDeDashboard:
         "Select fields to visualize", aunque los encodings sean validos.
         Verificado contra un widget reparado en la UI del workspace.
         """
-        for archivo in sorted((DASHBOARDS_DIR / "dev").glob("*.lvdash.json")):
+        for archivo in sorted(DASHBOARDS_DIR.glob("*.lvdash.json")):
             contenido = json.loads(archivo.read_text(encoding="utf-8"))
             for pagina in contenido["pages"]:
                 for elemento in pagina["layout"]:
@@ -360,7 +371,7 @@ class TestWidgetsDeDashboard:
     def test_los_widgets_de_texto_usan_multiline_textbox(self):
         """`textbox_spec` no existe en el esquema: el widget queda en blanco."""
         vistos = 0
-        for archivo in sorted((DASHBOARDS_DIR / "dev").glob("*.lvdash.json")):
+        for archivo in sorted(DASHBOARDS_DIR.glob("*.lvdash.json")):
             contenido = json.loads(archivo.read_text(encoding="utf-8"))
             for pagina in contenido["pages"]:
                 for elemento in pagina["layout"]:
@@ -378,7 +389,7 @@ class TestWidgetsDeDashboard:
         for archivo, nombre, spec in self._widgets("counter"):
             widget = next(
                 w["widget"]
-                for f in [DASHBOARDS_DIR / "dev" / archivo]
+                for f in [DASHBOARDS_DIR / archivo]
                 for p in json.loads(f.read_text(encoding="utf-8"))["pages"]
                 for w in p["layout"]
                 if w["widget"]["name"] == nombre

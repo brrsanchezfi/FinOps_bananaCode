@@ -85,8 +85,20 @@ class TestLoadConfig:
     def test_carga_dev(self, conf_dir):
         cfg = load_config("dev", conf_dir=conf_dir, use_env_vars=False)
         assert cfg.env == "dev"
-        assert cfg.catalog == "finops_dev"
-        assert cfg.table("gold", "fct_cost_daily") == "finops_dev.gold.fct_cost_daily"
+        assert cfg.catalog == "finops"
+        assert cfg.table("gold", "fct_cost_daily") == "finops.gold.fct_cost_daily"
+
+    @pytest.mark.parametrize("env", ["dev", "qa", "prd"])
+    def test_los_tres_entornos_comparten_catalogo(self, conf_dir, env):
+        """El modelo FinOps describe el consumo de la CUENTA, no de un ambiente.
+
+        Los tres entornos leen las mismas system tables y producen las mismas
+        cifras, asi que comparten destino. Lo que los separa es donde corre el
+        codigo y que jobs estan programados.
+        """
+        cfg = load_config(env, conf_dir=conf_dir, use_env_vars=False)
+        assert cfg.catalog == "finops"
+        assert cfg.schema("gold") == "gold"
 
     def test_overlay_de_entorno_gana_sobre_base(self, conf_dir):
         base = load_config("prd", conf_dir=conf_dir, use_env_vars=False)

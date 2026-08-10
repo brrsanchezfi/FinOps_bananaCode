@@ -1,7 +1,4 @@
 # Overlay de entorno DEV. Solo se declaran las claves que difieren de base.yml.
-catalog:
-  catalog: finops_dev
-
 ingestion:
   lookback_days: 3
   initial_load_days: 90

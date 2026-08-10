@@ -14,6 +14,15 @@ project:
 # Destino de datos (Unity Catalog)
 # ---------------------------------------------------------------------------
 catalog:
+  # UN SOLO CATALOGO para los tres entornos.
+  #
+  # El modelo FinOps describe el consumo de la CUENTA, no de un ambiente: los
+  # tres entornos leen exactamente las mismas system tables y producen las mismas
+  # cifras. Tres copias del mismo dato solo multiplicaban el almacenamiento y
+  # obligaban a versionar un dashboard por entorno.
+  #
+  # Lo que separa a los entornos es donde corre el codigo y que jobs estan
+  # programados, no donde viven los datos. Ver docs/adr/0005.
   catalog: finops
   bronze_schema: bronze
   silver_schema: silver

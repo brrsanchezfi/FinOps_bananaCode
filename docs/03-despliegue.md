@@ -160,9 +160,9 @@ databricks bundle validate -t prd
 databricks bundle deploy   -t prd
 ```
 
-No hay paso de build previo: los dashboards estan versionados ya resueltos por
-entorno en `dashboards/<env>/`. Si cambiaste `scripts/dashboards.py`, regenera y
-commitea antes de desplegar:
+No hay paso de build previo: los dashboards estan versionados ya resueltos en
+`dashboards/`. Si cambiaste `scripts/dashboards.py`, regenera y commitea antes
+de desplegar:
 
 ```bash
 python scripts/dashboards.py generate
@@ -242,7 +242,7 @@ carpeta personal del usuario (por `mode: development`); en `qa` y `prd` es
 
 1. Lint con `ruff` y suite completa de `pytest` (Python 3.10 y 3.12).
 2. Validacion de la configuracion de los tres entornos.
-3. `python scripts/dashboards.py check`: verifica que `dashboards/<env>/*.lvdash.json`
+3. `python scripts/dashboards.py check`: verifica que `dashboards/*.lvdash.json`
    este sincronizado con el generador (falla si alguien edito un JSON a mano).
 4. `databricks bundle validate` si hay secretos configurados.
 
@@ -269,12 +269,13 @@ El mismo commit se despliega a los tres entornos. Lo unico que cambia es el
 target del bundle y el overlay de configuracion:
 
 ```bash
-bash scripts/deploy.sh dev    # catalogo finops_dev,  schedules pausados
-bash scripts/deploy.sh qa     # catalogo finops_qa,   alertas solo a tabla
-bash scripts/deploy.sh prd    # catalogo finops,      alertas a canales
+bash scripts/deploy.sh dev    # schedules pausados, alertas solo a tabla
+bash scripts/deploy.sh qa     # schedules activos
+bash scripts/deploy.sh prd    # schedules activos, alertas a canales
 ```
 
-No hay que editar SQL, ni nombres de tabla, ni notebooks para promocionar.
+No hay que editar SQL, ni nombres de tabla, ni notebooks para promocionar: los
+tres comparten el catalogo `finops` (ver [ADR 0005](adr/0005-un-solo-catalogo.md)).
 
 ---
 
@@ -288,7 +289,7 @@ Elimina jobs y dashboards. **No borra los datos**: los schemas y tablas del
 catalogo persisten. Para eliminarlos:
 
 ```sql
-DROP SCHEMA IF EXISTS finops_dev.gold   CASCADE;
-DROP SCHEMA IF EXISTS finops_dev.silver CASCADE;
-DROP SCHEMA IF EXISTS finops_dev.bronze CASCADE;
+DROP SCHEMA IF EXISTS finops.gold   CASCADE;
+DROP SCHEMA IF EXISTS finops.silver CASCADE;
+DROP SCHEMA IF EXISTS finops.bronze CASCADE;
 ```

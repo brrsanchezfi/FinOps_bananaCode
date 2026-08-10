@@ -1,8 +1,7 @@
 # Overlay de entorno QA.
 catalog:
-  catalog: finops_qa
-  # El catalogo se crea una sola vez con un administrador de Unity Catalog.
-  # El pipeline no debe crearlo en un entorno gobernado.
+  # El catalogo lo crea un administrador una sola vez; lo comparten los tres
+  # entornos, asi que este no debe intentar crearlo.
   create_if_missing: false
 
 ingestion:

@@ -1,20 +1,21 @@
 #!/usr/bin/env python
 """Generador de los dashboards Lakeview de FinOps.
 
-    python scripts/dashboards.py generate          # los tres entornos
-    python scripts/dashboards.py generate --env dev
-    python scripts/dashboards.py check             # verifica que esten al dia
+    python scripts/dashboards.py generate   # reconstruye dashboards/*.lvdash.json
+    python scripts/dashboards.py check      # verifica que esten al dia
 
 Este archivo es la **unica fuente de verdad** de los dashboards: aqui viven el
-SQL y el layout como codigo Python revisable. `generate` escribe un JSON ya
-resuelto por entorno en `dashboards/<env>/*.lvdash.json`, que se versiona y es
-lo que despliega el bundle.
+SQL y el layout como codigo Python revisable. `generate` escribe el JSON ya
+resuelto en `dashboards/*.lvdash.json`, que se versiona y es lo que despliega el
+bundle.
 
-Un dashboard Lakeview lleva el SQL embebido con nombres de tabla literales, asi
-que no existe un JSON unico valido para los tres catalogos (`finops_dev`,
-`finops_qa`, `finops`). En el SQL de este archivo las tablas se escriben como
-marcadores `{{clave}}` del registro de `finops.catalog`, y se sustituyen por el
-nombre completamente calificado al generar.
+En el SQL de este archivo las tablas se escriben como marcadores `{{clave}}` del
+registro de `finops.catalog`; `generate` los sustituye por el nombre resuelto
+desde la configuracion. Ningun nombre de catalogo se escribe a mano.
+
+Como los tres entornos comparten catalogo y schemas, los nombres resueltos son
+identicos y basta **un** juego de archivos. Si algun dia un entorno apuntara a
+otro sitio, `check` lo detecta y avisa que hay que volver a generar por entorno.
 
 > Los JSON generados **no se editan a mano**: el siguiente `generate` los
 > sobrescribe y CI falla si difieren de lo que produce este archivo.
@@ -970,35 +971,52 @@ def render_env(env: str) -> dict[str, str]:
     return salida
 
 
+def verificar_entornos_coinciden() -> None:
+    """Confirma que los tres entornos resuelven a los mismos nombres de tabla.
+
+    Es la condicion que permite versionar UN solo juego de dashboards. Si alguien
+    hace que un entorno apunte a otro catalogo o schema, esto falla y explica que
+    hay que volver a generar por entorno.
+    """
+    por_entorno = {env: render_env(env) for env in ENVIRONMENTS}
+    referencia = por_entorno[ENVIRONMENTS[0]]
+    distintos = [env for env, r in por_entorno.items() if r != referencia]
+    if distintos:
+        raise SystemExit(
+            f"ERROR: los entornos {distintos} resuelven a tablas distintas de "
+            f"'{ENVIRONMENTS[0]}'.\n"
+            "Un solo juego de dashboards deja de ser valido: habria que generarlos\n"
+            "por entorno y apuntar resources/dashboards.yml a\n"
+            "dashboards/${bundle.target}/."
+        )
+
+
 def cmd_generate(args: argparse.Namespace) -> int:
-    entornos = [args.env] if getattr(args, "env", None) else list(ENVIRONMENTS)
-    for env in entornos:
-        destino_dir = DASHBOARDS_DIR / env
-        destino_dir.mkdir(parents=True, exist_ok=True)
-        for nombre, contenido in render_env(env).items():
-            destino = destino_dir / nombre
-            destino.write_text(contenido, encoding="utf-8")
-            print(f"generado {destino.relative_to(REPO_ROOT).as_posix()}")
+    verificar_entornos_coinciden()
+    DASHBOARDS_DIR.mkdir(parents=True, exist_ok=True)
+    for nombre, contenido in render_env(ENVIRONMENTS[0]).items():
+        destino = DASHBOARDS_DIR / nombre
+        destino.write_text(contenido, encoding="utf-8")
+        print(f"generado {destino.relative_to(REPO_ROOT).as_posix()}")
     return 0
 
 
 def cmd_check(args: argparse.Namespace) -> int:
     """Verifica que los archivos versionados coincidan con lo que produce este script."""
-    desactualizados: list[str] = []
-    for env in ENVIRONMENTS:
-        for nombre, contenido in render_env(env).items():
-            archivo = DASHBOARDS_DIR / env / nombre
-            actual = archivo.read_text(encoding="utf-8") if archivo.exists() else None
-            if actual != contenido:
-                desactualizados.append(f"{env}/{nombre}")
-
+    verificar_entornos_coinciden()
+    desactualizados = [
+        nombre
+        for nombre, contenido in render_env(ENVIRONMENTS[0]).items()
+        if not (DASHBOARDS_DIR / nombre).exists()
+        or (DASHBOARDS_DIR / nombre).read_text(encoding="utf-8") != contenido
+    ]
     if desactualizados:
         print("Dashboards desactualizados:", file=sys.stderr)
-        for ruta in desactualizados:
-            print(f"  - dashboards/{ruta}", file=sys.stderr)
+        for nombre in desactualizados:
+            print(f"  - dashboards/{nombre}", file=sys.stderr)
         print("\nEjecuta: python scripts/dashboards.py generate", file=sys.stderr)
         return 1
-    print(f"Dashboards al dia ({len(ENVIRONMENTS) * len(DASHBOARDS)} archivos).")
+    print(f"Dashboards al dia ({len(DASHBOARDS)} archivos).")
     return 0
 
 
@@ -1006,8 +1024,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Dashboards Lakeview de FinOps")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p_gen = sub.add_parser("generate", help="Genera dashboards/<env>/*.lvdash.json")
-    p_gen.add_argument("--env", choices=ENVIRONMENTS, help="Solo este entorno (por defecto, los tres)")
+    p_gen = sub.add_parser("generate", help="Genera dashboards/*.lvdash.json")
     p_gen.set_defaults(func=cmd_generate)
 
     p_check = sub.add_parser("check", help="Verifica que los archivos versionados esten al dia")

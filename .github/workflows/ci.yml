@@ -42,7 +42,7 @@ jobs:
         continue-on-error: true
 
       - name: Pruebas unitarias
-        run: pytest --cov=finops --cov-report=term-missing --cov-report=xml
+        run: python -m pytest --cov=finops --cov-report=term-missing --cov-report=xml
 
       - name: Publicar cobertura
         if: matrix.python-version == '3.12'

@@ -41,7 +41,11 @@ finops = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+# "." ademas de "src": las pruebas importan ayudantes con `from tests.conftest
+# import ...`, y eso exige la raiz del repositorio en sys.path. `python -m pytest`
+# la agrega sola (por eso pasaba en local) pero `pytest` a secas no, que es como
+# lo invoca CI.
+pythonpath = [".", "src"]
 addopts = "-q --strict-markers"
 markers = [
     "spark: pruebas que requieren una SparkSession local (se omiten si no hay pyspark)",

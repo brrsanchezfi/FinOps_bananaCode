@@ -1,8 +1,8 @@
 # 02 — Modelo de datos
 
-Todos los nombres se resuelven desde `src/finops/catalog.py`. En este documento
-se usan sin catalogo: el prefijo real es `finops_dev.`, `finops_qa.` o `finops.`
-segun el entorno.
+Todos los nombres se resuelven desde `src/finops/catalog.py`. El catalogo es
+**`finops`** para los tres entornos: el modelo describe el consumo de la cuenta,
+no de un ambiente (ver [ADR 0005](adr/0005-un-solo-catalogo.md)).
 
 ---
 
@@ -192,9 +192,8 @@ total del periodo × (1 + `overhead_pct`). El pipeline lo verifica con
 >   (`dev`, `qa`, `prd`). Es una columna de auditoria, junto a `run_id` y
 >   `generated_at`.
 >
-> Un cluster de produccion puede aparecer en las tablas del catalogo `finops_dev`
-> si el pipeline de dev lo analizo: `environment = PRD`,
-> `pipeline_environment = dev`.
+> Un cluster de produccion analizado por el pipeline de dev queda con
+> `environment = PRD` y `pipeline_environment = dev`.
 
 | Tabla | Contenido |
 |---|---|

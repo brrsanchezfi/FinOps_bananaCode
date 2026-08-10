@@ -37,7 +37,7 @@ pura sobre tipos nativos de Python, cubierta por pruebas que **corren sin cluste
 Los adaptadores de Spark solo leen, escriben y mapean.
 
 ```bash
-pytest -q      # 360+ pruebas, sin Databricks, en segundos
+python -m pytest -q   # 440+ pruebas, sin Databricks, en segundos
 ```
 
 ---
@@ -120,9 +120,9 @@ databricks bundle run finops_pipeline_diario -t dev
 │   ├── 00_orquestador.py       Pipeline completo (orquestador general)
 │   ├── 10_etapa.py             Ejecutor de una etapa (tareas del job)
 │   └── 90_exploracion.py       Consultas ad-hoc
-├── dashboards/<env>/*.lvdash.json   Dashboards generados y versionados por entorno
+├── dashboards/*.lvdash.json    Dashboards generados y versionados
 ├── scripts/
-│   ├── dashboards.py           generador de los dashboards por entorno
+│   ├── dashboards.py           generador de los dashboards
 │   └── deploy.sh / deploy.ps1  Despliegue de extremo a extremo
 ├── tests/                      Suite completa sin dependencia de Spark
 └── docs/                       Documentacion (indice abajo)
@@ -161,19 +161,24 @@ databricks bundle run finops_pipeline_diario -t dev
    precio de lista (`discount_pct: 0.0` en `conf/prd.yml`).
 
 4. **Los dashboards se generan, no se editan a mano.** Viven como codigo en
-   `scripts/dashboards.py` y se versionan ya resueltos por entorno en
-   `dashboards/<env>/`. Tras cambiarlos: `python scripts/dashboards.py generate`
-   y commitear. `databricks bundle deploy` no requiere ningun paso previo.
+   `scripts/dashboards.py` y se versionan ya resueltos en `dashboards/`. Tras
+   cambiarlos: `python scripts/dashboards.py generate` y commitear.
+   `databricks bundle deploy` no requiere ningun paso previo.
 
 ---
 
 ## Entornos
 
-| Entorno | Workspace | Catalogo | Schedule |
+Los tres comparten el catalogo **`finops`**: el modelo describe el consumo de la
+cuenta, no de un ambiente, asi que los tres producen las mismas cifras. Lo que
+los separa es donde corre el codigo y con que umbrales
+(ver [ADR 0005](docs/adr/0005-un-solo-catalogo.md)).
+
+| Entorno | Workspace | Schedule | Alertas |
 |---|---|---|---|
-| `dev` | `adb-4473276016800208.8` | `finops_dev` | pausado |
-| `qa`  | `adb-2370424844216896.16` | `finops_qa` | activo |
-| `prd` | `adb-7042033821150253.13` | `finops` | activo |
+| `dev` | `adb-4198581253243445.5` | pausado | solo tabla |
+| `qa`  | `adb-2370424844216896.16` | activo | tabla |
+| `prd` | `adb-7042033821150253.13` | activo | tabla + Teams |
 
 ---
 

@@ -42,7 +42,7 @@ jobs:
           pip install -e ".[dev]"
 
       - name: Pruebas
-        run: pytest -q
+        run: python -m pytest -q
 
       - name: Determinar entorno
         id: env

@@ -343,10 +343,10 @@ Solucion: recrear la tabla. Son bitacoras operativas, no se pierde informacion
 de negocio.
 
 ```sql
-DROP TABLE IF EXISTS finops_dev.bronze.ops_watermark;
-DROP TABLE IF EXISTS finops_dev.gold.ops_run_log;
-DROP TABLE IF EXISTS finops_dev.gold.ops_data_quality;
-DROP TABLE IF EXISTS finops_dev.gold.ops_alert_log;
+DROP TABLE IF EXISTS finops.bronze.ops_watermark;
+DROP TABLE IF EXISTS finops.gold.ops_run_log;
+DROP TABLE IF EXISTS finops.gold.ops_data_quality;
+DROP TABLE IF EXISTS finops.gold.ops_alert_log;
 ```
 
 El pipeline las recrea en la siguiente corrida con el esquema explicito. El

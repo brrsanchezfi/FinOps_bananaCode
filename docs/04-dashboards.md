@@ -77,39 +77,35 @@ Los dashboards **no se editan a mano**. La unica fuente de verdad es
 legible y revisable en un diff.
 
 ```bash
-python scripts/dashboards.py generate          # los tres entornos
-python scripts/dashboards.py generate --env dev
-python scripts/dashboards.py check             # verifica que esten al dia
+python scripts/dashboards.py generate   # reconstruye dashboards/*.lvdash.json
+python scripts/dashboards.py check      # verifica que esten al dia
 ```
 
-`generate` escribe **nueve archivos versionados**:
-
-```
-dashboards/
-├── dev/   finops_ejecutivo.lvdash.json  finops_costos...  finops_optimizacion...
-├── qa/    (los mismos, con el catalogo finops_qa)
-└── prd/   (los mismos, con el catalogo finops)
-```
-
-`resources/dashboards.yml` apunta a `dashboards/${bundle.target}/`, asi que
-**`databricks bundle deploy` funciona directamente sobre el repositorio**: no hay
-paso de build previo.
-
-### Por que hay un archivo por entorno
-
-Un dashboard Lakeview lleva el SQL embebido con nombres de tabla **literales**.
-No existe un JSON unico valido para `finops_dev`, `finops_qa` y `finops`.
-
-En `scripts/dashboards.py` las tablas se escriben como marcadores de la clave
-logica del registro:
+`generate` escribe **tres archivos versionados** en `dashboards/`, uno por
+tablero. Los nombres de tabla salen de la configuracion: en el generador se
+escriben como marcadores de la clave logica del registro,
 
 ```sql
 FROM {{fct_cost_daily}}
 ```
 
-y `generate` los sustituye por el nombre completamente calificado de cada
-entorno. El repositorio sigue siendo promocionable —el codigo fuente es
-env-agnostico— y ademas el artefacto desplegable esta listo.
+y `generate` los sustituye por el nombre completamente calificado. **Ningun
+catalogo se escribe a mano.**
+
+`resources/dashboards.yml` apunta directamente a `dashboards/`, asi que
+**`databricks bundle deploy` funciona sobre el repositorio**: no hay paso de
+build previo.
+
+### Por que basta un solo juego de archivos
+
+Un dashboard Lakeview lleva el SQL embebido con nombres de tabla **literales**,
+asi que necesita tantas versiones como destinos distintos haya. Como los tres
+entornos comparten catalogo y schemas ([ADR 0005](adr/0005-un-solo-catalogo.md)),
+el destino es uno solo.
+
+Si algun entorno volviera a apuntar a otro sitio, `generate` y `check` lo
+detectan y avisan que hay que generar por entorno otra vez; una prueba
+(`test_los_tres_entornos_resuelven_a_las_mismas_tablas`) lo cubre.
 
 > **Por que se versionan archivos generados.** El CLI de Databricks excluye del
 > arbol del bundle todo lo que git ignora. Un dashboard generado en una ruta
@@ -119,11 +115,13 @@ env-agnostico— y ademas el artefacto desplegable esta listo.
 
 ### Guardas automaticas
 
-`tests/test_catalog.py` verifica, para cada entorno:
+`tests/test_catalog.py` verifica:
 
 - Que no quede ningun marcador `{{...}}` sin sustituir.
 - Que toda tabla referenciada exista en el registro de `finops.catalog`.
-- Que un dashboard de un entorno no consulte el catalogo de otro.
+- Que ningun catalogo este escrito a mano en el JSON.
+- Que los tres entornos sigan resolviendo a las mismas tablas (la condicion que
+  permite un solo juego de archivos).
 - Que los archivos versionados coincidan **byte a byte** con lo que produce el
   generador (falla si alguien edito un JSON a mano).
 
@@ -142,7 +140,7 @@ python scripts/dashboards.py generate
 pytest tests/test_catalog.py -q
 ```
 
-3. Commitear los nueve archivos junto con el cambio del generador.
+3. Commitear los tres archivos junto con el cambio del generador.
 4. Desplegar a `dev` y revisar visualmente antes de promocionar.
 
 ### Agregar un widget
@@ -166,8 +164,9 @@ chart("mi_grafico", "mi_consulta", "bar", "Titulo visible",
       x=0, y=30, w=3, h=7),
 ```
 
-La grilla de Lakeview tiene **6 columnas**. `x` e `y` son coordenadas, `w` y `h`
-el tamano. Los constructores disponibles son `markdown`, `counter`, `chart`
+La grilla real de Lakeview tiene **12 columnas**, pero el layout de este archivo
+se escribe sobre una grilla logica de **6** y `_pos` la escala. `x` e `y` son
+coordenadas, `w` y `h` el tamano. Los constructores disponibles son `markdown`, `counter`, `chart`
 (tipos `line`, `bar`, `area`, `pie`, `scatter`) y `table`.
 
 Si referencias una tabla nueva, primero declarala en `src/finops/catalog.py`: el
