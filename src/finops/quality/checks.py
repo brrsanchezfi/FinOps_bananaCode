@@ -13,6 +13,7 @@ Severidades: ``error`` bloquea el pipeline (si `fail_pipeline_on_error`),
 
 from __future__ import annotations
 
+import fnmatch
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timezone
 from typing import TYPE_CHECKING, Any
@@ -28,6 +29,9 @@ log = get_logger("quality")
 
 SEVERITY_ERROR = "error"
 SEVERITY_WARNING = "warning"
+
+#: Cuantos SKUs sin precio se nombran en el mensaje de falla antes de resumir.
+MAX_SKUS_EN_MENSAJE = 10
 
 
 @dataclass
@@ -102,20 +106,59 @@ def evaluate_negative_cost(negative_rows: int, max_rows: int, table: str = "") -
     )
 
 
+def sku_is_ignored(sku_name: str | None, patterns: list[str] | None) -> bool:
+    """True si el SKU esta declarado como 'sin precio de lista esperado'.
+
+    Los patrones son glob y se comparan sin distinguir mayusculas, igual que las
+    reglas de descuento (`pricing._matches_rule`).
+    """
+    if not patterns or not sku_name:
+        return False
+    objetivo = str(sku_name).upper()
+    return any(fnmatch.fnmatch(objetivo, str(p).upper()) for p in patterns)
+
+
 def evaluate_price_match(
-    priced_rows: int, total_rows: int, min_ratio: float, table: str = ""
+    priced_rows: int,
+    total_rows: int,
+    min_ratio: float,
+    table: str = "",
+    *,
+    unpriced_skus: list[tuple[str, int]] | None = None,
+    ignored_rows: int = 0,
 ) -> CheckResult:
     """Fraccion de registros de consumo que encontraron precio de lista.
 
     Un SKU nuevo sin precio publicado produce costo 0 y subestima el gasto; por
     eso este chequeo es de severidad error y no solo informativo.
+
+    `total_rows` ya excluye los SKUs declarados en
+    `quality.checks.price_match_ignore_skus`; `ignored_rows` es cuantos se
+    excluyeron, y se reporta para que la exclusion sea visible y no silenciosa.
+
+    `unpriced_skus` son los SKUs sin precio con su conteo, ordenados de mayor a
+    menor. Van en el mensaje porque un porcentaje solo no permite decidir si la
+    causa es un SKU no facturable o un defecto del join de precios: sin el
+    nombre del SKU no se puede actuar sobre la falla.
     """
     ratio = (priced_rows / total_rows) if total_rows > 0 else 1.0
     ok = ratio >= min_ratio
-    return CheckResult(
-        "price_match", table, ok, SEVERITY_ERROR, round(ratio, 6), min_ratio,
+
+    mensaje = (
         f"{priced_rows:,} de {total_rows:,} registros con precio resuelto "
-        f"({ratio:.2%}, minimo {min_ratio:.2%})",
+        f"({ratio:.2%}, minimo {min_ratio:.2%})"
+    )
+    if ignored_rows:
+        mensaje += f"; {ignored_rows:,} registros excluidos por price_match_ignore_skus"
+    if not ok and unpriced_skus:
+        detalle = ", ".join(f"{sku} ({filas:,})" for sku, filas in unpriced_skus[:MAX_SKUS_EN_MENSAJE])
+        restantes = len(unpriced_skus) - MAX_SKUS_EN_MENSAJE
+        if restantes > 0:
+            detalle += f" y {restantes} SKU(s) mas"
+        mensaje += f". Sin precio: {detalle}. Diagnostico: scripts/diagnostico_precios.sql"
+
+    return CheckResult(
+        "price_match", table, ok, SEVERITY_ERROR, round(ratio, 6), min_ratio, mensaje
     )
 
 
@@ -182,6 +225,20 @@ def run_checks(spark: SparkSession, cfg: FinOpsConfig) -> list[CheckResult]:
         ]
 
     ventana = spark.table(silver_fqn).filter(F.col("usage_date").between(cfg.min_date, cfg.max_date))
+
+    # SKUs que no tienen precio de lista por diseno (no facturables, creditos de
+    # prueba, storage incluido). Se excluyen del chequeo en vez de bajar el
+    # umbral global, que enmascararia un SKU nuevo genuinamente sin valorizar.
+    patrones_ignorados = [str(p) for p in (checks_cfg.get("price_match_ignore_skus") or [])]
+    ignorados = F.lit(False)
+    for patron in patrones_ignorados:
+        ignorados = ignorados | F.upper(F.coalesce(F.col("sku_name"), F.lit(""))).like(
+            patron.upper().replace("*", "%")
+        )
+    filas_ignoradas = ventana.filter(ignorados).count() if patrones_ignorados else 0
+    if patrones_ignorados:
+        ventana = ventana.filter(~ignorados)
+
     agregado = ventana.agg(
         F.count("*").alias("total"),
         F.max("usage_date").alias("max_date"),
@@ -208,9 +265,26 @@ def run_checks(spark: SparkSession, cfg: FinOpsConfig) -> list[CheckResult]:
             int(agregado["negative_cost"] or 0), int(checks_cfg.get("max_negative_cost_rows", 0)), silver_fqn
         )
     )
+    precios_resueltos = int(agregado["priced"] or 0)
+    minimo_precio = float(checks_cfg.get("price_match_min_ratio", 0.98))
+    # El detalle solo se calcula si el chequeo va a fallar: es un agregado extra
+    # sobre la ventana y no vale pagarlo en cada corrida sana.
+    skus_sin_precio: list[tuple[str, int]] = []
+    if total > 0 and (precios_resueltos / total) < minimo_precio:
+        skus_sin_precio = [
+            (str(fila["sku_name"]), int(fila["filas"]))
+            for fila in (
+                ventana.filter(F.col("price_missing"))
+                .groupBy("sku_name")
+                .agg(F.count("*").alias("filas"))
+                .orderBy(F.col("filas").desc())
+                .collect()
+            )
+        ]
     resultados.append(
         evaluate_price_match(
-            int(agregado["priced"] or 0), total, float(checks_cfg.get("price_match_min_ratio", 0.98)), silver_fqn
+            precios_resueltos, total, minimo_precio, silver_fqn,
+            unpriced_skus=skus_sin_precio, ignored_rows=filas_ignoradas,
         )
     )
 

@@ -8,6 +8,7 @@ import pytest
 
 from finops.errors import DataQualityError
 from finops.quality.checks import (
+    MAX_SKUS_EN_MENSAJE,
     SEVERITY_ERROR,
     SEVERITY_WARNING,
     enforce,
@@ -18,6 +19,7 @@ from finops.quality.checks import (
     evaluate_price_match,
     evaluate_row_count,
     evaluate_tag_coverage,
+    sku_is_ignored,
     summarize,
 )
 
@@ -76,6 +78,53 @@ class TestCoincidenciaDePrecios:
 
     def test_sin_filas_se_considera_completo(self):
         assert evaluate_price_match(0, 0, 0.98).passed is True
+
+    def test_la_falla_nombra_los_skus_sin_precio(self):
+        """Un porcentaje solo no permite decidir si es un SKU no facturable o un
+        defecto del join; el mensaje debe nombrar el SKU para poder actuar."""
+        resultado = evaluate_price_match(
+            660, 869, 0.98,
+            unpriced_skus=[("PREMIUM_JOBS_COMPUTE", 150), ("NETWORKING_EGRESS", 59)],
+        )
+        assert resultado.passed is False
+        assert "PREMIUM_JOBS_COMPUTE (150)" in resultado.message
+        assert "NETWORKING_EGRESS (59)" in resultado.message
+        assert "diagnostico_precios.sql" in resultado.message
+
+    def test_el_detalle_se_resume_cuando_hay_muchos_skus(self):
+        muchos = [(f"SKU_{i}", 100 - i) for i in range(MAX_SKUS_EN_MENSAJE + 3)]
+        mensaje = evaluate_price_match(1, 100, 0.98, unpriced_skus=muchos).message
+        assert "SKU_0 (100)" in mensaje
+        assert f"SKU_{MAX_SKUS_EN_MENSAJE}" not in mensaje
+        assert "y 3 SKU(s) mas" in mensaje
+
+    def test_un_chequeo_sano_no_lista_skus(self):
+        """El detalle es ruido cuando no hay nada que investigar."""
+        mensaje = evaluate_price_match(
+            9900, 10_000, 0.98, unpriced_skus=[("SKU_RARO", 100)]
+        ).message
+        assert "SKU_RARO" not in mensaje
+
+    def test_las_exclusiones_quedan_visibles(self):
+        """Excluir SKUs deja de vigilar gasto: no puede ser silencioso."""
+        mensaje = evaluate_price_match(869, 869, 0.98, ignored_rows=42).message
+        assert "42" in mensaje and "price_match_ignore_skus" in mensaje
+
+
+class TestSkusIgnorados:
+    def test_coincidencia_exacta_e_insensible_a_mayusculas(self):
+        assert sku_is_ignored("networking_egress", ["NETWORKING_EGRESS"]) is True
+
+    def test_comodin_glob(self):
+        assert sku_is_ignored("PREMIUM_TRIAL_FREE", ["*_FREE"]) is True
+        assert sku_is_ignored("PREMIUM_JOBS_COMPUTE", ["*_FREE"]) is False
+
+    def test_sin_patrones_no_ignora_nada(self):
+        assert sku_is_ignored("CUALQUIERA", []) is False
+        assert sku_is_ignored("CUALQUIERA", None) is False
+
+    def test_sku_nulo(self):
+        assert sku_is_ignored(None, ["*"]) is False
 
 
 class TestCobertura:

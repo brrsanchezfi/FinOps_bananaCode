@@ -159,6 +159,45 @@ databricks bundle run finops_pipeline_diario -t prd \
 Es una medida temporal: deja constancia en `ops_data_quality` de que se corrio
 con chequeos fallidos.
 
+### `price_match` falla
+
+```
+price_match [finops.silver.slv_usage_priced]:
+660 de 869 registros con precio resuelto (75.95%, minimo 98.00%).
+Sin precio: NETWORKING_EGRESS (150), PREMIUM_TRIAL (59).
+Diagnostico: scripts/diagnostico_precios.sql
+```
+
+El mensaje **nombra los SKUs sin precio**, que es lo que decide el diagnostico.
+Hay dos causas y solo se distinguen mirando esos nombres:
+
+**A. El SKU no tiene precio de lista y nunca lo tendra.** No facturables,
+creditos de prueba, storage incluido. No es un error del pipeline. Se declaran
+en configuracion, no se baja el umbral:
+
+```yaml
+quality:
+  checks:
+    price_match_ignore_skus:
+      - "NETWORKING_*"
+      - "*_FREE"
+```
+
+Quedan fuera del numerador y del denominador, y el chequeo reporta cuantos
+registros excluyo para que la exclusion no sea silenciosa. **Un SKU en esa lista
+es gasto que deja de vigilarse**: agregar solo lo confirmado por el diagnostico.
+Bajar `price_match_min_ratio` en su lugar enmascara cualquier SKU nuevo que
+aparezca despues genuinamente sin valorizar.
+
+**B. El SKU si tiene precio pero el join no lo encuentra.** Eso subestima el
+gasto real y hay que corregirlo, no ignorarlo. Las causas posibles son unidad
+distinta, nube distinta, ventana de vigencia que no cubre el consumo, o un
+snapshot de `brz_billing_list_prices` desactualizado.
+
+Ejecutar `scripts/diagnostico_precios.sql` en el editor SQL: la consulta 1 lista
+los SKUs afectados, la 2 cuantifica el consumo que se esta perdiendo, y las 3 a
+6 separan A de B.
+
 ---
 
 ## Tareas periodicas

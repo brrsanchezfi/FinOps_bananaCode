@@ -329,6 +329,16 @@ quality:
     min_daily_rows: 1
     max_negative_cost_rows: 0
     price_match_min_ratio: 0.98
+    # SKUs que NO tienen precio de lista por diseno y por lo tanto no deben
+    # contar contra `price_match_min_ratio`: no facturables, creditos de prueba,
+    # storage incluido. Se excluyen del numerador y del denominador, y el
+    # chequeo reporta cuantos registros excluyo para que quede visible.
+    #
+    # Poblar SOLO con lo que confirme `scripts/diagnostico_precios.sql`: un SKU
+    # aqui es gasto que deja de vigilarse. Bajar el umbral global en su lugar
+    # enmascararia un SKU nuevo genuinamente sin valorizar.
+    # Admite comodines glob, p. ej. "*_FREE" o "NETWORKING_*".
+    price_match_ignore_skus: []
 
 # ---------------------------------------------------------------------------
 # Ejecucion / rendimiento

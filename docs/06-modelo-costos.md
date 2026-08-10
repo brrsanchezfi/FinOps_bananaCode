@@ -134,7 +134,14 @@ por lo que existe un chequeo de calidad bloqueante:
 quality:
   checks:
     price_match_min_ratio: 0.98   # al menos el 98% de registros con precio
+    price_match_ignore_skus: []   # SKUs sin precio de lista por diseno
 ```
+
+Cuando falla, el mensaje **nombra los SKUs sin precio**: un porcentaje solo no
+permite distinguir un SKU no facturable de un defecto del join. Los SKUs que
+genuinamente no tienen precio de lista se declaran en `price_match_ignore_skus`
+en vez de bajar el umbral. Ver [07 — Runbook](07-runbook.md) y
+`scripts/diagnostico_precios.sql`.
 
 Para ver que SKU estan sin valorizar:
 
