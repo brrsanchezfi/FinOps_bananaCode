@@ -37,3 +37,13 @@ resources:
       file_path: ../dashboards/finops_optimizacion.lvdash.json
       warehouse_id: ${var.warehouse_id}
       parent_path: ${workspace.root_path}/dashboards
+
+    # Unico tablero que NO depende de la ejecucion del pipeline: consulta las
+    # vistas `vw_*_live`, que leen system.billing.usage directamente. Para que
+    # lo vea alguien sin permiso sobre `system.billing`, publicarlo con
+    # credenciales embebidas.
+    finops_etiquetado:
+      display_name: "[FinOps] Gobierno de etiquetado (${bundle.target})"
+      file_path: ../dashboards/finops_etiquetado.lvdash.json
+      warehouse_id: ${var.warehouse_id}
+      parent_path: ${workspace.root_path}/dashboards

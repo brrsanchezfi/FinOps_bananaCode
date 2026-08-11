@@ -1,7 +1,8 @@
 # 04 — Dashboards
 
-Tres dashboards Lakeview, versionados en `dashboards/*.lvdash.json` y desplegados
-por el bundle.
+Cuatro dashboards Lakeview, versionados en `dashboards/*.lvdash.json` y
+desplegados por el bundle. Los tres primeros leen el modelo gold; el cuarto lee
+las system tables en vivo.
 
 ---
 
@@ -67,6 +68,51 @@ Fuentes: `fct_recommendation`, `fct_kpi_daily`, `fct_cost_daily`,
 > Las columnas `confidence` y `estimation_method` estan en la tabla de
 > recomendaciones a proposito: quien lee el dashboard debe poder juzgar cuanto
 > peso darle a cada cifra de ahorro antes de comprometerla.
+
+---
+
+## 4. Gobierno de etiquetado — `finops_etiquetado`
+
+**Para:** plataforma, gobierno, quien administra las cluster policies.
+
+**Es el unico tablero que no depende de la ejecucion del pipeline.** Sus datasets
+consultan las vistas `vw_*_live`, que leen `system.billing.usage` directamente,
+asi que muestra el estado actual del etiquetado cada vez que se abre. Esa fue la
+razon de disenarlo asi: el etiquetado se corrige cambiando una policy, y quien la
+cambia necesita ver el efecto al recargar, no al dia siguiente.
+
+| Bloque | Contenido |
+|---|---|
+| Contadores | Costo total 30 dias, gasto sin ninguna etiqueta, recursos con consumo |
+| Cobertura por dimension | Barras del % cubierto de cada dimension canonica |
+| Evolucion | Serie de 60 dias de la cobertura, una linea por dimension |
+| Gasto sin atribuir por tipo | Donde esta la brecha: jobs, clusters, warehouses, serverless |
+| Claves no reconocidas | Etiquetas en uso que la configuracion no mapea a ninguna dimension |
+| Inventario | Todas las claves en uso, su dimension y el costo que representan |
+| Recursos sin atribucion | Lista accionable de recursos con costo y sin ninguna dimension resoluble |
+
+Fuentes: `vw_tag_coverage_live`, `vw_tag_inventory_live`, `vw_untagged_spend_live`,
+`vw_usage_live`.
+
+> **Los importes son a precio de lista.** Los descuentos negociados viven en
+> `conf/*.yml` y los aplica la capa silver; las vistas no. Si hay descuento
+> configurado, las cifras de este tablero seran mayores que las de los otros. Por
+> eso las columnas se llaman `list_cost_usd` y no `total_cost_usd`: sirven para
+> comparar entre si, no como cifra de facturacion.
+
+> **Permisos.** Quien consulte las vistas necesita `SELECT` sobre
+> `system.billing`, que normalmente solo tiene el service principal. Para que lo
+> vean los analistas, publicar el tablero con credenciales embebidas.
+
+Las vistas se crean en la etapa `setup` del pipeline (`finops.views.ensure_views`).
+Es la unica dependencia con el pipeline, y es de DDL: los datos siempre son
+actuales. Si una vista falla al crearse — casi siempre por permisos — se registra
+una advertencia y el pipeline continua: perder el tablero de etiquetado no
+justifica tumbar la produccion de las cifras de costo.
+
+El SQL de las vistas se construye desde `conf/`: agregar una dimension a
+`tagging.dimensions` la incorpora al tablero en el siguiente `setup`, sin tocar
+codigo.
 
 ---
 

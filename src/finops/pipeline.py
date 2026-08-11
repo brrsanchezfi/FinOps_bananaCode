@@ -110,6 +110,13 @@ def stage_setup(spark: SparkSession, cfg: FinOpsConfig, result: PipelineResult) 
         creados = bootstrap(spark, cfg)
         metrica.details["schemas"] = ", ".join(creados)
 
+    with stage("setup.views", result.recorder) as metrica:
+        from .views import ensure_views
+
+        vistas = ensure_views(spark, cfg)
+        metrica.rows = len(vistas)
+        metrica.details["vistas"] = ", ".join(vistas) or "ninguna"
+
 
 def stage_bronze(spark: SparkSession, cfg: FinOpsConfig, result: PipelineResult) -> None:
     marcas = read_watermarks(spark, cfg)

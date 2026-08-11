@@ -203,8 +203,15 @@ def table_map(cfg: FinOpsConfig) -> dict[str, str]:
     """Mapa clave logica -> nombre completamente calificado.
 
     Se usa para sustituir marcadores `{{clave}}` en el SQL de los dashboards.
+
+    Incluye las vistas de gobierno ademas de las tablas: los dashboards las
+    referencian igual que a cualquier otro objeto y no deben escribir el
+    catalogo a mano. La importacion es diferida porque `finops.views` importa
+    este modulo.
     """
-    return {t.key: t.fqn(cfg) for t in ALL_TABLES}
+    from .views import ALL_VIEWS
+
+    return {t.key: t.fqn(cfg) for t in (*ALL_TABLES, *ALL_VIEWS)}
 
 
 # ---------------------------------------------------------------------------

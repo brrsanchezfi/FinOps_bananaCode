@@ -896,10 +896,195 @@ LIMIT 200
     }
 
 
+# ---------------------------------------------------------------------------
+# Dashboard 4 — Gobierno de etiquetado (en vivo)
+# ---------------------------------------------------------------------------
+def dashboard_etiquetado() -> dict[str, Any]:
+    """Monitoreo del etiquetado, sobre vistas que leen las system tables.
+
+    A diferencia de los otros tres, este tablero NO depende de que el pipeline
+    haya corrido: sus datasets consultan `vw_*_live`, que leen
+    `system.billing.usage` directamente. Quien corrige el etiquetado cambiando
+    una policy ve el efecto al recargar, no al dia siguiente.
+
+    El costo esta a precio de lista (las vistas no aplican descuentos), asi que
+    las cifras pueden no cuadrar con las de los otros tableros. El encabezado
+    lo advierte de forma visible.
+    """
+    datasets = [
+        dataset(
+            "cobertura_hoy", "Cobertura de etiquetado por dimension (ultimos 30 dias)",
+            """
+SELECT
+  dimension,
+  ROUND(SUM(attributed_cost_usd), 2) AS costo_atribuido_usd,
+  ROUND(SUM(unattributed_cost_usd), 2) AS costo_sin_atribuir_usd,
+  ROUND(100.0 * SUM(attributed_cost_usd) / NULLIF(SUM(total_cost_usd), 0), 1) AS cobertura_pct
+FROM {{vw_tag_coverage_live}}
+WHERE usage_date >= CURRENT_DATE() - INTERVAL 30 DAYS
+GROUP BY dimension
+ORDER BY cobertura_pct
+            """,
+        ),
+        dataset(
+            "cobertura_serie", "Evolucion de la cobertura por dimension",
+            """
+SELECT
+  usage_date,
+  dimension,
+  ROUND(100.0 * SUM(attributed_cost_usd) / NULLIF(SUM(total_cost_usd), 0), 2) AS cobertura_pct
+FROM {{vw_tag_coverage_live}}
+WHERE usage_date >= CURRENT_DATE() - INTERVAL 60 DAYS
+GROUP BY usage_date, dimension
+ORDER BY usage_date
+            """,
+        ),
+        dataset(
+            "resumen_global", "Gasto total y gasto sin etiquetar",
+            """
+SELECT
+  ROUND(SUM(list_cost_usd), 2) AS costo_total_usd,
+  ROUND(SUM(CASE WHEN SIZE(COALESCE(custom_tags, MAP())) = 0
+                 THEN list_cost_usd ELSE 0 END), 2) AS costo_sin_etiquetas_usd,
+  COUNT(DISTINCT entity_id) AS recursos
+FROM {{vw_usage_live}}
+WHERE usage_date >= CURRENT_DATE() - INTERVAL 30 DAYS
+            """,
+        ),
+        dataset(
+            "claves_no_reconocidas", "Claves en uso que la configuracion no reconoce",
+            """
+SELECT
+  tag_key AS clave,
+  distinct_values AS valores_distintos,
+  records AS registros,
+  list_cost_usd AS costo_usd
+FROM {{vw_tag_inventory_live}}
+WHERE NOT is_recognized
+ORDER BY list_cost_usd DESC
+LIMIT 30
+            """,
+        ),
+        dataset(
+            "inventario", "Inventario de claves de etiqueta en uso",
+            """
+SELECT
+  tag_key AS clave,
+  COALESCE(maps_to_dimension, 'NO RECONOCIDA') AS dimension,
+  distinct_values AS valores_distintos,
+  records AS registros,
+  list_cost_usd AS costo_usd
+FROM {{vw_tag_inventory_live}}
+ORDER BY list_cost_usd DESC
+LIMIT 50
+            """,
+        ),
+        dataset(
+            "sin_etiquetar", "Recursos con costo y sin ninguna dimension resoluble",
+            """
+SELECT
+  entity_type,
+  entity_id,
+  sku_name,
+  billing_origin_product,
+  records,
+  first_seen,
+  last_seen,
+  list_cost_usd
+FROM {{vw_untagged_spend_live}}
+ORDER BY list_cost_usd DESC
+LIMIT 100
+            """,
+        ),
+        dataset(
+            "sin_etiquetar_por_tipo", "Gasto sin atribuir por tipo de recurso",
+            """
+SELECT
+  entity_type,
+  ROUND(SUM(list_cost_usd), 2) AS costo_usd
+FROM {{vw_untagged_spend_live}}
+GROUP BY entity_type
+ORDER BY costo_usd DESC
+            """,
+        ),
+    ]
+
+    layout = [
+        markdown(
+            "titulo",
+            "# FinOps Databricks — Gobierno de etiquetado\n"
+            "**Datos en vivo**: este tablero lee las tablas de sistema directamente, "
+            "no depende de la ejecucion del pipeline. Los importes son a **precio de "
+            "lista** (sin descuentos negociados), asi que pueden diferir de los otros "
+            "tableros; sirven para comparar entre si, no como cifra de facturacion.",
+            x=0, y=0, w=6, h=2,
+        ),
+        counter("kpi_costo_total", "resumen_global", "costo_total_usd",
+                "Costo total 30 dias (lista)", x=0, y=2, w=2, h=3),
+        counter("kpi_sin_etiquetas", "resumen_global", "costo_sin_etiquetas_usd",
+                "Sin ninguna etiqueta (USD)", x=2, y=2, w=2, h=3),
+        counter("kpi_recursos", "resumen_global", "recursos",
+                "Recursos con consumo", x=4, y=2, w=2, h=3),
+
+        chart("cobertura_barras", "cobertura_hoy", "bar", "Cobertura por dimension (30 dias, %)",
+              x_campo="dimension", x_escala="categorical", x_titulo="Dimension",
+              y_campo="cobertura_pct", y_titulo="% cubierto",
+              x=0, y=5, w=3, h=7),
+        chart("cobertura_evolucion", "cobertura_serie", "line", "Evolucion de la cobertura (60 dias)",
+              x_campo="usage_date", x_escala="temporal", x_titulo="Fecha",
+              y_campo="cobertura_pct", y_titulo="% cubierto",
+              color_campo="dimension", color_titulo="Dimension",
+              x=3, y=5, w=3, h=7),
+
+        markdown("sub_brechas", "## Donde esta la brecha", x=0, y=12, w=6, h=1),
+
+        chart("brecha_por_tipo", "sin_etiquetar_por_tipo", "bar", "Gasto sin atribuir por tipo de recurso",
+              x_campo="entity_type", x_escala="categorical", x_titulo="Tipo",
+              y_campo="costo_usd", y_titulo="USD",
+              x=0, y=13, w=3, h=7),
+        table("tabla_no_reconocidas", "claves_no_reconocidas",
+              "Claves en uso que la configuracion NO reconoce", [
+                  ("clave", "Clave"), ("valores_distintos", "Valores"),
+                  ("registros", "Registros"), ("costo_usd", "Costo USD"),
+              ], x=3, y=13, w=3, h=7),
+
+        markdown("sub_inventario", "## Inventario de etiquetas", x=0, y=20, w=6, h=1),
+        table("tabla_inventario", "inventario", "Todas las claves en uso", [
+            ("clave", "Clave"), ("dimension", "Dimension"),
+            ("valores_distintos", "Valores"), ("registros", "Registros"),
+            ("costo_usd", "Costo USD"),
+        ], x=0, y=21, w=6, h=8),
+
+        markdown("sub_recursos", "## Recursos sin atribucion", x=0, y=29, w=6, h=1),
+        table("tabla_sin_etiquetar", "sin_etiquetar",
+              "Recursos con costo y sin ninguna dimension resoluble", [
+                  ("entity_type", "Tipo"), ("entity_id", "Recurso"),
+                  ("sku_name", "SKU"), ("billing_origin_product", "Producto"),
+                  ("records", "Registros"), ("first_seen", "Desde"),
+                  ("last_seen", "Hasta"), ("list_cost_usd", "Costo USD"),
+              ], x=0, y=30, w=6, h=8),
+    ]
+
+    return {
+        "datasets": datasets,
+        "pages": [
+            {
+                "name": "etiquetado",
+                "displayName": "Gobierno de etiquetado",
+                "layout": layout,
+                "pageType": PAGE_TYPE,
+                "layoutVersion": LAYOUT_VERSION,
+            }
+        ],
+        "uiSettings": UI_SETTINGS,
+    }
+
+
 DASHBOARDS = {
     "finops_ejecutivo": dashboard_ejecutivo,
     "finops_costos": dashboard_costos,
     "finops_optimizacion": dashboard_optimizacion,
+    "finops_etiquetado": dashboard_etiquetado,
 }
 
 
@@ -914,16 +1099,17 @@ def render_env(env: str) -> dict[str, str]:
     consulte una tabla inexistente.
     """
     sys.path.insert(0, str(REPO_ROOT / "src"))
-    from finops.catalog import TABLES_BY_KEY, table_map
+    from finops.catalog import table_map
     from finops.config import load_config
 
     cfg = load_config(env, conf_dir=REPO_ROOT / "conf", use_env_vars=False)
+    # `table_map` incluye tablas y vistas: los dashboards referencian ambas.
     mapa = table_map(cfg)
     faltantes: set[str] = set()
 
     def sustituir(match: re.Match[str]) -> str:
         clave = match.group(1)
-        if clave not in TABLES_BY_KEY:
+        if clave not in mapa:
             faltantes.add(clave)
             return match.group(0)
         return mapa[clave]
@@ -935,7 +1121,8 @@ def render_env(env: str) -> dict[str, str]:
 
     if faltantes:
         raise SystemExit(
-            f"ERROR: marcadores sin tabla registrada en finops.catalog: {sorted(faltantes)}"
+            "ERROR: marcadores sin tabla ni vista registrada en finops.catalog: "
+            f"{sorted(faltantes)}"
         )
     return salida
 

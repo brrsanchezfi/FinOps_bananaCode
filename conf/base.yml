@@ -171,6 +171,16 @@ tagging:
   min_coverage_ratio: 0.80
 
 # ---------------------------------------------------------------------------
+# Gobierno de etiquetado (vistas en vivo)
+# ---------------------------------------------------------------------------
+governance:
+  # Ventana que cubren las vistas `vw_*_live`. Estas leen system.billing.usage
+  # directamente, asi que el tablero de etiquetado no depende de que el pipeline
+  # haya corrido; el costo de la consulta lo paga cada apertura del tablero, y
+  # por eso la ventana se acota.
+  live_window_days: 90
+
+# ---------------------------------------------------------------------------
 # Deteccion de anomalias de costo
 # ---------------------------------------------------------------------------
 anomaly:

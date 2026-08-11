@@ -34,14 +34,25 @@ class TestRegistro:
     def test_fqn_usa_la_configuracion(self, cfg_dev):
         assert TABLES_BY_KEY["fct_cost_daily"].fqn(cfg_dev) == "finops.gold.fct_cost_daily"
 
-    def test_table_map_cubre_todas(self, cfg_dev):
+    def test_table_map_cubre_tablas_y_vistas(self, cfg_dev):
+        """Los dashboards referencian vistas ademas de tablas; ambas resuelven."""
+        from finops.views import ALL_VIEWS
+
         mapa = table_map(cfg_dev)
-        assert len(mapa) == len(ALL_TABLES)
+        assert len(mapa) == len(ALL_TABLES) + len(ALL_VIEWS)
         assert all(v.count(".") == 2 for v in mapa.values())
+
+    def test_no_hay_colision_de_claves_entre_tablas_y_vistas(self):
+        """Una clave repetida haria que un marcador resolviera al objeto equivocado."""
+        from finops.views import ALL_VIEWS
+
+        claves_tabla = {t.key for t in ALL_TABLES}
+        claves_vista = {v.key for v in ALL_VIEWS}
+        assert not (claves_tabla & claves_vista)
 
 
 ENTORNOS = ("dev", "qa", "prd")
-NOMBRES = ("finops_ejecutivo", "finops_costos", "finops_optimizacion")
+NOMBRES = ("finops_ejecutivo", "finops_costos", "finops_optimizacion", "finops_etiquetado")
 
 
 def _config(env: str):

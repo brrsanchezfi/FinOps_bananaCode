@@ -23,7 +23,8 @@ system tables  ->  bronze  ->  silver  ->  gold  ->  dashboards + alertas
 | Vamos a exceder el presupuesto | `fct_budget_status` + alerta `FORECAST_OVERRUN` |
 | Por que subio el costo ayer | `fct_cost_anomaly` + notebook `90_exploracion` |
 | Donde podemos ahorrar | `fct_recommendation`, dashboard **Optimizacion** |
-| Cuanto gasto no tiene responsable | `fct_tag_coverage_daily` |
+| Cuanto gasto no tiene responsable | `fct_tag_coverage_daily`, dashboard **Gobierno de etiquetado** |
+| Que etiquetas se usan de verdad, ahora mismo | `vw_tag_inventory_live` (en vivo, sin pipeline) |
 | Esta sano el pipeline | `ops_run_log`, `ops_data_quality`, `ops_alert_log` |
 
 ## Principio de diseno
@@ -98,7 +99,7 @@ databricks bundle run finops_pipeline_diario -t dev
 ├── databricks.yml              Bundle: targets dev/qa/prd, variables, artefactos
 ├── resources/
 │   ├── jobs.yml                Pipeline diario, alertamiento, backfill
-│   └── dashboards.yml          Los tres dashboards Lakeview
+│   └── dashboards.yml          Los cuatro dashboards Lakeview
 ├── conf/
 │   ├── base.yml                Configuracion comun (fuentes, umbrales, reglas)
 │   ├── dev.yml / qa.yml / prd.yml   Overlays por entorno
@@ -106,6 +107,7 @@ databricks bundle run finops_pipeline_diario -t dev
 ├── src/finops/                 TODA la logica de negocio
 │   ├── config.py               Carga, fusion y validacion de configuracion
 │   ├── catalog.py              Registro central de tablas del modelo
+│   ├── views.py                Vistas en vivo de gobierno de etiquetado
 │   ├── spark_utils.py          Unico punto de contacto con Spark/Delta
 │   ├── pipeline.py             Orquestacion por etapas
 │   ├── notebook.py             Puente notebooks <-> paquete
@@ -137,7 +139,7 @@ databricks bundle run finops_pipeline_diario -t dev
 | [01 — Arquitectura](docs/01-arquitectura.md) | Capas, flujo de datos, decisiones de diseno |
 | [02 — Modelo de datos](docs/02-modelo-datos.md) | Cada tabla, su grano y sus columnas |
 | [03 — Despliegue](docs/03-despliegue.md) | Prerrequisitos, permisos, bundle, CI/CD |
-| [04 — Dashboards](docs/04-dashboards.md) | Los tres dashboards y como extenderlos |
+| [04 — Dashboards](docs/04-dashboards.md) | Los cuatro dashboards y como extenderlos |
 | [05 — Alertas](docs/05-alertas.md) | Reglas, severidades, canales, deduplicacion |
 | [06 — Modelo de costos](docs/06-modelo-costos.md) | Como se calcula el costo y que **no** incluye |
 | [07 — Runbook](docs/07-runbook.md) | Operacion diaria, diagnostico, incidentes |

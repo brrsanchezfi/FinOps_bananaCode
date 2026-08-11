@@ -1,0 +1,728 @@
+{
+  "datasets": [
+    {
+      "name": "cobertura_hoy",
+      "displayName": "Cobertura de etiquetado por dimension (ultimos 30 dias)",
+      "queryLines": [
+        "SELECT\n",
+        "  dimension,\n",
+        "  ROUND(SUM(attributed_cost_usd), 2) AS costo_atribuido_usd,\n",
+        "  ROUND(SUM(unattributed_cost_usd), 2) AS costo_sin_atribuir_usd,\n",
+        "  ROUND(100.0 * SUM(attributed_cost_usd) / NULLIF(SUM(total_cost_usd), 0), 1) AS cobertura_pct\n",
+        "FROM finops.gold.vw_tag_coverage_live\n",
+        "WHERE usage_date >= CURRENT_DATE() - INTERVAL 30 DAYS\n",
+        "GROUP BY dimension\n",
+        "ORDER BY cobertura_pct\n"
+      ]
+    },
+    {
+      "name": "cobertura_serie",
+      "displayName": "Evolucion de la cobertura por dimension",
+      "queryLines": [
+        "SELECT\n",
+        "  usage_date,\n",
+        "  dimension,\n",
+        "  ROUND(100.0 * SUM(attributed_cost_usd) / NULLIF(SUM(total_cost_usd), 0), 2) AS cobertura_pct\n",
+        "FROM finops.gold.vw_tag_coverage_live\n",
+        "WHERE usage_date >= CURRENT_DATE() - INTERVAL 60 DAYS\n",
+        "GROUP BY usage_date, dimension\n",
+        "ORDER BY usage_date\n"
+      ]
+    },
+    {
+      "name": "resumen_global",
+      "displayName": "Gasto total y gasto sin etiquetar",
+      "queryLines": [
+        "SELECT\n",
+        "  ROUND(SUM(list_cost_usd), 2) AS costo_total_usd,\n",
+        "  ROUND(SUM(CASE WHEN SIZE(COALESCE(custom_tags, MAP())) = 0\n",
+        "                 THEN list_cost_usd ELSE 0 END), 2) AS costo_sin_etiquetas_usd,\n",
+        "  COUNT(DISTINCT entity_id) AS recursos\n",
+        "FROM finops.gold.vw_usage_live\n",
+        "WHERE usage_date >= CURRENT_DATE() - INTERVAL 30 DAYS\n"
+      ]
+    },
+    {
+      "name": "claves_no_reconocidas",
+      "displayName": "Claves en uso que la configuracion no reconoce",
+      "queryLines": [
+        "SELECT\n",
+        "  tag_key AS clave,\n",
+        "  distinct_values AS valores_distintos,\n",
+        "  records AS registros,\n",
+        "  list_cost_usd AS costo_usd\n",
+        "FROM finops.gold.vw_tag_inventory_live\n",
+        "WHERE NOT is_recognized\n",
+        "ORDER BY list_cost_usd DESC\n",
+        "LIMIT 30\n"
+      ]
+    },
+    {
+      "name": "inventario",
+      "displayName": "Inventario de claves de etiqueta en uso",
+      "queryLines": [
+        "SELECT\n",
+        "  tag_key AS clave,\n",
+        "  COALESCE(maps_to_dimension, 'NO RECONOCIDA') AS dimension,\n",
+        "  distinct_values AS valores_distintos,\n",
+        "  records AS registros,\n",
+        "  list_cost_usd AS costo_usd\n",
+        "FROM finops.gold.vw_tag_inventory_live\n",
+        "ORDER BY list_cost_usd DESC\n",
+        "LIMIT 50\n"
+      ]
+    },
+    {
+      "name": "sin_etiquetar",
+      "displayName": "Recursos con costo y sin ninguna dimension resoluble",
+      "queryLines": [
+        "SELECT\n",
+        "  entity_type,\n",
+        "  entity_id,\n",
+        "  sku_name,\n",
+        "  billing_origin_product,\n",
+        "  records,\n",
+        "  first_seen,\n",
+        "  last_seen,\n",
+        "  list_cost_usd\n",
+        "FROM finops.gold.vw_untagged_spend_live\n",
+        "ORDER BY list_cost_usd DESC\n",
+        "LIMIT 100\n"
+      ]
+    },
+    {
+      "name": "sin_etiquetar_por_tipo",
+      "displayName": "Gasto sin atribuir por tipo de recurso",
+      "queryLines": [
+        "SELECT\n",
+        "  entity_type,\n",
+        "  ROUND(SUM(list_cost_usd), 2) AS costo_usd\n",
+        "FROM finops.gold.vw_untagged_spend_live\n",
+        "GROUP BY entity_type\n",
+        "ORDER BY costo_usd DESC\n"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "etiquetado",
+      "displayName": "Gobierno de etiquetado",
+      "layout": [
+        {
+          "widget": {
+            "name": "titulo",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# FinOps Databricks — Gobierno de etiquetado\n",
+                "**Datos en vivo**: este tablero lee las tablas de sistema directamente, no depende de la ejecucion del pipeline. Los importes son a **precio de lista** (sin descuentos negociados), asi que pueden diferir de los otros tableros; sirven para comparar entre si, no como cifra de facturacion."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi_costo_total",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "resumen_global",
+                  "fields": [
+                    {
+                      "name": "sum(costo_total_usd)",
+                      "expression": "SUM(`costo_total_usd`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(costo_total_usd)",
+                  "displayName": "Costo total 30 dias (lista)"
+                }
+              },
+              "frame": {
+                "title": "Costo total 30 dias (lista)",
+                "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 4,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi_sin_etiquetas",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "resumen_global",
+                  "fields": [
+                    {
+                      "name": "sum(costo_sin_etiquetas_usd)",
+                      "expression": "SUM(`costo_sin_etiquetas_usd`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(costo_sin_etiquetas_usd)",
+                  "displayName": "Sin ninguna etiqueta (USD)"
+                }
+              },
+              "frame": {
+                "title": "Sin ninguna etiqueta (USD)",
+                "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 2,
+            "width": 4,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi_recursos",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "resumen_global",
+                  "fields": [
+                    {
+                      "name": "sum(recursos)",
+                      "expression": "SUM(`recursos`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(recursos)",
+                  "displayName": "Recursos con consumo"
+                }
+              },
+              "frame": {
+                "title": "Recursos con consumo",
+                "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 2,
+            "width": 4,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "cobertura_barras",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "cobertura_hoy",
+                  "fields": [
+                    {
+                      "name": "dimension",
+                      "expression": "`dimension`"
+                    },
+                    {
+                      "name": "sum(cobertura_pct)",
+                      "expression": "SUM(`cobertura_pct`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "dimension",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Dimension"
+                },
+                "y": {
+                  "fieldName": "sum(cobertura_pct)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "% cubierto"
+                }
+              },
+              "frame": {
+                "title": "Cobertura por dimension (30 dias, %)",
+                "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 5,
+            "width": 6,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "cobertura_evolucion",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "cobertura_serie",
+                  "fields": [
+                    {
+                      "name": "usage_date",
+                      "expression": "`usage_date`"
+                    },
+                    {
+                      "name": "sum(cobertura_pct)",
+                      "expression": "SUM(`cobertura_pct`)"
+                    },
+                    {
+                      "name": "dimension",
+                      "expression": "`dimension`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "usage_date",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "displayName": "Fecha"
+                },
+                "y": {
+                  "fieldName": "sum(cobertura_pct)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "% cubierto"
+                },
+                "color": {
+                  "fieldName": "dimension",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Dimension"
+                }
+              },
+              "frame": {
+                "title": "Evolucion de la cobertura (60 dias)",
+                "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 5,
+            "width": 6,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "sub_brechas",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Donde esta la brecha"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 12,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "brecha_por_tipo",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "sin_etiquetar_por_tipo",
+                  "fields": [
+                    {
+                      "name": "entity_type",
+                      "expression": "`entity_type`"
+                    },
+                    {
+                      "name": "sum(costo_usd)",
+                      "expression": "SUM(`costo_usd`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "entity_type",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Tipo"
+                },
+                "y": {
+                  "fieldName": "sum(costo_usd)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "USD"
+                }
+              },
+              "frame": {
+                "title": "Gasto sin atribuir por tipo de recurso",
+                "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 13,
+            "width": 6,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "tabla_no_reconocidas",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "claves_no_reconocidas",
+                  "fields": [
+                    {
+                      "name": "clave",
+                      "expression": "`clave`"
+                    },
+                    {
+                      "name": "valores_distintos",
+                      "expression": "`valores_distintos`"
+                    },
+                    {
+                      "name": "registros",
+                      "expression": "`registros`"
+                    },
+                    {
+                      "name": "costo_usd",
+                      "expression": "`costo_usd`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "clave"
+                  },
+                  {
+                    "fieldName": "valores_distintos"
+                  },
+                  {
+                    "fieldName": "registros"
+                  },
+                  {
+                    "fieldName": "costo_usd"
+                  }
+                ]
+              },
+              "frame": {
+                "title": "Claves en uso que la configuracion NO reconoce",
+                "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 13,
+            "width": 6,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "sub_inventario",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Inventario de etiquetas"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 20,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "tabla_inventario",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "inventario",
+                  "fields": [
+                    {
+                      "name": "clave",
+                      "expression": "`clave`"
+                    },
+                    {
+                      "name": "dimension",
+                      "expression": "`dimension`"
+                    },
+                    {
+                      "name": "valores_distintos",
+                      "expression": "`valores_distintos`"
+                    },
+                    {
+                      "name": "registros",
+                      "expression": "`registros`"
+                    },
+                    {
+                      "name": "costo_usd",
+                      "expression": "`costo_usd`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "clave"
+                  },
+                  {
+                    "fieldName": "dimension"
+                  },
+                  {
+                    "fieldName": "valores_distintos"
+                  },
+                  {
+                    "fieldName": "registros"
+                  },
+                  {
+                    "fieldName": "costo_usd"
+                  }
+                ]
+              },
+              "frame": {
+                "title": "Todas las claves en uso",
+                "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 21,
+            "width": 12,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "sub_recursos",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Recursos sin atribucion"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 29,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "tabla_sin_etiquetar",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "sin_etiquetar",
+                  "fields": [
+                    {
+                      "name": "entity_type",
+                      "expression": "`entity_type`"
+                    },
+                    {
+                      "name": "entity_id",
+                      "expression": "`entity_id`"
+                    },
+                    {
+                      "name": "sku_name",
+                      "expression": "`sku_name`"
+                    },
+                    {
+                      "name": "billing_origin_product",
+                      "expression": "`billing_origin_product`"
+                    },
+                    {
+                      "name": "records",
+                      "expression": "`records`"
+                    },
+                    {
+                      "name": "first_seen",
+                      "expression": "`first_seen`"
+                    },
+                    {
+                      "name": "last_seen",
+                      "expression": "`last_seen`"
+                    },
+                    {
+                      "name": "list_cost_usd",
+                      "expression": "`list_cost_usd`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "entity_type"
+                  },
+                  {
+                    "fieldName": "entity_id"
+                  },
+                  {
+                    "fieldName": "sku_name"
+                  },
+                  {
+                    "fieldName": "billing_origin_product"
+                  },
+                  {
+                    "fieldName": "records"
+                  },
+                  {
+                    "fieldName": "first_seen"
+                  },
+                  {
+                    "fieldName": "last_seen"
+                  },
+                  {
+                    "fieldName": "list_cost_usd"
+                  }
+                ]
+              },
+              "frame": {
+                "title": "Recursos con costo y sin ninguna dimension resoluble",
+                "showTitle": true
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 30,
+            "width": 12,
+            "height": 8
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"
+    },
+    "applyModeEnabled": false
+  }
+}
