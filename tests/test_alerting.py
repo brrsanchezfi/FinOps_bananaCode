@@ -405,3 +405,76 @@ class TestFilasDeAlerta:
 
     def test_reporte_vacio(self):
         assert DispatchReport().summary().startswith("generadas=0")
+
+
+class TestUmbralesDesdeGold:
+    """Los umbrales sobreviven la ida y vuelta por `fct_budget_status`.
+
+    `details` es un MAP<STRING, STRING> en Delta: la lista de umbrales se guarda
+    con `str()` y vuelve como texto. La etapa `alerts` del job desplegado corre
+    en su propia tarea y relee de gold, asi que ese texto es lo que ve de
+    verdad; en una corrida de un solo proceso llega la lista original y el
+    problema no aparece.
+    """
+
+    RESPALDO = [50.0, 80.0, 90.0, 100.0]
+
+    def test_una_lista_pasa_tal_cual(self):
+        from finops.alerting.rules import _umbrales
+
+        assert _umbrales([80, 100], self.RESPALDO) == [80.0, 100.0]
+
+    def test_el_texto_que_devuelve_gold_se_interpreta(self):
+        from finops.alerting.rules import _umbrales
+
+        assert _umbrales("[50.0, 80.0, 90.0, 100.0]", self.RESPALDO) == [50.0, 80.0, 90.0, 100.0]
+
+    @pytest.mark.parametrize("valor", ["", "no-es-una-lista", None, "[", 42, {"a": 1}])
+    def test_lo_ininteligible_cae_al_respaldo(self, valor):
+        """Antes esto reventaba la etapa entera, no solo la regla del presupuesto."""
+        from finops.alerting.rules import _umbrales
+
+        assert _umbrales(valor, self.RESPALDO) == self.RESPALDO
+
+    def test_la_regla_no_revienta_tras_la_ida_y_vuelta_por_gold(self):
+        """Reproduce el fallo real: se serializa con `to_row()` y se vuelve a leer."""
+        from finops.alerting.rules import budget_alerts
+        from finops.analytics.budgets import BudgetStatus
+
+        estado = BudgetStatus(
+            budget_id="org_global_monthly",
+            budget_name="Presupuesto global",
+            period="monthly",
+            period_start=date(2026, 9, 1),
+            period_end=date(2026, 9, 30),
+            as_of_date=date(2026, 9, 20),
+            scope={},
+            scope_label="toda la organizacion",
+            owner_email="finops@example.com",
+            budget_amount_usd=500.0,
+            actual_cost_usd=420.0,
+            consumed_pct=84.0,
+            forecast_remaining_usd=180.0,
+            projected_total_usd=600.0,
+            projected_pct=120.0,
+            variance_usd=-100.0,
+            avg_daily_cost_usd=21.0,
+            required_daily_cost_usd=8.0,
+            elapsed_days=20,
+            remaining_days=10,
+            period_progress_pct=66.7,
+            days_to_exhaustion=4,
+            threshold_reached_pct=80.0,
+            status="WARNING",
+            is_on_track=False,
+            details={"thresholds_pct": [50.0, 80.0, 90.0, 100.0], "period_label": "2026-09"},
+        )
+
+        # Lo que de verdad llega a la etapa `alerts`: `details` ya paso por
+        # MAP<STRING, STRING>, asi que la lista es texto.
+        estado.details = estado.to_row()["details"]
+        assert estado.details["thresholds_pct"] == "[50.0, 80.0, 90.0, 100.0]"
+
+        alertas = budget_alerts([estado], {"budget_threshold": {"enabled": True}})
+        assert len(alertas) == 1
+        assert alertas[0].severity == "medium"
