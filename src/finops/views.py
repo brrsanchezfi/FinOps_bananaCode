@@ -90,11 +90,40 @@ def _valor_util(expr: str) -> str:
     )
 
 
-def _expr_dimension(alias: list[str]) -> str:
-    """Primer alias de la dimension que resuelva, sobre el mapa normalizado."""
-    if not alias:
-        return "CAST(NULL AS STRING)"
+def _expr_workspace_default(dimension: str, defaults_ws: dict | None) -> str:
+    """Valor por defecto de la dimension segun el workspace, como CASE SQL.
+
+    Devuelve "" si la dimension no tiene default en ningun workspace.
+    """
+    ramas = []
+    for workspace_id, valores in (defaults_ws or {}).items():
+        if not isinstance(valores, dict):
+            continue
+        valor = valores.get(dimension)
+        if valor in (None, ""):
+            continue
+        ws = str(workspace_id).replace("'", "''")
+        val = str(valor).replace("'", "''")
+        ramas.append(f"WHEN CAST(workspace_id AS STRING) = '{ws}' THEN '{val}'")
+    if not ramas:
+        return ""
+    return "CASE " + " ".join(ramas) + " END"
+
+
+def _expr_dimension(alias: list[str], default_expr: str = "") -> str:
+    """Primer alias de la dimension que resuelva, sobre el mapa normalizado.
+
+    `default_expr` es el valor por defecto del workspace y va SIEMPRE al final
+    del COALESCE: es un ultimo recurso, la etiqueta del recurso siempre gana.
+    Debe replicar la precedencia de `resolve_tag_columns` en transform/silver.py;
+    si divergen, el tablero de gobierno y las tablas gold reportan cifras
+    distintas para la misma dimension.
+    """
     candidatos = [_valor_util(f"tags_norm['{a}']") for a in alias]
+    if default_expr:
+        candidatos.append(default_expr)
+    if not candidatos:
+        return "CAST(NULL AS STRING)"
     if len(candidatos) == 1:
         return candidatos[0]
     return "COALESCE(" + ", ".join(candidatos) + ")"
@@ -229,9 +258,11 @@ def build_tag_coverage_sql(cfg: FinOpsConfig) -> str:
     base = VIEW_USAGE_LIVE.fqn(cfg)
     alias = alias_por_dimension(cfg)
 
+    defaults_ws = cfg.get("tagging.workspace_defaults", {}) or {}
+
     bloques = []
     for dimension, claves in alias.items():
-        expr = _expr_dimension(claves)
+        expr = _expr_dimension(claves, _expr_workspace_default(dimension, defaults_ws))
         bloques.append(
             f"""SELECT
   usage_date,
@@ -273,7 +304,12 @@ def build_untagged_spend_sql(cfg: FinOpsConfig) -> str:
     base = VIEW_USAGE_LIVE.fqn(cfg)
     alias = alias_por_dimension(cfg)
 
-    resueltas = [f"({_expr_dimension(claves)} IS NOT NULL)" for claves in alias.values() if claves]
+    defaults_ws = cfg.get("tagging.workspace_defaults", {}) or {}
+    resueltas = [
+        f"({_expr_dimension(claves, _expr_workspace_default(dimension, defaults_ws))} IS NOT NULL)"
+        for dimension, claves in alias.items()
+        if claves
+    ]
     ninguna = " AND ".join(f"NOT {r}" for r in resueltas) if resueltas else "TRUE"
 
     return f"""
