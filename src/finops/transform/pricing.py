@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import fnmatch
 import re
+from dataclasses import dataclass
 from typing import Any
 
 # ---------------------------------------------------------------------------
@@ -69,6 +70,13 @@ _SKU_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
     (re.compile(patron, re.I), grupo) for patron, grupo in SKU_PATTERN_SPECS
 )
 
+#: Grupos que cambian de nombre cuando el consumo es serverless.
+_GRUPOS_CON_VARIANTE_SERVERLESS = frozenset({"SQL", "JOBS", "DLT"})
+
+#: Grupo cuando nada coincide.
+GRUPO_POR_DEFECTO = "OTHER"
+GRUPO_POR_DEFECTO_SERVERLESS = "SERVERLESS_JOBS"
+
 #: Mapeo desde `billing_origin_product` (mas confiable que el nombre del SKU).
 PRODUCT_TO_GROUP = {
     "ALL_PURPOSE": "ALL_PURPOSE",
@@ -90,6 +98,77 @@ PRODUCT_TO_GROUP = {
     "LAKEHOUSE_MONITORING": "STORAGE_OPS",
     "ONLINE_TABLES": "STORAGE_OPS",
 }
+
+
+@dataclass(frozen=True)
+class PasoDeClasificacion:
+    """Un paso de la cascada que clasifica un SKU en su grupo canonico.
+
+    Existe para que la clasificacion tenga UNA sola definicion. Antes habia dos
+    implementaciones de la misma regla: `classify_sku` en Python (probada) y
+    `silver.sku_group_expr` en Spark (sin una sola prueba, y la que de verdad
+    corre en el pipeline). Compartian los patrones, pero la PRECEDENCIA estaba
+    escrita dos veces, y nada impedia que una cambiara sin la otra.
+
+    Ahora las dos recorren esta misma cascada: Python evaluandola y Spark
+    compilandola a una expresion `CASE WHEN`.
+
+    Campos
+    ------
+    campo    'producto' (billing_origin_product) o 'sku' (sku_name).
+    operador 'igual' (exacto) o 'regex'.
+    valor    el valor exacto o el patron, segun el operador.
+    grupo    grupo canonico que se asigna al coincidir.
+    variante_serverless  si True y el consumo es serverless, el grupo se emite
+             como SERVERLESS_<grupo>. Solo aplica a SQL, JOBS y DLT.
+    """
+
+    campo: str
+    operador: str
+    valor: str
+    grupo: str
+    variante_serverless: bool = False
+
+    def coincide(self, texto: str) -> bool:
+        """Evaluacion en Python. El compilador de Spark hace lo equivalente."""
+        if self.operador == "igual":
+            return texto == self.valor
+        if self.operador == "regex":
+            return bool(re.search(self.valor, texto, re.IGNORECASE))
+        raise ValueError(f"Operador de clasificacion desconocido: '{self.operador}'")
+
+    def resultado(self, serverless: bool) -> str:
+        if self.variante_serverless and serverless:
+            return f"SERVERLESS_{self.grupo}"
+        return self.grupo
+
+
+def _construir_cascada() -> tuple[PasoDeClasificacion, ...]:
+    """Orden = precedencia. `billing_origin_product` va primero porque es un
+    campo controlado; el reconocimiento por patron sobre el nombre del SKU es el
+    recurso siguiente."""
+    pasos = [
+        PasoDeClasificacion(
+            "producto", "igual", producto, grupo,
+            variante_serverless=grupo in _GRUPOS_CON_VARIANTE_SERVERLESS,
+        )
+        for producto, grupo in PRODUCT_TO_GROUP.items()
+    ]
+    pasos += [
+        PasoDeClasificacion("sku", "regex", patron, grupo)
+        for patron, grupo in SKU_PATTERN_SPECS
+    ]
+    return tuple(pasos)
+
+
+#: Fuente de verdad de la clasificacion, para Python y para Spark.
+CASCADA_DE_SKU: tuple[PasoDeClasificacion, ...] = _construir_cascada()
+
+#: Operadores que el compilador de Spark tiene que saber traducir. Una prueba
+#: falla si la cascada usa uno que el compilador no cubre: de lo contrario, un
+#: operador nuevo se clasificaria distinto en Python que en Spark.
+OPERADORES = frozenset({"igual", "regex"})
+CAMPOS = frozenset({"producto", "sku"})
 
 
 def is_serverless(sku_name: str | None, billing_origin_product: str | None = None) -> bool:
@@ -115,19 +194,12 @@ def classify_sku(sku_name: str | None, billing_origin_product: str | None = None
     producto = (billing_origin_product or "").upper().strip()
     serverless = is_serverless(sku, producto)
 
-    base = PRODUCT_TO_GROUP.get(producto)
-    if base:
-        if serverless and base in {"SQL", "JOBS", "DLT"}:
-            return f"SERVERLESS_{base}"
-        return base
+    for paso in CASCADA_DE_SKU:
+        texto = producto if paso.campo == "producto" else sku
+        if paso.coincide(texto):
+            return paso.resultado(serverless)
 
-    for patron, grupo in _SKU_PATTERNS:
-        if patron.search(sku):
-            return grupo
-
-    if serverless:
-        return "SERVERLESS_JOBS"
-    return "OTHER"
+    return GRUPO_POR_DEFECTO_SERVERLESS if serverless else GRUPO_POR_DEFECTO
 
 
 def compute_family(sku_group: str) -> str:

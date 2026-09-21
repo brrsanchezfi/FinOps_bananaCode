@@ -118,29 +118,46 @@ def _map_literal(mapping: dict[str, Any]) -> Column:
 # Clasificacion de SKU en Spark (espejo de pricing.classify_sku)
 # ---------------------------------------------------------------------------
 def sku_group_expr(sku_col: str = "sku_name", product_col: str = "billing_origin_product") -> Column:
+    """Compila `pricing.CASCADA_DE_SKU` a una expresion CASE WHEN.
+
+    No reimplementa la clasificacion: recorre la MISMA cascada que
+    `pricing.classify_sku`. Antes eran dos implementaciones de la misma regla --
+    los patrones se compartian, pero la precedencia estaba escrita dos veces --
+    y la de Spark, que es la que corre en el pipeline, no tenia ni una prueba.
+
+    La cascada se recorre AL REVES para que el `otherwise` de cada paso envuelva
+    al siguiente: asi el primer paso queda mas afuera y gana, que es el orden en
+    que la evalua Python.
+    """
     from pyspark.sql import functions as F
 
     sku = F.upper(F.coalesce(F.col(sku_col).cast("string"), F.lit("")))
     producto = F.upper(F.trim(F.coalesce(F.col(product_col).cast("string"), F.lit(""))))
     serverless = sku.rlike("(?i)SERVERLESS") | producto.rlike("(?i)SERVERLESS")
 
-    # 1) billing_origin_product (campo controlado)
-    expr = F.lit(None).cast("string")
-    for producto_valor, grupo in P.PRODUCT_TO_GROUP.items():
-        if grupo in {"SQL", "JOBS", "DLT"}:
-            destino = F.when(serverless, F.lit(f"SERVERLESS_{grupo}")).otherwise(F.lit(grupo))
+    columnas = {"producto": producto, "sku": sku}
+
+    expr = F.when(serverless, F.lit(P.GRUPO_POR_DEFECTO_SERVERLESS)).otherwise(
+        F.lit(P.GRUPO_POR_DEFECTO)
+    )
+    for paso in reversed(P.CASCADA_DE_SKU):
+        columna = columnas[paso.campo]
+        if paso.operador == "igual":
+            condicion = columna == F.lit(paso.valor)
+        elif paso.operador == "regex":
+            condicion = columna.rlike(f"(?i){paso.valor}")
+        else:  # pragma: no cover - `test_pricing` falla antes si aparece uno nuevo
+            raise ValueError(f"Operador sin traduccion a Spark: '{paso.operador}'")
+
+        if paso.variante_serverless:
+            destino = F.when(serverless, F.lit(f"SERVERLESS_{paso.grupo}")).otherwise(
+                F.lit(paso.grupo)
+            )
         else:
-            destino = F.lit(grupo)
-        expr = F.when(producto == F.lit(producto_valor), destino).otherwise(expr)
+            destino = F.lit(paso.grupo)
 
-    # 2) patrones sobre sku_name, en el mismo orden que la version Python
-    patron_expr = F.lit(None).cast("string")
-    for patron, grupo in reversed(P.SKU_PATTERN_SPECS):
-        patron_expr = F.when(sku.rlike(f"(?i){patron}"), F.lit(grupo)).otherwise(patron_expr)
-
-    # 3) respaldo
-    respaldo = F.when(serverless, F.lit("SERVERLESS_JOBS")).otherwise(F.lit("OTHER"))
-    return F.coalesce(expr, patron_expr, respaldo)
+        expr = F.when(condicion, destino).otherwise(expr)
+    return expr
 
 
 def discount_expr(discount_rules: list[dict[str, Any]] | None) -> tuple[Column, Column]:
