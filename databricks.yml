@@ -77,8 +77,19 @@ variables:
       `--var="warehouse_id=..."` o `BUNDLE_VAR_warehouse_id`.
 
   node_type_id:
-    description: Tipo de nodo del cluster de job (Azure).
-    default: Standard_D4ds_v5
+    description: >-
+      Tipo de nodo del cluster de job (Azure). El pipeline es liviano y no pide
+      hardware concreto, asi que este valor es solo "algo que exista y tenga
+      capacidad en la region del workspace".
+
+      Si el cluster muere con CLOUD_PROVIDER_RESOURCE_STOCKOUT / SkuNotAvailable
+      -- que la tarea reporta como INTERNAL_ERROR, sin parecerse a la causa --
+      la SKU esta agotada en esa region: cambiala por otra familia. Pools
+      distintos: D4ads_v5 (AMD), D4ds_v5 (Intel), DS3_v2 (v2, la mas disponible).
+
+          databricks clusters list-node-types -p <perfil>
+          databricks bundle deploy -t dev -p <perfil> --var="node_type_id=Standard_DS3_v2"
+    default: Standard_D4ads_v5
 
   spark_version:
     description: Version de Databricks Runtime (LTS recomendado).
