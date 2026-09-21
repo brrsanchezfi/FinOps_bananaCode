@@ -55,10 +55,38 @@ ENTORNOS = ("dev", "qa", "prd")
 NOMBRES = ("finops_ejecutivo", "finops_costos", "finops_optimizacion", "finops_etiquetado")
 
 
+def _mantenidos_a_mano() -> frozenset[str]:
+    """Dashboards construidos en la UI, no por `scripts/dashboards.py`.
+
+    Se lee del generador para no tener dos listas que se desincronicen.
+    """
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    import dashboards as generador
+
+    return generador.MANTENIDOS_A_MANO
+
+
+def _generados() -> list[tuple[str, dict]]:
+    """Lo que PRODUCE el generador hoy, como (nombre de archivo, contenido).
+
+    Se evalua el render, no los archivos en disco, para que las invariantes
+    sigan cubriendo el constructor de un dashboard aunque su archivo versionado
+    se mantenga a mano: si no, sacar uno de `generate` apagaria en silencio las
+    pruebas de la funcion que lo construye.
+    """
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    import dashboards as generador
+
+    return [
+        (nombre, json.loads(contenido))
+        for nombre, contenido in generador.render_env(ENTORNOS[0]).items()
+    ]
+
+
 def _config(env: str):
     from finops.config import load_config
 
-    return load_config(env, conf_dir=REPO_ROOT / "conf", use_env_vars=False)
+    return load_config(env, conf_dir=REPO_ROOT / "conf", use_env_vars=False, use_local_overlay=False)
 
 
 class TestCoherenciaConDashboards:
@@ -133,11 +161,18 @@ class TestCoherenciaConDashboards:
         assert sobrantes == [], f"subdirectorios sobrantes en dashboards/: {sobrantes}"
 
     def test_los_versionados_coinciden_con_el_generador(self):
-        """Falla si alguien edito un JSON a mano sin regenerar."""
+        """Falla si alguien edito un JSON generado a mano sin regenerar.
+
+        Los de `MANTENIDOS_A_MANO` quedan fuera: su fuente de verdad es el JSON
+        versionado, no el constructor.
+        """
         sys.path.insert(0, str(REPO_ROOT / "scripts"))
         import dashboards as generador
 
+        manuales = _mantenidos_a_mano()
         for nombre, contenido in generador.render_env(ENTORNOS[0]).items():
+            if nombre.split(".", 1)[0] in manuales:
+                continue
             archivo = DASHBOARDS_DIR / nombre
             assert archivo.read_text(encoding="utf-8") == contenido, (
                 f"dashboards/{nombre} difiere del generador. "
@@ -183,7 +218,7 @@ class TestPoliticaDeCreacionDeCatalogo:
     def test_dev_permite_crear(self, conf_dir):
         from finops.config import load_config
 
-        cfg = load_config("dev", conf_dir=conf_dir, use_env_vars=False)
+        cfg = load_config("dev", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
         assert cfg.get("catalog.create_if_missing") is True
 
     @pytest.mark.parametrize("env", ["qa", "prd"])
@@ -191,25 +226,44 @@ class TestPoliticaDeCreacionDeCatalogo:
         """En qa/prd crear el catalogo es tarea de un administrador, no del pipeline."""
         from finops.config import load_config
 
-        cfg = load_config(env, conf_dir=conf_dir, use_env_vars=False)
+        cfg = load_config(env, conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
         assert cfg.get("catalog.create_if_missing") is False
 
 
 class TestWidgetsDeDashboard:
-    """Invariantes de forma de los widgets Lakeview.
+    """Invariantes de forma de los widgets Lakeview que produce el generador.
 
-    El JSON se autoro sin un workspace donde validarlo visualmente, asi que
-    estas pruebas fijan lo que ya se detecto que estaba mal.
+    El JSON del generador se autoro sin un workspace donde validarlo
+    visualmente, asi que estas pruebas fijan lo que ya se detecto que estaba
+    mal.
+
+    Los dashboards de `MANTENIDOS_A_MANO` quedan fuera: salen de la UI de
+    Databricks, que es el renderizador autoritativo. Lo que aqui es una
+    correccion (un pie sin ejes, una grilla de 12 columnas) alla es una
+    suposicion sobre un formato que no controlamos, y una version nueva de la UI
+    la romperia sin que nada este realmente mal. Lo que si se exige a TODOS los
+    archivos vive en `TestCoherenciaConDashboards`: que el SQL solo toque tablas
+    del registro y que no haya nada quemado.
     """
 
+    def _widget(self, archivo: str, nombre: str) -> dict:
+        """El widget completo, buscado en lo que rinde el generador."""
+        return next(
+            w["widget"]
+            for nombre_archivo, contenido in _generados()
+            if nombre_archivo == archivo
+            for pagina in contenido["pages"]
+            for w in pagina["layout"]
+            if w["widget"]["name"] == nombre
+        )
+
     def _widgets(self, tipo: str):
-        for archivo in sorted(DASHBOARDS_DIR.glob("*.lvdash.json")):
-            contenido = json.loads(archivo.read_text(encoding="utf-8"))
+        for archivo, contenido in _generados():
             for pagina in contenido["pages"]:
                 for elemento in pagina["layout"]:
                     spec = elemento["widget"].get("spec") or {}
                     if spec.get("widgetType") == tipo:
-                        yield archivo.name, elemento["widget"]["name"], spec
+                        yield archivo, elemento["widget"]["name"], spec
 
     def test_el_pie_usa_angle_y_color_no_ejes(self):
         """Un pie no tiene ejes: con `x`/`y` el widget no renderiza."""
@@ -236,28 +290,21 @@ class TestWidgetsDeDashboard:
     # `test_las_columnas_de_tabla_solo_llevan_fieldName`.
 
     def test_cada_widget_consulta_un_dataset_declarado(self):
-        for archivo in sorted(DASHBOARDS_DIR.glob("*.lvdash.json")):
-            contenido = json.loads(archivo.read_text(encoding="utf-8"))
+        for archivo, contenido in _generados():
             declarados = {d["name"] for d in contenido["datasets"]}
             for pagina in contenido["pages"]:
                 for elemento in pagina["layout"]:
                     for consulta in elemento["widget"].get("queries", []):
                         usado = consulta["query"]["datasetName"]
                         assert usado in declarados, (
-                            f"{archivo.name}: el widget '{elemento['widget']['name']}' "
+                            f"{archivo}: el widget '{elemento['widget']['name']}' "
                             f"usa el dataset '{usado}', que no esta declarado"
                         )
 
     def test_los_campos_del_widget_existen_en_su_encoding(self):
         """Todo fieldName referenciado debe estar en los campos de la consulta."""
         for archivo, nombre, spec in self._widgets("table"):
-            widget = next(
-                w["widget"]
-                for f in [DASHBOARDS_DIR / archivo]
-                for p in json.loads(f.read_text(encoding="utf-8"))["pages"]
-                for w in p["layout"]
-                if w["widget"]["name"] == nombre
-            )
+            widget = self._widget(archivo, nombre)
             disponibles = {c["name"] for c in widget["queries"][0]["query"]["fields"]}
             for columna in spec["encodings"]["columns"]:
                 assert columna["fieldName"] in disponibles, (
@@ -271,8 +318,7 @@ class TestWidgetsDeDashboard:
         espera expresiones de agregacion. Una columna suelta ahi no devuelve
         filas, y el widget aparece vacio sin mensaje de error.
         """
-        for archivo in sorted(DASHBOARDS_DIR.glob("*.lvdash.json")):
-            contenido = json.loads(archivo.read_text(encoding="utf-8"))
+        for archivo, contenido in _generados():
             for pagina in contenido["pages"]:
                 for elemento in pagina["layout"]:
                     for consulta in elemento["widget"].get("queries", []):
@@ -281,7 +327,7 @@ class TestWidgetsDeDashboard:
                             continue
                         agregados = [c for c in query["fields"] if "(" in c["expression"]]
                         assert agregados, (
-                            f"{archivo.name}: el widget '{elemento['widget']['name']}' no agrega "
+                            f"{archivo}: el widget '{elemento['widget']['name']}' no agrega "
                             "ningun campo y no esta desagregado; devolvera NO DATA"
                         )
 
@@ -297,12 +343,11 @@ class TestWidgetsDeDashboard:
         widgets no se enlazan con sus consultas: aparecen con el marcador
         "Select fields to visualize".
         """
-        for archivo in sorted(DASHBOARDS_DIR.glob("*.lvdash.json")):
-            contenido = json.loads(archivo.read_text(encoding="utf-8"))
-            assert "uiSettings" in contenido, f"{archivo.name} sin uiSettings"
+        for archivo, contenido in _generados():
+            assert "uiSettings" in contenido, f"{archivo} sin uiSettings"
             for pagina in contenido["pages"]:
-                assert pagina.get("pageType") == "PAGE_TYPE_CANVAS", archivo.name
-                assert pagina.get("layoutVersion") == "GRID_V1", archivo.name
+                assert pagina.get("pageType") == "PAGE_TYPE_CANVAS", archivo
+                assert pagina.get("layoutVersion") == "GRID_V1", archivo
 
     def test_el_layout_usa_la_grilla_de_doce_columnas(self):
         """La grilla de Lakeview tiene 12 columnas, no 6.
@@ -310,24 +355,22 @@ class TestWidgetsDeDashboard:
         Se dedujo de un export real: contenia un widget en x=7 con width=3,
         imposible en una grilla de 6.
         """
-        for archivo in sorted(DASHBOARDS_DIR.glob("*.lvdash.json")):
-            contenido = json.loads(archivo.read_text(encoding="utf-8"))
+        for archivo, contenido in _generados():
             for pagina in contenido["pages"]:
                 for elemento in pagina["layout"]:
                     pos = elemento["position"]
                     fin = pos["x"] + pos["width"]
                     assert fin <= 12, (
-                        f"{archivo.name}:{elemento['widget']['name']} termina en {fin}, "
+                        f"{archivo}:{elemento['widget']['name']} termina en {fin}, "
                         "fuera de la grilla de 12"
                     )
                 # Al menos un widget debe aprovechar el ancho completo, o el
                 # layout quedaria confinado a la mitad izquierda del tablero.
                 anchos = [e["position"]["x"] + e["position"]["width"] for e in pagina["layout"]]
-                assert max(anchos) == 12, f"{archivo.name} no ocupa el ancho completo"
+                assert max(anchos) == 12, f"{archivo} no ocupa el ancho completo"
 
     def test_los_widgets_no_se_solapan(self):
-        for archivo in sorted(DASHBOARDS_DIR.glob("*.lvdash.json")):
-            contenido = json.loads(archivo.read_text(encoding="utf-8"))
+        for archivo, contenido in _generados():
             for pagina in contenido["pages"]:
                 ocupadas: dict[tuple[int, int], str] = {}
                 for elemento in pagina["layout"]:
@@ -337,7 +380,7 @@ class TestWidgetsDeDashboard:
                         for col in range(pos["x"], pos["x"] + pos["width"]):
                             previo = ocupadas.get((fila, col))
                             assert previo is None, (
-                                f"{archivo.name}: '{nombre}' se solapa con '{previo}' "
+                                f"{archivo}: '{nombre}' se solapa con '{previo}' "
                                 f"en (fila {fila}, columna {col})"
                             )
                             ocupadas[(fila, col)] = nombre
@@ -349,8 +392,7 @@ class TestWidgetsDeDashboard:
         "Select fields to visualize", aunque los encodings sean validos.
         Verificado contra un widget reparado en la UI del workspace.
         """
-        for archivo in sorted(DASHBOARDS_DIR.glob("*.lvdash.json")):
-            contenido = json.loads(archivo.read_text(encoding="utf-8"))
+        for archivo, contenido in _generados():
             for pagina in contenido["pages"]:
                 for elemento in pagina["layout"]:
                     widget = elemento["widget"]
@@ -359,39 +401,32 @@ class TestWidgetsDeDashboard:
                     nombres = {q["name"] for q in widget["queries"]}
                     declarada = widget["spec"].get("data", {}).get("queryName")
                     assert declarada, (
-                        f"{archivo.name}: '{widget['name']}' no declara spec.data.queryName"
+                        f"{archivo}: '{widget['name']}' no declara spec.data.queryName"
                     )
                     assert declarada in nombres, (
-                        f"{archivo.name}: '{widget['name']}' apunta a la consulta "
+                        f"{archivo}: '{widget['name']}' apunta a la consulta "
                         f"'{declarada}', que no existe en el widget"
                     )
 
     def test_los_widgets_de_texto_usan_multiline_textbox(self):
         """`textbox_spec` no existe en el esquema: el widget queda en blanco."""
         vistos = 0
-        for archivo in sorted(DASHBOARDS_DIR.glob("*.lvdash.json")):
-            contenido = json.loads(archivo.read_text(encoding="utf-8"))
+        for archivo, contenido in _generados():
             for pagina in contenido["pages"]:
                 for elemento in pagina["layout"]:
                     widget = elemento["widget"]
                     if "queries" in widget:
                         continue
-                    assert "textbox_spec" not in widget, f"{archivo.name}:{widget['name']}"
+                    assert "textbox_spec" not in widget, f"{archivo}:{widget['name']}"
                     lineas = widget.get("multilineTextboxSpec", {}).get("lines")
-                    assert lineas, f"{archivo.name}:{widget['name']} sin lineas de texto"
+                    assert lineas, f"{archivo}:{widget['name']} sin lineas de texto"
                     vistos += 1
         assert vistos > 0
 
     def test_los_contadores_agregan_su_campo(self):
         """Forma verificada en el workspace: agregacion + consulta agrupada."""
         for archivo, nombre, spec in self._widgets("counter"):
-            widget = next(
-                w["widget"]
-                for f in [DASHBOARDS_DIR / archivo]
-                for p in json.loads(f.read_text(encoding="utf-8"))["pages"]
-                for w in p["layout"]
-                if w["widget"]["name"] == nombre
-            )
+            widget = self._widget(archivo, nombre)
             query = widget["queries"][0]["query"]
             assert query["disaggregated"] is False, f"{archivo}:{nombre}"
             campo = query["fields"][0]
@@ -429,8 +464,7 @@ class TestWidgetsDeDashboard:
 
     def test_las_columnas_de_tabla_coinciden_con_los_campos(self):
         """Una columna que no exista entre los campos de la consulta sale vacia."""
-        for archivo in DASHBOARDS_DIR.glob("*.lvdash.json"):
-            contenido = json.loads(archivo.read_text(encoding="utf-8"))
+        for archivo, contenido in _generados():
             for pagina in contenido["pages"]:
                 for elemento in pagina["layout"]:
                     widget = elemento["widget"]
@@ -439,4 +473,4 @@ class TestWidgetsDeDashboard:
                         continue
                     campos = [f["name"] for f in widget["queries"][0]["query"]["fields"]]
                     columnas = [c["fieldName"] for c in spec["encodings"]["columns"]]
-                    assert columnas == campos, f"{archivo.name}:{widget['name']}"
+                    assert columnas == campos, f"{archivo}:{widget['name']}"
