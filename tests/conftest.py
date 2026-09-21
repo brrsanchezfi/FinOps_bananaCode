@@ -16,6 +16,12 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CONF_DIR = REPO_ROOT / "conf"
 
+# Toda llamada a `load_config` en la suite pasa `use_env_vars=False` y
+# `use_local_overlay=False`: las pruebas evaluan LO QUE VIAJA EN EL
+# REPOSITORIO. Con el overlay activo, un `conf/local.yml` de la maquina del
+# desarrollador (el de un cliente, por ejemplo) cambiaria el resultado de las
+# pruebas y CI dejaria de reproducir lo que se ve en local.
+
 HAS_PYSPARK = importlib.util.find_spec("pyspark") is not None
 
 
@@ -37,7 +43,7 @@ def conf_dir() -> Path:
 def cfg_dev():
     from finops.config import load_config
 
-    return load_config("dev", conf_dir=CONF_DIR, use_env_vars=False, run_date="2026-07-15")
+    return load_config("dev", conf_dir=CONF_DIR, use_env_vars=False, use_local_overlay=False, run_date="2026-07-15")
 
 
 @pytest.fixture

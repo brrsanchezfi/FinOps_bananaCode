@@ -1,6 +1,10 @@
 # =============================================================================
 # Definicion de presupuestos FinOps.
 #
+# LOS PRESUPUESTOS DE ABAJO SON UN EJEMPLO. Las cifras y los responsables reales
+# van en `conf/budgets.local.yml` (ignorado por git), que REEMPLAZA a este
+# archivo completo cuando existe. Plantilla: `conf/budgets.local.example.yml`.
+#
 # Cada presupuesto define un ambito (scope) sobre el modelo gold y un monto por
 # periodo. El motor calcula: consumido, % consumido, burn rate, proyeccion de
 # cierre de periodo y estado (OK / WARNING / CRITICAL / EXCEEDED).
@@ -9,8 +13,8 @@
 #   id            identificador estable (usado como clave y en la huella de alertas)
 #   name          nombre legible
 #   scope         filtro sobre fct_cost_daily. Claves validas:
-#                   workspace_id, team, cost_center, project, environment,
-#                   application, owner, sku_group, entity_type
+#                   workspace_id, team, cost_center, environment, owner,
+#                   sku_group, entity_type, proceso, concepto
 #                 Un scope vacio {} significa "toda la organizacion".
 #   period        monthly | quarterly | yearly
 #   amount_usd    monto del periodo
@@ -20,56 +24,78 @@
 # =============================================================================
 
 budgets:
+  # Ejemplo 1 — toda la organizacion. Un scope vacio {} no filtra nada.
   - id: org_global_monthly
     name: "Presupuesto global Databricks"
     scope: {}
     period: monthly
-    amount_usd: 20000
+    amount_usd: 10000
     thresholds_pct: [50, 80, 90, 100]
-    owner_email: "finops@dataknow.com.co"
+    owner_email: "finops@example.com"
 
+  # Ejemplo 2 — por ambiente. `environment` sale de las etiquetas y, en ultimo
+  # recurso, de `tagging.workspace_defaults` (ver conf/local.example.yml).
   - id: env_prd_monthly
     name: "Ambiente productivo"
     scope:
       environment: PRD
     period: monthly
-    amount_usd: 13000
+    amount_usd: 7000
     thresholds_pct: [70, 90, 100]
-    owner_email: "finops@dataknow.com.co"
+    owner_email: "finops@example.com"
 
   - id: env_dev_monthly
     name: "Ambientes no productivos"
     scope:
       environment: DEV
     period: monthly
-    amount_usd: 3000
+    amount_usd: 2000
     thresholds_pct: [60, 85, 100]
-    owner_email: "finops@dataknow.com.co"
+    owner_email: "finops@example.com"
 
+  # Ejemplo 3 — por familia de compute.
   - id: sql_serverless_monthly
     name: "SQL Warehouses"
     scope:
       sku_group: SQL
     period: monthly
-    amount_usd: 4500
+    amount_usd: 2500
     thresholds_pct: [80, 100]
-    owner_email: "finops@dataknow.com.co"
+    owner_email: "finops@example.com"
 
-  # Ejemplo de presupuesto por equipo. Duplicar por cada equipo real.
+  # Ejemplo 4 — por unidad de negocio. Duplicar por cada unidad real.
+  #
+  # OJO: `amount_usd` se lee con float(). Dejar un placeholder de texto como
+  # "<definir con el cliente>" hace fallar el motor de presupuestos en la
+  # primera corrida; manten la entrada comentada hasta tener el monto real.
+  #
+  # - id: unidad_a_monthly
+  #   name: "Unidad A"
+  #   scope:
+  #     cost_center: "Unidad A"
+  #   period: monthly
+  #   amount_usd: 1500
+  #   thresholds_pct: [70, 90, 100]
+  #   owner_email: "lider.unidad.a@example.com"
+
+  # Ejemplo 5 — por equipo.
   # - id: team_datos_monthly
   #   name: "Equipo Datos"
   #   scope:
   #     team: DATOS
   #   period: monthly
-  #   amount_usd: 5000
+  #   amount_usd: 1500
   #   thresholds_pct: [80, 100]
-  #   owner_email: "lider.datos@dataknow.com.co"
+  #   owner_email: "lider.datos@example.com"
 
 # ---------------------------------------------------------------------------
 # Reglas de chargeback / showback.
 # ---------------------------------------------------------------------------
 chargeback:
   # Dimension primaria de imputacion.
+  # `cost_center` ES la unidad de negocio: una etiqueta `Negocio` lo alimenta
+  # via alias (ver tagging.aliases en base.yml). No existe una dimension
+  # `negocio` aparte; se unifico con cost_center para no duplicar la cifra.
   allocation_dimension: cost_center
   # Como se reparte el costo que no se pudo atribuir (SIN_ASIGNAR) y el costo
   # compartido (plataforma, gobierno, monitoreo).

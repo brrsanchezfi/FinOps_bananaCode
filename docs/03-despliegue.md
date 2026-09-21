@@ -98,8 +98,18 @@ GRANT USE SCHEMA, SELECT ON SCHEMA finops.gold TO `analistas-finops`;
 databricks warehouses list -p prd --output json
 ```
 
-Copiar el `id` al bloque `variables.warehouse_id` del target correspondiente en
-`databricks.yml`. Sin el, el deploy de los dashboards falla.
+Pasarlo como variable del bundle. **No** se escribe en `databricks.yml`: el
+warehouse pertenece al workspace del cliente y un valor quemado se heredaria en
+otra instalacion.
+
+```bash
+export BUNDLE_VAR_warehouse_id=<id>          # bash
+$env:BUNDLE_VAR_warehouse_id = "<id>"        # PowerShell
+databricks bundle deploy -t dev -p finops --var="warehouse_id=<id>"   # o por invocacion
+```
+
+Sin el, el deploy de los dashboards falla con "variable warehouse_id has no
+value".
 
 ### Secretos para el alertamiento (opcional)
 
@@ -116,14 +126,37 @@ registradas en `ops_alert_log`.
 
 ## Configuracion previa al primer despliegue
 
-Editar antes de desplegar a `qa` o `prd`:
+El repositorio es **producto**: viaja sin saber cual es tu cuenta. Todo lo que
+identifica a una instalacion vive en dos archivos que git ignora y que se crean
+copiando su plantilla:
 
-| Archivo | Que ajustar |
-|---|---|
-| `databricks.yml` | `warehouse_id` de cada target; `run_as.user_name` → service principal; `notification_email` |
-| `conf/prd.yml` | `pricing.discounts` con el descuento negociado real |
-| `conf/budgets.yml` | Presupuestos reales por equipo / centro de costo |
-| `conf/base.yml` | `tagging.aliases` con las convenciones de etiquetado de la organizacion |
+```bash
+cp conf/local.example.yml         conf/local.yml
+cp conf/budgets.local.example.yml conf/budgets.local.yml
+```
+
+| Archivo | Que ajustar | Versionado |
+|---|---|---|
+| `conf/local.yml` | `tagging.workspace_defaults` (ambiente por workspace), `tagging.value_map.cost_center` (unidades de negocio), `project.owner_email`, `pricing.discounts` | no |
+| `conf/budgets.local.yml` | Presupuestos reales y sus responsables | no |
+| perfil del CLI | Host del workspace (`databricks auth login -p <perfil>`) | no |
+| `BUNDLE_VAR_warehouse_id` | SQL warehouse de los dashboards | no |
+| `conf/base.yml` | `tagging.aliases`, solo si la organizacion usa claves de etiqueta que no estan ya contempladas | si |
+| `databricks.yml` | `run_as.user_name` → service principal; `notification_email` via `--var` | si |
+
+`conf/local.yml` se fusiona **encima** de `base.yml` y `<env>.yml`, asi que solo
+se escribe lo que difiere. `conf/budgets.local.yml`, si existe, **reemplaza**
+completo a `conf/budgets.yml` (no se fusionan: `budgets` es una lista y mezclar
+dos produciria ids duplicados).
+
+> Ambos archivos estan en `sync.include` de `databricks.yml`. Es lo que los sube
+> al workspace: el CLI excluye del bundle lo que git ignora, asi que sin esa
+> entrada el pipeline correria alla con la configuracion neutra del repositorio
+> — sin presupuestos y con todo el costo en `SIN_ASIGNAR`, sin ningun error
+> visible.
+
+`tests/test_neutralidad.py` falla si configuracion de una instalacion se cuela
+en un archivo versionado.
 
 Validar sin desplegar nada:
 
@@ -139,17 +172,17 @@ python -m finops.cli plan --env prd
 ### Camino recomendado
 
 ```bash
-bash scripts/deploy.sh prd
+bash scripts/deploy.sh prd --profile finops
 ```
 
 ```powershell
-pwsh scripts/deploy.ps1 -Env prd
+pwsh scripts/deploy.ps1 -Env prd -DatabricksProfile finops
 ```
 
 Solo validar, sin desplegar:
 
 ```bash
-bash scripts/deploy.sh prd --no-deploy
+bash scripts/deploy.sh prd --profile finops --no-deploy
 ```
 
 ### Camino manual

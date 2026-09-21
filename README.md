@@ -57,32 +57,52 @@ python -m finops.cli plan --env dev
 
 En Windows PowerShell el activador es `.venv\Scripts\Activate.ps1`.
 
-### 2. Autenticacion con Databricks
+### 2. Configuracion de la instalacion
+
+El repositorio viaja **neutro**: no sabe cuales son tus workspaces, tus unidades
+de negocio ni tus presupuestos. Eso se declara una vez, en archivos que git
+ignora:
 
 ```bash
-databricks auth login --profile dev
+cp conf/local.example.yml         conf/local.yml
+cp conf/budgets.local.example.yml conf/budgets.local.yml
 ```
 
-### 3. Despliegue
+`conf/local.yml` se fusiona **encima** de `base.yml` y `<env>.yml`, asi que solo
+hay que escribir lo que difiera. `conf/budgets.local.yml`, si existe, reemplaza
+por completo a `conf/budgets.yml`. Lo minimo que hay que ajustar es el mapa
+`tagging.workspace_defaults`, que asigna el ambiente por workspace y rescata
+todo el consumo que ninguna policy etiqueta.
+
+Ambos archivos se suben al workspace via `sync.include` en `databricks.yml`.
+
+### 3. Autenticacion con Databricks
 
 ```bash
-bash scripts/deploy.sh dev
+databricks auth login --host https://adb-XXXXXXXXXXXX.N.azuredatabricks.net -p finops
+```
+
+### 4. Despliegue
+
+```bash
+export BUNDLE_VAR_warehouse_id=$(databricks warehouses list -p finops -o json | head -1)
+bash scripts/deploy.sh dev --profile finops
 ```
 
 En Windows:
 
 ```powershell
-pwsh scripts/deploy.ps1 -Env dev
+pwsh scripts/deploy.ps1 -Env dev -DatabricksProfile finops
 ```
 
 El script encadena: validar configuracion → verificar dashboards → validar
 bundle → desplegar. Ver [docs/03-despliegue.md](docs/03-despliegue.md) para los
 prerrequisitos (permisos sobre `system.*`, `warehouse_id`, secretos de webhook).
 
-### 4. Primera carga
+### 5. Primera carga
 
 ```bash
-databricks bundle run finops_backfill -t dev
+databricks bundle run finops_backfill -t dev -p finops
 ```
 
 Despues el pipeline diario queda programado, y puede lanzarse manualmente:
@@ -103,7 +123,10 @@ databricks bundle run finops_pipeline_diario -t dev
 ├── conf/
 │   ├── base.yml                Configuracion comun (fuentes, umbrales, reglas)
 │   ├── dev.yml / qa.yml / prd.yml   Overlays por entorno
-│   └── budgets.yml             Presupuestos y reglas de chargeback
+│   ├── budgets.yml             Presupuestos de EJEMPLO y reglas de chargeback
+│   ├── local.example.yml       Plantilla del overlay de la instalacion
+│   ├── budgets.local.example.yml   Plantilla de los presupuestos reales
+│   └── local.yml, budgets.local.yml   Tu instalacion (ignorados por git)
 ├── src/finops/                 TODA la logica de negocio
 │   ├── config.py               Carga, fusion y validacion de configuracion
 │   ├── catalog.py              Registro central de tablas del modelo
@@ -167,6 +190,15 @@ databricks bundle run finops_pipeline_diario -t dev
    cambiarlos: `python scripts/dashboards.py generate` y commitear.
    `databricks bundle deploy` no requiere ningun paso previo.
 
+   Unica excepcion hoy: `finops_ejecutivo`, construido en la UI y declarado en
+   `MANTENIDOS_A_MANO`. Su fuente de verdad es el JSON versionado; `generate` y
+   `check` lo dejan en paz hasta que ese trabajo se backportee al constructor.
+
+5. **La configuracion del cliente nunca se commitea.** Workspaces, unidades de
+   negocio, montos y responsables van en `conf/local.yml` y
+   `conf/budgets.local.yml`. `tests/test_neutralidad.py` falla si algo de eso
+   aparece en un archivo versionado.
+
 ---
 
 ## Entornos
@@ -176,11 +208,16 @@ cuenta, no de un ambiente, asi que los tres producen las mismas cifras. Lo que
 los separa es donde corre el codigo y con que umbrales
 (ver [ADR 0005](docs/adr/0005-un-solo-catalogo.md)).
 
-| Entorno | Workspace | Schedule | Alertas |
+| Entorno | Schedule | Alertas | Calidad |
 |---|---|---|---|
-| `dev` | `adb-4198581253243445.5` | pausado | solo tabla |
-| `qa`  | `adb-2370424844216896.16` | activo | tabla |
-| `prd` | `adb-7042033821150253.13` | activo | tabla + Teams |
+| `dev` | pausado | solo tabla | no rompe el pipeline |
+| `qa`  | activo | tabla | rompe el pipeline |
+| `prd` | activo | tabla + Teams | rompe el pipeline |
+
+**El workspace no esta en el repositorio.** Sale del perfil del CLI
+(`databricks auth login -p <perfil>`) o de `DATABRICKS_HOST`, porque esto se
+despliega sobre la cuenta de cada cliente. Lo mismo el `warehouse_id` de los
+dashboards, que se pasa con `--var` o `BUNDLE_VAR_warehouse_id`.
 
 ---
 

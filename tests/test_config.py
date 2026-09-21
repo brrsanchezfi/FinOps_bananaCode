@@ -83,7 +83,7 @@ class TestOverrides:
 
 class TestLoadConfig:
     def test_carga_dev(self, conf_dir):
-        cfg = load_config("dev", conf_dir=conf_dir, use_env_vars=False)
+        cfg = load_config("dev", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
         assert cfg.env == "dev"
         assert cfg.catalog == "finops"
         assert cfg.table("gold", "fct_cost_daily") == "finops.gold.fct_cost_daily"
@@ -96,31 +96,31 @@ class TestLoadConfig:
         cifras, asi que comparten destino. Lo que los separa es donde corre el
         codigo y que jobs estan programados.
         """
-        cfg = load_config(env, conf_dir=conf_dir, use_env_vars=False)
+        cfg = load_config(env, conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
         assert cfg.catalog == "finops"
         assert cfg.schema("gold") == "gold"
 
     def test_overlay_de_entorno_gana_sobre_base(self, conf_dir):
-        base = load_config("prd", conf_dir=conf_dir, use_env_vars=False)
-        dev = load_config("dev", conf_dir=conf_dir, use_env_vars=False)
+        base = load_config("prd", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
+        dev = load_config("dev", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
         assert base.get("ingestion.lookback_days") == 7
         assert dev.get("ingestion.lookback_days") == 3
 
     def test_param_overrides_ganan_sobre_entorno(self, conf_dir):
         cfg = load_config(
-            "dev", conf_dir=conf_dir, use_env_vars=False,
+            "dev", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False,
             param_overrides={"ingestion.lookback_days": "30"},
         )
         assert cfg.get("ingestion.lookback_days") == 30
 
     def test_ventana_respeta_lookback(self, conf_dir):
-        cfg = load_config("dev", conf_dir=conf_dir, use_env_vars=False, run_date="2026-07-15")
+        cfg = load_config("dev", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False, run_date="2026-07-15")
         assert cfg.max_date == date(2026, 7, 15)
         assert cfg.min_date == date(2026, 7, 12)  # dev usa lookback 3
 
     def test_full_refresh_amplia_la_ventana(self, conf_dir):
         cfg = load_config(
-            "dev", conf_dir=conf_dir, use_env_vars=False, run_date="2026-07-15",
+            "dev", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False, run_date="2026-07-15",
             param_overrides={"ingestion.full_refresh": "true"},
         )
         # dev define initial_load_days = 90
@@ -129,7 +129,7 @@ class TestLoadConfig:
 
     def test_entorno_invalido(self, conf_dir):
         with pytest.raises(ConfigError, match="invalido"):
-            load_config("staging", conf_dir=conf_dir, use_env_vars=False)
+            load_config("staging", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
 
     def test_require_falla_si_no_existe(self, cfg_dev):
         with pytest.raises(ConfigError, match="obligatoria"):
@@ -142,7 +142,7 @@ class TestLoadConfig:
 
 class TestValidacion:
     def _cfg_valida(self, conf_dir):
-        return load_config("dev", conf_dir=conf_dir, use_env_vars=False)
+        return load_config("dev", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
 
     def test_descuento_fuera_de_rango(self, conf_dir):
         cfg = self._cfg_valida(conf_dir)
@@ -189,11 +189,11 @@ class TestConfiguracionDelRepositorio:
 
     @pytest.mark.parametrize("env", ["dev", "qa", "prd"])
     def test_entornos_validos(self, conf_dir, env):
-        cfg = load_config(env, conf_dir=conf_dir, use_env_vars=False)
+        cfg = load_config(env, conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
         assert cfg.catalog
         assert cfg.get("tagging.dimensions")
 
     def test_los_presupuestos_del_repo_son_validos(self, conf_dir):
-        cfg = load_config("prd", conf_dir=conf_dir, use_env_vars=False)
+        cfg = load_config("prd", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
         ids = [b["id"] for b in cfg.budgets["budgets"]]
         assert len(ids) == len(set(ids))

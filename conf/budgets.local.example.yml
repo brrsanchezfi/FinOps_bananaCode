@@ -1,0 +1,43 @@
+# =============================================================================
+# PLANTILLA de presupuestos de la instalacion. Copiala a
+# `conf/budgets.local.yml` (ignorado por git) y ponle las cifras reales.
+#
+#     cp conf/budgets.local.example.yml conf/budgets.local.yml
+#
+# Si `conf/budgets.local.yml` existe, REEMPLAZA por completo a `conf/budgets.yml`
+# (no se fusionan: `budgets` es una lista y mezclarlas produciria dos entradas
+# con el mismo id).
+#
+# El formato completo de cada campo esta documentado en `conf/budgets.yml`.
+#
+# OJO: `amount_usd` se lee con `float()`. Un placeholder de texto como
+# "<definir con el cliente>" hace fallar el motor de presupuestos en la primera
+# corrida; deja la entrada comentada hasta tener el monto real.
+# =============================================================================
+
+budgets:
+  - id: org_global_monthly
+    name: "Presupuesto global Databricks"
+    scope: {}
+    period: monthly
+    amount_usd: 10000
+    thresholds_pct: [50, 80, 90, 100]
+    owner_email: "finops@tuempresa.com"
+
+  - id: env_prd_monthly
+    name: "Ambiente productivo"
+    scope:
+      environment: PRD
+    period: monthly
+    amount_usd: 7000
+    thresholds_pct: [70, 90, 100]
+    owner_email: "finops@tuempresa.com"
+
+chargeback:
+  allocation_dimension: cost_center
+  unallocated_strategy: proportional
+  shared_cost_strategy: proportional
+  shared_entity_patterns:
+    - "*finops*"
+    - "*platform*"
+  overhead_pct: 0.0

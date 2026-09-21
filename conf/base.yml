@@ -7,7 +7,8 @@
 project:
   name: finops
   code: bananacode
-  owner_email: "finops@dataknow.com.co"
+  # Se sobreescribe en conf/local.yml con el buzon real de la instalacion.
+  owner_email: "finops@example.com"
   timezone: "America/Bogota"
 
 # ---------------------------------------------------------------------------
@@ -139,23 +140,53 @@ pricing:
 # ---------------------------------------------------------------------------
 tagging:
   # Dimensiones canonicas que expone el modelo gold.
-  dimensions: [cost_center, team, project, environment, application, owner]
+  #
+  # `proceso` y `concepto` vienen de las policies de cluster y job: son
+  # vocabulario propio de la organizacion, sin equivalente en las dimensiones
+  # estandar de FinOps.
+  #
+  # `cost_center` ES la unidad de negocio. La mayoria de las organizaciones no
+  # maneja un codigo contable separado del negocio, asi que una etiqueta
+  # `Negocio` alimenta directamente esta dimension via alias. NO existe una
+  # dimension `negocio` aparte: tenerlas separadas duplicaba la misma cifra en
+  # dos filas del tablero de gobierno.
+  #
+  # `application` y `project` se retiraron de la lista por defecto: en los
+  # despliegues medidos ninguna policy las emitia y quedaban en SIN_ASIGNAR
+  # sobre el 99 % del costo. Si tu organizacion si las etiqueta, agregalas en
+  # `conf/local.yml` junto con sus alias.
+  dimensions: [cost_center, team, environment, owner, proceso, concepto]
   # Alias aceptados por dimension (case-insensitive, se ignoran _ - y espacios).
+  #
+  # Ojo: `build_alias_index` es 1:1 — una clave cruda resuelve a UNA dimension y
+  # gana la declarada primero. Por eso los alias de negocio viven aqui dentro de
+  # `cost_center` y no en una entrada propia.
   aliases:
-    cost_center: [cost_center, costcenter, cc, centro_costo, centrocosto, cost-center]
+    cost_center: [cost_center, costcenter, cc, centro_costo, centrocosto, cost-center,
+                  negocio, business, business_unit, unidad_negocio, bu]
     team: [team, equipo, squad, area, grupo]
-    project: [project, proyecto, initiative, producto, product]
     environment: [environment, env, ambiente, stage, entorno]
-    application: [application, app, aplicacion, sistema, system]
     owner: [owner, responsable, dueno, contact, email]
+    # Etapa del flujo de datos: Bronze_a_Silver, Silver_a_Gold.
+    proceso: [proceso, process, etapa, capa, layer]
+    # Dominio funcional del dato: Ventas, Costos, Balance, MargenBruto...
+    concepto: [concepto, concept, dominio, domain]
   # Valor asignado cuando no se puede resolver la dimension.
   unallocated_value: "SIN_ASIGNAR"
   # Normalizacion de valores (mapea variantes a un valor canonico).
+  # `proceso`, `concepto` y `negocio` no aparecen aqui a proposito: sus policies
+  # los declaran como `allowlist`, asi que los valores ya llegan acotados y sin
+  # variantes ortograficas. Si alguna policy pasara a texto libre, este es el
+  # lugar donde canonizarlos.
   value_map:
     environment:
       prod: PRD
       produccion: PRD
       production: PRD
+      # Valor real emitido por los recursos del workspace de produccion. Sin esta
+      # linea aparecia como un bucket propio 'Productivo' en los tableros,
+      # separado de PRD.
+      productivo: PRD
       prd: PRD
       qa: QA
       staging: QA
@@ -165,11 +196,35 @@ tagging:
       desarrollo: DEV
       development: DEV
       sandbox: DEV
+      # Ramas de trabajo del bundle: no son un ambiente propio.
+      feature: DEV
+    # Las unidades de negocio son propias de cada organizacion: este mapa se
+    # define en conf/local.yml. Ejemplo:
+    #   cost_center:
+    #     transversales: Transversal
+    cost_center: {}
   # Mapeo directo workspace_id -> valores por defecto (ultimo recurso).
+  #
+  # El ambiente es una propiedad del WORKSPACE, no de cada recurso: lo que corre
+  # en el workspace de produccion es produccion, lo lleve etiquetado o no. Esto
+  # rescata todo el consumo que ninguna policy alcanza (serverless, SQL, DLT,
+  # clusters creados fuera de policy).
+  #
+  # OJO, es un ULTIMO RECURSO: si el recurso trae etiqueta de ambiente, esa gana.
+  # Es deliberado y no debe cambiarse a "el workspace manda": cuando varios
+  # targets del bundle despliegan sobre el MISMO workspace, forzar el ambiente
+  # por workspace marcaria mal cargas legitimas del otro target.
+  #
+  # `tag_source_environment` queda en 'workspace_defaults' cuando el valor viene
+  # de aqui, para poder separarlo de lo etiquetado en origen.
+  #
+  # Los IDs son propios de cada cuenta: se declaran en conf/local.yml. Ejemplo:
+  #   workspace_defaults:
+  #     "1234567890123456": {environment: DEV}
+  #     "6543210987654321": {environment: PRD}
   workspace_defaults: {}
   # Cobertura minima de etiquetado esperada (0-1) para el chequeo de calidad.
   min_coverage_ratio: 0.80
-
 # ---------------------------------------------------------------------------
 # Gobierno de etiquetado (vistas en vivo)
 # ---------------------------------------------------------------------------
@@ -202,7 +257,7 @@ anomaly:
     high: 6.0
     medium: 4.5
   # Dimensiones sobre las que se buscan anomalias.
-  group_by_dimensions: [team, cost_center, project, workspace_id, sku_group, entity_key]
+  group_by_dimensions: [ambiente, proceso, concepto, cost_center, workspace_id, sku_group, entity_key]
 
 # ---------------------------------------------------------------------------
 # Pronostico de costo
@@ -218,7 +273,7 @@ forecast:
   weekly_seasonality: true
   min_history_days: 21
   train_window_days: 120
-  group_by_dimensions: [team, cost_center, workspace_id]
+  group_by_dimensions: [ambiente, proceso, concepto, cost_center, workspace_id]
 
 # ---------------------------------------------------------------------------
 # Recomendaciones de optimizacion

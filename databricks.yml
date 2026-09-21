@@ -1,14 +1,25 @@
 # =============================================================================
 # Databricks Asset Bundle — Plataforma de analitica FinOps
 #
-# Despliegue:
-#   databricks bundle validate -t dev
-#   databricks bundle deploy   -t dev
-#   databricks bundle run finops_pipeline_diario -t dev
+# El WORKSPACE DESTINO no esta escrito aqui: sale del perfil del CLI o de
+# DATABRICKS_HOST. Este repositorio es producto y se despliega sobre la cuenta
+# de cada cliente; un host quemado se heredaria en instalaciones ajenas.
 #
-# O bien, con el script que encadena los tres pasos:
-#   pwsh scripts/deploy.ps1 -Env dev
-#   bash scripts/deploy.sh dev
+#   databricks auth login --host https://adb-XXXX.N.azuredatabricks.net -p finops
+#
+# Despliegue:
+#   databricks bundle validate -t dev -p finops
+#   databricks bundle deploy   -t dev -p finops
+#   databricks bundle run finops_pipeline_diario -t dev -p finops
+#
+# O bien, con el script que encadena los pasos:
+#   pwsh scripts/deploy.ps1 -Env dev -Profile finops
+#   bash scripts/deploy.sh dev --profile finops
+#
+# El `warehouse_id` que alimenta los dashboards tampoco tiene valor por defecto.
+# Se pasa con --var o con la variable de entorno equivalente:
+#   databricks warehouses list -p finops
+#   export BUNDLE_VAR_warehouse_id=<id>
 # =============================================================================
 
 bundle:
@@ -31,6 +42,15 @@ artifacts:
     path: .
 
 sync:
+  # El CLI excluye del bundle todo lo que git ignora, y la configuracion de la
+  # instalacion (conf/local.yml) esta ignorada a proposito. Sin estas dos lineas
+  # el pipeline corre EN EL WORKSPACE con la configuracion neutra del
+  # repositorio: sin workspaces mapeados, sin presupuestos y con todo el costo
+  # cayendo en SIN_ASIGNAR, sin ningun error visible.
+  include:
+    - conf/local.yml
+    - conf/budgets.local.yml
+
   exclude:
     - .git/**
     - .venv/**
@@ -45,15 +65,16 @@ sync:
 variables:
   catalog:
     description: Catalogo de Unity Catalog donde vive el modelo FinOps.
-    default: finops_dev
+    default: finops
 
   warehouse_id:
     description: >-
       ID del SQL warehouse que alimenta los dashboards. Obtenerlo con
       `databricks warehouses list -p <perfil>`. Es obligatorio para desplegar
-      los dashboards. Se define por target, no aqui: un default apuntando al
-      warehouse de un entorno se heredaria silenciosamente en los demas.
-    default: ""
+      los dashboards. SIN VALOR POR DEFECTO a proposito: el warehouse pertenece
+      al workspace del cliente, y un default apuntando a otro haria fallar el
+      deploy con un error opaco en vez de pedir el dato. Pasarlo con
+      `--var="warehouse_id=..."` o `BUNDLE_VAR_warehouse_id`.
 
   node_type_id:
     description: Tipo de nodo del cluster de job (Azure).
@@ -68,8 +89,10 @@ variables:
     default: 1
 
   notification_email:
-    description: Correo que recibe las notificaciones de fallo de los jobs.
-    default: finops@dataknow.com.co
+    description: >-
+      Correo que recibe las notificaciones de fallo de los jobs. Ajustar por
+      instalacion con `--var` o `BUNDLE_VAR_notification_email`.
+    default: finops@example.com
 
   cron_pipeline:
     description: >-
@@ -95,44 +118,29 @@ targets:
     mode: development     # prefija los recursos con el usuario y pausa schedules
     default: true
     workspace:
-      host: https://adb-4198581253243445.5.azuredatabricks.net
+      # Sin `host`: lo aporta el perfil del CLI (-p) o DATABRICKS_HOST. Ver el
+      # encabezado de este archivo.
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
     variables:
-      catalog: finops_dev
+      catalog: finops
       num_workers: 1
       pipeline_paused: PAUSED
-      warehouse_id: "730b460717eaeb62"
 
-  # ---------------------------------------------------------------------------
-  qa:
-    mode: production
-    workspace:
-      host: https://adb-2370424844216896.16.azuredatabricks.net
-      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
-    variables:
-      catalog: finops_qa
-      num_workers: 1
-      pipeline_paused: UNPAUSED
-      warehouse_id: ""      # TODO: warehouse de qa
-    run_as:
-      # TODO: reemplazar por el service principal de qa. Con `mode: production`
-      #       Databricks exige que el propietario del despliegue sea explicito.
-      user_name: ${workspace.current_user.userName}
-
-  # ---------------------------------------------------------------------------
-  prd:
-    mode: production
-    workspace:
-      host: https://adb-7042033821150253.13.azuredatabricks.net
-      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
-    variables:
-      catalog: finops
-      num_workers: 2
-      pipeline_paused: UNPAUSED
-      warehouse_id: ""      # TODO: warehouse de produccion
-    run_as:
-      # TODO: reemplazar por el service principal de produccion.
-      user_name: ${workspace.current_user.userName}
-    permissions:
-      - level: CAN_VIEW
-        group_name: users
+# ---------------------------------------------------------------------------
+# Un unico target de despliegue: dev.
+#
+# El modelo FinOps describe el consumo de la CUENTA, no de un ambiente: lee
+# `system.billing.usage`, que cubre todos los workspaces de la cuenta. El
+# pipeline corriendo en un solo workspace mide igual el gasto de los demas, asi
+# que no hace falta una copia desplegada por ambiente. Ver docs/adr/0005.
+#
+# Los targets `qa` y `prd` se retiraron: desplegaban sobre workspaces de la
+# misma cuenta y solo duplicaban jobs y tableros sobre los mismos datos. Si una
+# instalacion necesita aislar el despliegue, agregar el target aqui con su
+# propio `root_path` y desplegarlo con el perfil de ese workspace.
+#
+# `conf/qa.yml` y `conf/prd.yml` se conservan a proposito: son overlays de
+# CONFIGURACION, un eje distinto del despliegue. `scripts/dashboards.py` los usa
+# para verificar que los tres entornos generen tableros identicos, y varios
+# tests los parametrizan.
+# ---------------------------------------------------------------------------

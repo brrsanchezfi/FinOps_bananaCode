@@ -1,0 +1,83 @@
+# =============================================================================
+# PLANTILLA del overlay de instalacion.  Copiala a `conf/local.yml` y ajustala.
+#
+#     cp conf/local.example.yml conf/local.yml
+#
+# `conf/local.yml` NO se versiona: es lo unico que distingue el despliegue de un
+# cliente del de otro. El resto del repositorio es producto y viaja igual para
+# todos.
+#
+# Precedencia:  base.yml  <  <env>.yml  <  local.yml  <  parametros de job  <  FINOPS__*
+#
+# Solo hay que declarar las claves que difieren de `conf/base.yml`: la fusion es
+# profunda, asi que un bloque parcial no borra el resto.
+#
+# Para que el pipeline vea este archivo DENTRO del workspace, databricks.yml lo
+# fuerza en `sync.include` (git lo ignora y el bundle, por defecto, tambien).
+# =============================================================================
+
+project:
+  # Buzon que aparece como responsable del modelo FinOps.
+  owner_email: "finops@tuempresa.com"
+
+tagging:
+  # -------------------------------------------------------------------------
+  # Ambiente por workspace: el ULTIMO recurso de la atribucion.
+  #
+  # Rescata el consumo que ninguna policy alcanza (serverless, SQL, DLT,
+  # clusters creados fuera de policy). Si el recurso trae su propia etiqueta de
+  # ambiente, esa gana; esto solo rellena lo que quedaria en SIN_ASIGNAR.
+  #
+  # Los IDs son los de TU cuenta. Se obtienen de la URL del workspace
+  # (https://adb-<workspace_id>.<n>.azuredatabricks.net) o con:
+  #     databricks workspaces list        (cuenta)
+  #     SELECT DISTINCT workspace_id FROM system.billing.usage
+  #
+  # No incluyas el workspace de sistema (`databricks-system-workspace`): no
+  # genera costo y no es un ambiente de la organizacion.
+  # -------------------------------------------------------------------------
+  workspace_defaults:
+    "0000000000000000": {environment: DEV}   # nombre-del-workspace-dev
+    "1111111111111111": {environment: PRD}   # nombre-del-workspace-prod
+
+  # Homologacion de valores a un canonico. Las unidades de negocio son propias
+  # de cada organizacion, por eso el repositorio no trae ninguna.
+  value_map:
+    cost_center:
+      unidad_a: "Unidad A"
+      unidada: "Unidad A"
+
+  # Cobertura minima de etiquetado antes de que el chequeo de calidad falle.
+  # Bajala mientras se despliegan las policies y subela a medida que mejora.
+  # min_coverage_ratio: 0.60
+
+# ---------------------------------------------------------------------------
+# Descuento negociado sobre el precio de lista. Con el valor por defecto (0.0)
+# el modelo reporta precio de lista y el costo sale por encima de la factura.
+# ---------------------------------------------------------------------------
+# pricing:
+#   discounts:
+#     - name: acuerdo_marco
+#       match: {}
+#       discount_pct: 0.15
+
+# ---------------------------------------------------------------------------
+# Canales de alerta. La URL del webhook NUNCA va aqui: va en un secret scope de
+# Databricks y aqui solo su referencia.
+#
+#     databricks secrets create-scope finops
+#     databricks secrets put-secret finops teams_webhook_url
+# ---------------------------------------------------------------------------
+# alerting:
+#   channels:
+#     - name: tabla
+#       type: table
+#       enabled: true
+#       min_severity: low
+#     - name: teams
+#       type: webhook
+#       enabled: true
+#       secret_scope: finops
+#       secret_key: teams_webhook_url
+#       format: teams
+#       min_severity: high
