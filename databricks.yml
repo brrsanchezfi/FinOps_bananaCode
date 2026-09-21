@@ -50,6 +50,10 @@ sync:
   include:
     - conf/local.yml
     - conf/budgets.local.yml
+    # Los tableros resueltos para esta instalacion (ver resources/dashboards.yml).
+    # `build/` esta en .gitignore, asi que sin esta linea el deploy falla con
+    # "no such file or directory" sobre el primer dashboard.
+    - build/dashboards/*.lvdash.json
 
   exclude:
     - .git/**
@@ -58,7 +62,8 @@ sync:
     - .ruff_cache/**
     - __pycache__/**
     - dist/**
-    - build/**
+    # `build/**` NO se excluye aqui: git ya lo ignora, y excluirlo ademas
+    # tapaba el `include` de build/dashboards/ de arriba.
     - tests/**
     - "*.egg-info/**"
 

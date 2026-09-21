@@ -147,6 +147,24 @@ class TestLaConfiguracionLocalLlegaAlWorkspace:
             "no lo sube al workspace porque git lo ignora."
         )
 
+    def test_los_dashboards_se_despliegan_desde_el_render(self, bundle: dict):
+        """Apuntar a `dashboards/` desplegaria el catalogo neutro sin fallar."""
+        recursos = yaml.safe_load(_texto(REPO_ROOT / "resources" / "dashboards.yml"))
+        rutas = [
+            d["file_path"] for d in recursos["resources"]["dashboards"].values()
+        ]
+        assert rutas, "resources/dashboards.yml no declara ningun dashboard"
+        for ruta in rutas:
+            assert ruta.startswith("../build/dashboards/"), (
+                f"{ruta} apunta a los JSON versionados, resueltos contra el catalogo "
+                "neutro. Debe salir de `python scripts/dashboards.py render`."
+            )
+        incluidos = (bundle.get("sync") or {}).get("include") or []
+        assert "build/dashboards/*.lvdash.json" in incluidos, (
+            "build/ esta en .gitignore: sin esta entrada en sync.include el deploy "
+            "falla con 'no such file or directory' sobre el primer dashboard."
+        )
+
     def test_hay_plantilla_para_cada_archivo_local(self):
         for plantilla in ("conf/local.example.yml", "conf/budgets.local.example.yml"):
             assert (REPO_ROOT / plantilla).is_file(), f"falta la plantilla {plantilla}"

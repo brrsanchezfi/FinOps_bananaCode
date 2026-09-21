@@ -48,19 +48,26 @@ fi
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${REPO_ROOT}"
 
-echo "==> 1/4 Validando la configuracion de ${ENV}"
+echo "==> 1/5 Validando la configuracion de ${ENV}"
 python -m finops.cli validate --env "${ENV}"
 
-echo "==> 2/4 Verificando que los dashboards esten al dia"
-# Los dashboards estan versionados ya resueltos por entorno. Este paso solo
-# avisa si difieren del generador; no es un paso de build previo al deploy.
+echo "==> 2/5 Verificando que los dashboards esten al dia"
+# Los versionados estan resueltos contra la configuracion NEUTRA. Este paso solo
+# avisa si difieren del generador.
 if ! python scripts/dashboards.py check; then
   echo "Regenerando..."
   python scripts/dashboards.py generate
   echo "ATENCION: los dashboards cambiaron. Revisa el diff y commitea." >&2
 fi
 
-echo "==> 3/4 Validando el bundle"
+echo "==> 3/5 Resolviendo los dashboards para esta instalacion"
+# Reescribe los tableros contra el catalogo real (conf/local.yml incluido) en
+# build/dashboards/, que es a donde apunta resources/dashboards.yml. Sin este
+# paso el deploy falla; si apuntara directo a los versionados, no fallaria y los
+# cuatro tableros saldrian vacios contra un catalogo ajeno.
+python scripts/dashboards.py render --env "${ENV}"
+
+echo "==> 4/5 Validando el bundle"
 databricks bundle validate -t "${ENV}" "${PERFIL_ARGS[@]}"
 
 if [[ "${SOLO_VALIDAR}" == "true" ]]; then
@@ -68,7 +75,7 @@ if [[ "${SOLO_VALIDAR}" == "true" ]]; then
   exit 0
 fi
 
-echo "==> 4/4 Desplegando a ${ENV}"
+echo "==> 5/5 Desplegando a ${ENV}"
 databricks bundle deploy -t "${ENV}" "${PERFIL_ARGS[@]}"
 
 echo

@@ -1102,6 +1102,12 @@ DASHBOARDS = {
 #: sacarlo de este conjunto y correr `generate`.
 MANTENIDOS_A_MANO = frozenset({"finops_ejecutivo"})
 
+#: Salida de `render`: los tableros ya resueltos contra la configuracion de esta
+#: instalacion. No se versiona (cambia por cliente) y `databricks.yml` lo fuerza
+#: en `sync.include`, porque el CLI excluye del bundle lo que git ignora y un
+#: dashboard en una ruta ignorada falla con "no such file or directory".
+BUILD_DIR = REPO_ROOT / "build" / "dashboards"
+
 
 def _es_manual(nombre_archivo: str) -> bool:
     return nombre_archivo.split(".", 1)[0] in MANTENIDOS_A_MANO
@@ -1110,21 +1116,38 @@ def _es_manual(nombre_archivo: str) -> bool:
 # ---------------------------------------------------------------------------
 # Subcomandos
 # ---------------------------------------------------------------------------
-def render_env(env: str) -> dict[str, str]:
+def _cargar_config(env: str, *, efectiva: bool):
+    """Configuracion del repositorio (`efectiva=False`) o de la instalacion.
+
+    La del repositorio ignora `conf/local.yml` y las variables de entorno: los
+    JSON versionados tienen que salir identicos en cualquier maquina, o CI los
+    reportaria como "sin regenerar" por tener un cliente configurado al lado.
+    La efectiva es la que de verdad va a correr en el workspace.
+    """
+    sys.path.insert(0, str(REPO_ROOT / "src"))
+    from finops.config import load_config
+
+    return load_config(
+        env, conf_dir=REPO_ROOT / "conf",
+        use_env_vars=efectiva, use_local_overlay=efectiva,
+    )
+
+
+def render_env(env: str, *, cfg=None) -> dict[str, str]:
     """Genera el JSON de cada dashboard con las tablas resueltas para un entorno.
 
     Devuelve {nombre_archivo: contenido}. Lanza si algun marcador no corresponde
     a una tabla del registro: es la guarda que impide desplegar un dashboard que
     consulte una tabla inexistente.
+
+    `cfg` permite resolver contra la configuracion de la instalacion en vez de
+    la del repositorio; por defecto usa la del repositorio.
     """
     sys.path.insert(0, str(REPO_ROOT / "src"))
     from finops.catalog import table_map
-    from finops.config import load_config
 
-    # Sin overlay local ni variables de entorno: los JSON generados se versionan,
-    # asi que tienen que salir identicos en cualquier maquina. Un conf/local.yml
-    # metiendo mano aqui produciria deriva que CI reportaria como "sin regenerar".
-    cfg = load_config(env, conf_dir=REPO_ROOT / "conf", use_env_vars=False, use_local_overlay=False)
+    if cfg is None:
+        cfg = _cargar_config(env, efectiva=False)
     # `table_map` incluye tablas y vistas: los dashboards referencian ambas.
     mapa = table_map(cfg)
     faltantes: set[str] = set()
@@ -1206,6 +1229,50 @@ def cmd_check(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_render(args: argparse.Namespace) -> int:
+    """Escribe en `build/dashboards/` los tableros de ESTA instalacion.
+
+    Los JSON de `dashboards/` estan resueltos contra la configuracion NEUTRA del
+    repositorio, asi que nombran el catalogo `finops`. Una instalacion que use
+    otro catalogo -- porque el nombre ya esta tomado en su metastore, o porque
+    su convencion es otra -- desplegaria cuatro tableros apuntando a un catalogo
+    ajeno: no fallan, salen VACIOS. Este paso los reescribe contra la
+    configuracion efectiva (conf/local.yml incluido) justo antes de desplegar.
+
+    Para los tableros generados basta volver a resolver los marcadores. Para los
+    de `MANTENIDOS_A_MANO`, que vienen de la UI con el nombre completo escrito,
+    se sustituye cada FQN conocido por el suyo: es un reemplazo exacto sobre la
+    lista de tablas y vistas del registro, no un `replace` del nombre del
+    catalogo, que tambien tocaria textos y titulos.
+    """
+    sys.path.insert(0, str(REPO_ROOT / "src"))
+    from finops.catalog import table_map
+
+    env = args.env
+    cfg_repo = _cargar_config(env, efectiva=False)
+    cfg_real = _cargar_config(env, efectiva=True)
+    homologacion = {
+        neutro: table_map(cfg_real)[clave]
+        for clave, neutro in table_map(cfg_repo).items()
+    }
+
+    BUILD_DIR.mkdir(parents=True, exist_ok=True)
+    generados = render_env(env, cfg=cfg_real)
+    for nombre in sorted(DASHBOARDS):
+        archivo = f"{nombre}.lvdash.json"
+        if _es_manual(archivo):
+            contenido = (DASHBOARDS_DIR / archivo).read_text(encoding="utf-8")
+            for neutro, real in homologacion.items():
+                contenido = contenido.replace(neutro, real)
+            origen = "mantenido a mano"
+        else:
+            contenido = generados[archivo]
+            origen = "generado"
+        (BUILD_DIR / archivo).write_text(contenido, encoding="utf-8")
+        print(f"resuelto {archivo} ({origen}) -> catalogo {cfg_real.catalog}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Dashboards Lakeview de FinOps")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -1215,6 +1282,13 @@ def main(argv: list[str] | None = None) -> int:
 
     p_check = sub.add_parser("check", help="Verifica que los archivos versionados esten al dia")
     p_check.set_defaults(func=cmd_check)
+
+    p_render = sub.add_parser(
+        "render",
+        help="Escribe en build/dashboards/ los tableros resueltos para ESTA instalacion",
+    )
+    p_render.add_argument("--env", default="dev", choices=list(ENVIRONMENTS))
+    p_render.set_defaults(func=cmd_render)
 
     args = parser.parse_args(argv)
     return int(args.func(args))

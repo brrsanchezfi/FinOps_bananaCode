@@ -180,6 +180,65 @@ class TestCoherenciaConDashboards:
             )
 
 
+class TestRenderPorInstalacion:
+    """Los tableros que se despliegan resuelven el catalogo de la INSTALACION.
+
+    Los JSON de `dashboards/` estan resueltos contra la configuracion neutra y
+    nombran el catalogo `finops`. Desplegar esos mismos archivos en una
+    instalacion con otro catalogo no falla: los cuatro tableros salen VACIOS.
+    Por eso `scripts/dashboards.py render` los reescribe antes de desplegar.
+    """
+
+    CATALOGO_ALTERNO = "finops_otra_instalacion"
+
+    def _generador(self):
+        sys.path.insert(0, str(REPO_ROOT / "scripts"))
+        import dashboards as generador
+
+        return generador
+
+    def _config_alterna(self):
+        from finops.config import load_config
+
+        return load_config(
+            ENTORNOS[0], conf_dir=REPO_ROOT / "conf", use_env_vars=False,
+            use_local_overlay=False,
+            overrides={"catalog": {"catalog": self.CATALOGO_ALTERNO}},
+        )
+
+    def test_los_generados_toman_el_catalogo_efectivo(self):
+        generador = self._generador()
+        cfg = self._config_alterna()
+        for nombre, contenido in generador.render_env(ENTORNOS[0], cfg=cfg).items():
+            if nombre.split(".", 1)[0] in generador.MANTENIDOS_A_MANO:
+                continue
+            assert f"{self.CATALOGO_ALTERNO}." in contenido, f"{nombre} no resolvio al catalogo alterno"
+            assert "finops.gold." not in contenido, f"{nombre} conserva el catalogo neutro"
+            assert "finops.silver." not in contenido, f"{nombre} conserva el catalogo neutro"
+
+    def test_los_mantenidos_a_mano_tambien_se_homologan(self):
+        """Estos no se regeneran: traen el FQN escrito desde la UI."""
+        from finops.catalog import table_map
+
+        generador = self._generador()
+        cfg_repo = _config(ENTORNOS[0])
+        homologacion = {
+            neutro: table_map(self._config_alterna())[clave]
+            for clave, neutro in table_map(cfg_repo).items()
+        }
+        for nombre in generador.MANTENIDOS_A_MANO:
+            contenido = (DASHBOARDS_DIR / f"{nombre}.lvdash.json").read_text(encoding="utf-8")
+            assert f"{cfg_repo.catalog}." in contenido, (
+                f"{nombre} no nombra ninguna tabla del modelo; revisa el supuesto"
+            )
+            for neutro, real in homologacion.items():
+                contenido = contenido.replace(neutro, real)
+            assert f"{cfg_repo.catalog}.gold." not in contenido, (
+                f"{nombre} conserva tablas del catalogo neutro tras homologar: "
+                "hay un FQN que no esta en el registro"
+            )
+
+
 class TestSqlDeCreacion:
     """Constructores de DDL: puros, probables sin Spark."""
 
