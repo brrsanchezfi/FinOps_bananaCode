@@ -106,6 +106,33 @@ ingestion:
   # Workspaces a excluir del analisis (IDs como string).
   exclude_workspace_ids: []
 
+  # -------------------------------------------------------------------------
+  # Ventana acotada por el Change Data Feed de la fuente.
+  #
+  # `lookback_days` es una suposicion: como no se sabe que registros llegaron
+  # tarde, se rebarren N dias por las dudas. `table_changes()` sobre
+  # system.billing.usage si lo dice, y de ahi salen exactamente los usage_date
+  # a reprocesar -- para bronze, silver, gold y la analitica.
+  #
+  # Medido sobre una cuenta con ~100 workspaces: 296 filas cambiaron en 24 h,
+  # contra las decenas de miles de una ventana de 7 dias. Eso abarata la corrida
+  # lo suficiente para programarla cada hora en vez de una vez al dia.
+  #
+  # OJO con lo que esto NO hace: system.billing.usage publica con su propio
+  # rezago (medido 3.5 h, hasta 12 h segun la documentacion de Databricks, que
+  # ademas dice explicitamente que las system tables no soportan monitoreo en
+  # tiempo real). La frescura del tablero nunca baja de ahi.
+  #
+  # Llega desactivado: activalo cuando vayas a subir la frecuencia del schedule,
+  # que es donde rinde. Si el feed no esta disponible o su historia ya no cubre
+  # la ultima corrida, el pipeline vuelve solo a `lookback_days` sin fallar.
+  # -------------------------------------------------------------------------
+  cdf:
+    enabled: false
+    # Si la ultima ingesta quedo mas atras que esto, ni se intenta: la historia
+    # del feed se poda y lo mas probable es que ya no la cubra.
+    max_lookback_hours: 48
+
 # ---------------------------------------------------------------------------
 # Modelo de costos
 # ---------------------------------------------------------------------------

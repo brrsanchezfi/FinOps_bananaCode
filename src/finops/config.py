@@ -164,6 +164,13 @@ class FinOpsConfig:
     run_date: date = field(default_factory=date.today)
     conf_dir: Path | None = None
 
+    #: Ventana [min, max] impuesta por quien orquesta, que gana sobre
+    #: `lookback_days`. La usa la ingesta incremental por CDF: cuando el feed
+    #: dice exactamente que fechas cambiaron, no tiene sentido que silver y gold
+    #: sigan rebarriendo la ventana a ciegas. Sin override, todo se comporta
+    #: como antes.
+    window_override: tuple[date, date] | None = None
+
     # -- acceso generico ----------------------------------------------------
     def get(self, path: str, default: Any = None) -> Any:
         return get_by_path(self.data, path, default)
@@ -210,6 +217,8 @@ class FinOpsConfig:
     # -- ventanas de tiempo -------------------------------------------------
     @property
     def max_date(self) -> date:
+        if self.window_override is not None:
+            return self.window_override[1]
         raw = self.get("ingestion.max_usage_date")
         if raw:
             return _parse_date(raw)
@@ -223,6 +232,8 @@ class FinOpsConfig:
 
     @property
     def min_date(self) -> date:
+        if self.window_override is not None:
+            return self.window_override[0]
         return self.max_date - timedelta(days=max(self.lookback_days, 0))
 
     @property

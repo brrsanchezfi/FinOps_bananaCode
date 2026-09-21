@@ -49,8 +49,19 @@ from .catalog import (
 )
 from .config import FinOpsConfig
 from .errors import PipelineError
+from .ingestion.cdf import (
+    cdf_enabled,
+    changed_usage_dates,
+    since_for,
+    window_from_changed_dates,
+)
 from .ingestion.system_tables import run_bronze
-from .ingestion.watermark import compute_window, read_watermarks, write_watermark
+from .ingestion.watermark import (
+    compute_window,
+    read_last_ingested_at,
+    read_watermarks,
+    write_watermark,
+)
 from .logging_utils import RunRecorder, configure_logging, get_logger, stage
 from .quality.checks import enforce, run_checks
 from .schemas import esquemas as _esquemas
@@ -118,9 +129,42 @@ def stage_setup(spark: SparkSession, cfg: FinOpsConfig, result: PipelineResult) 
         metrica.details["vistas"] = ", ".join(vistas) or "ninguna"
 
 
-def stage_bronze(spark: SparkSession, cfg: FinOpsConfig, result: PipelineResult) -> None:
+def _ventana_de_ingesta(spark: SparkSession, cfg: FinOpsConfig) -> tuple[date, date]:
+    """Ventana a procesar, acotada por el CDF cuando se puede.
+
+    Sin CDF la ventana es "los ultimos `lookback_days` dias", que es una
+    suposicion: no se sabe que llego tarde, asi que se rebarre todo por las
+    dudas. El CDF lo sabe, y acotar la ventana aqui la acota para TODO el
+    pipeline, porque silver y gold leen `cfg.min_date`/`cfg.max_date`.
+
+    Degradar al camino de siempre es parte del diseno, no un caso de borde: la
+    historia del feed se poda y basta con que el pipeline no corra un par de
+    dias para que ya no la cubra.
+    """
     marcas = read_watermarks(spark, cfg)
-    desde, hasta = compute_window(cfg, marcas.get("billing_usage"))
+    respaldo = compute_window(cfg, marcas.get("billing_usage"))
+
+    if not cdf_enabled(cfg) or bool(cfg.get("ingestion.full_refresh", False)):
+        return respaldo
+
+    desde_cuando = since_for(cfg, read_last_ingested_at(spark, cfg, "billing_usage"))
+    if desde_cuando is None:
+        return respaldo
+
+    ventana = window_from_changed_dates(changed_usage_dates(spark, cfg, desde_cuando), respaldo)
+    if ventana != respaldo:
+        log.info(
+            "CDF acota la ventana: [%s .. %s] en vez de [%s .. %s]",
+            ventana[0], ventana[1], respaldo[0], respaldo[1],
+        )
+    return ventana
+
+
+def stage_bronze(spark: SparkSession, cfg: FinOpsConfig, result: PipelineResult) -> None:
+    desde, hasta = _ventana_de_ingesta(spark, cfg)
+    # La ventana se fija en la configuracion para que silver, gold y la
+    # analitica procesen exactamente lo mismo que se ingirio.
+    cfg.window_override = (desde, hasta)
     log.info("Ventana efectiva de ingesta: [%s .. %s]", desde, hasta)
 
     filas = run_bronze(spark, cfg, result.run_id, recorder=result.recorder, min_date=desde, max_date=hasta)

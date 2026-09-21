@@ -60,6 +60,30 @@ def read_watermarks(spark: SparkSession, cfg: FinOpsConfig) -> dict[str, date]:
     return {r["source_key"]: r["watermark_date"] for r in filas if r["watermark_date"] is not None}
 
 
+def read_last_ingested_at(spark: SparkSession, cfg: FinOpsConfig, source_key: str) -> datetime | None:
+    """Instante de la ultima ingesta registrada para una fuente.
+
+    Es el punto de partida del CDF: los cambios que interesan son los que
+    aparecieron DESPUES de la ultima vez que se leyo la fuente. Se usa
+    `updated_at` de la marca de agua y no la fecha de consumo, que es otra cosa:
+    una corrida de hoy puede traer registros fechados hace tres dias.
+    """
+    from pyspark.sql import functions as F
+
+    from ..spark_utils import table_exists
+
+    fqn = OPS_WATERMARK.fqn(cfg)
+    if not table_exists(spark, fqn):
+        return None
+    fila = (
+        spark.table(fqn)
+        .filter(F.col("source_key") == source_key)
+        .agg(F.max("updated_at").alias("updated_at"))
+        .collect()[0]
+    )
+    return fila["updated_at"]
+
+
 def write_watermark(
     spark: SparkSession,
     cfg: FinOpsConfig,
