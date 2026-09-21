@@ -84,20 +84,30 @@ variables:
 
       Si el cluster muere con CLOUD_PROVIDER_RESOURCE_STOCKOUT / SkuNotAvailable
       -- que la tarea reporta como INTERNAL_ERROR, sin parecerse a la causa --
-      la SKU esta agotada en esa region: cambiala por otra familia. Pools
-      distintos: D4ads_v5 (AMD), D4ds_v5 (Intel), DS3_v2 (v2, la mas disponible).
+      la SKU esta agotada en esa region: cambiala por otra familia, no por otro
+      tamano de la misma. Pools distintos: D2ads_v6 (AMD v6), D4ds_v5 (Intel v5),
+      DS3_v2 (v2, la generacion mas vieja y la mas disponible).
 
           databricks clusters list-node-types -p <perfil>
           databricks bundle deploy -t dev -p <perfil> --var="node_type_id=Standard_DS3_v2"
-    default: Standard_D4ads_v5
+    default: Standard_D2ads_v6
 
   spark_version:
     description: Version de Databricks Runtime (LTS recomendado).
-    default: 15.4.x-scala2.12
+    default: 16.4.x-scala2.12
 
   num_workers:
-    description: Workers del cluster de job. El pipeline es liviano; 1-2 basta.
-    default: 1
+    description: >-
+      Workers del cluster del pipeline diario. 0 = NODO UNICO, que es el valor
+      por defecto: el pipeline lee una ventana corta de las system tables y
+      escribe agregados, asi que no hay reparto que justifique workers. Ademas
+      pedir UNA VM en vez de varias reduce la probabilidad de chocar con las
+      restricciones de capacidad de la region.
+
+      Si se sube, hay que quitar tambien `spark.master`,
+      `spark.databricks.cluster.profile` y el tag `ResourceClass` del cluster en
+      resources/jobs.yml: un cluster declarado singleNode con workers no arranca.
+    default: 0
 
   notification_email:
     description: >-
@@ -134,7 +144,7 @@ targets:
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
     variables:
       catalog: finops
-      num_workers: 1
+      num_workers: 0
       pipeline_paused: PAUSED
 
 # ---------------------------------------------------------------------------
