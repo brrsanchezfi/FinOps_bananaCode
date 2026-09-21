@@ -35,6 +35,11 @@ Un rezago de 1 dia es normal. De 2 o mas, investigar.
 
 ### El pipeline fallo
 
+Primero mira **donde** fallo. Si la tarea quedo en `INTERNAL_ERROR` y
+`ops_run_log` no tiene ninguna fila de esa corrida, el codigo nunca llego a
+ejecutarse: el problema es el cluster, no el pipeline. Ve a "el cluster no
+arranca" mas abajo.
+
 ```sql
 SELECT stage, error_message, duration_seconds
 FROM finops.gold.ops_run_log
@@ -54,6 +59,38 @@ Reintentar una sola etapa:
 ```bash
 databricks bundle run finops_pipeline_diario -t prd --params stages=silver
 ```
+
+### El cluster no arranca (`INTERNAL_ERROR` sin filas en `ops_run_log`)
+
+```bash
+databricks jobs get-run <task_run_id> -p <perfil> -o json
+```
+
+Si el mensaje trae `CLOUD_PROVIDER_RESOURCE_STOCKOUT` o `SkuNotAvailable`, el
+tipo de nodo esta agotado en la region del workspace. No hay nada que arreglar
+en el codigo: es capacidad del proveedor, y puede aparecer de un dia para otro
+sin que nadie haya cambiado nada.
+
+El pipeline es liviano y no pide hardware concreto, asi que cualquier tipo
+equivalente sirve. Cambia a **otra familia**, no a otro tamano de la misma:
+las restricciones de capacidad son por familia y region.
+
+| Familia | Ejemplo | Nota |
+|---|---|---|
+| AMD v5 | `Standard_D4ads_v5` | valor por defecto |
+| Intel v5 | `Standard_D4ds_v5` | otro pool |
+| v2 | `Standard_DS3_v2` | generacion vieja, la mas disponible |
+
+```bash
+databricks clusters list-node-types -p <perfil>
+databricks bundle deploy -t dev -p <perfil> --var="node_type_id=Standard_DS3_v2"
+```
+
+La UI de Databricks ofrece ademas *flexible node types*, que deja al servicio
+caer solo a un tipo compatible. No se declara en `databricks.yml` porque el CLI
+todavia no reconoce el campo `node_type_flexibility` (lo reporta como
+`unknown field` y lo descarta); si se activa, hay que hacerlo sobre el cluster
+ya creado.
 
 ### Los datos no estan frescos
 

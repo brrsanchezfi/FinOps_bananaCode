@@ -146,8 +146,18 @@ presupuesto no requiere tocar Python ni volver a construir el wheel.
 Precedencia:
 
 ```
-conf/base.yml  <  conf/<env>.yml  <  parametros de job  <  variables FINOPS__*
+conf/base.yml  <  conf/<env>.yml  <  conf/local.yml  <  parametros de job  <  variables FINOPS__*
 ```
+
+`conf/local.yml` es la capa de la **instalacion**: workspaces, unidades de
+negocio, responsables, descuento negociado. No se versiona, porque el
+repositorio distribuye producto y no la implantacion de un cliente concreto. Su
+plantilla si viaja (`conf/local.example.yml`), y `conf/budgets.local.yml`
+reemplaza a `conf/budgets.yml` con las cifras reales.
+
+Las pruebas y el generador de dashboards cargan la configuracion con
+`use_local_overlay=False`: evaluan lo que viaja en el repositorio, no lo que
+haya configurado la maquina donde corren.
 
 `validate_config` verifica invariantes al cargar (descuentos en rango, alias
 definidos para cada dimension, canales sin duplicar, presupuestos con monto

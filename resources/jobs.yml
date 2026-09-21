@@ -57,10 +57,22 @@ resources:
             spark_conf:
               spark.sql.adaptive.enabled: "true"
               spark.databricks.delta.schema.autoMerge.enabled: "true"
+              # Nodo unico (var.num_workers vale 0 por defecto). El pipeline
+              # diario lee una ventana corta de las system tables y escribe
+              # agregados: no hay reparto que justifique workers, y pedir UNA VM
+              # en vez de varias reduce la probabilidad de chocar con la
+              # capacidad de la region.
+              #
+              # Si se sube `num_workers`, hay que quitar estas dos claves y el
+              # tag ResourceClass de abajo: un cluster declarado singleNode con
+              # workers no arranca.
+              spark.master: "local[*]"
+              spark.databricks.cluster.profile: singleNode
             azure_attributes:
               availability: ON_DEMAND_AZURE
               first_on_demand: 1
             custom_tags:
+              ResourceClass: SingleNode
               proyecto: finops
               cost_center: PLATAFORMA
               team: FINOPS

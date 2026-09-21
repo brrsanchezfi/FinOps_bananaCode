@@ -3,9 +3,15 @@
 Precedencia (de menor a mayor):
     1. conf/base.yml
     2. conf/<env>.yml
-    3. overrides explicitos (parametros de job / widgets del notebook)
-    4. variables de entorno con prefijo FINOPS__ (doble guion bajo = nivel)
+    3. conf/local.yml            (opcional, NO versionado)
+    4. overrides explicitos (parametros de job / widgets del notebook)
+    5. variables de entorno con prefijo FINOPS__ (doble guion bajo = nivel)
        ej: FINOPS__CATALOG__CATALOG=finops_sandbox
+
+La capa 3 es la del DESPLIEGUE CONCRETO: workspaces, unidades de negocio,
+responsables. El repositorio solo trae valores neutros y una plantilla
+`conf/local.example.yml`; lo que identifica a una instalacion vive en
+`conf/local.yml` y `conf/budgets.local.yml`, ambos ignorados por git.
 
 La configuracion se expone como un objeto `FinOpsConfig` con acceso por ruta
 punteada (`cfg.get("anomaly.window_days")`) y helpers para nombres de tabla.
@@ -27,6 +33,16 @@ from .errors import ConfigError
 
 VALID_ENVIRONMENTS = ("dev", "qa", "prd")
 _ENV_PREFIX = "FINOPS__"
+
+#: Overlay del despliegue concreto. Opcional y fuera de git: es donde cada
+#: instalacion declara SUS workspaces, SUS unidades de negocio y SUS
+#: responsables, sin tocar el codigo que se distribuye.
+LOCAL_OVERLAY = "local.yml"
+
+#: Presupuestos del despliegue concreto. Si existe, REEMPLAZA a budgets.yml
+#: (no se fusiona con el: `budgets` es una lista y mezclar dos listas de
+#: presupuestos produciria duplicados con el mismo id).
+LOCAL_BUDGETS = "budgets.local.yml"
 
 # Capas del modelo y su clave de schema en la configuracion.
 _LAYER_SCHEMA_KEY = {
@@ -269,6 +285,13 @@ def _read_yaml(path: Path) -> dict[str, Any]:
     return contenido
 
 
+def _read_yaml_optional(path: Path) -> dict[str, Any]:
+    """Como `_read_yaml`, pero un archivo ausente devuelve {} en vez de fallar."""
+    if not path.exists():
+        return {}
+    return _read_yaml(path)
+
+
 def default_conf_dir() -> Path:
     """Localiza el directorio conf/ tanto en repo local como en workspace/bundle."""
     candidatos = []
@@ -297,16 +320,21 @@ def load_config(
     param_overrides: dict[str, Any] | None = None,
     run_date: date | str | None = None,
     use_env_vars: bool = True,
+    use_local_overlay: bool = True,
 ) -> FinOpsConfig:
     """Construye la configuracion efectiva para un entorno.
 
     Args:
         env: uno de dev | qa | prd.
         conf_dir: directorio con base.yml y <env>.yml. Autodetectado si es None.
-        overrides: dict anidado con overrides de mayor precedencia que <env>.yml.
+        overrides: dict anidado con overrides de mayor precedencia que local.yml.
         param_overrides: dict plano con rutas punteadas (parametros de job).
         run_date: fecha logica de la corrida (por defecto hoy).
         use_env_vars: aplica variables FINOPS__*.
+        use_local_overlay: aplica conf/local.yml y conf/budgets.local.yml.
+            False evalua SOLO lo que viaja en el repositorio; es lo que usan las
+            pruebas y CI, que deben dar el mismo resultado en cualquier maquina
+            sin importar que instalacion este configurada al lado.
     """
     env_norm = str(env).strip().lower()
     if env_norm not in VALID_ENVIRONMENTS:
@@ -315,6 +343,12 @@ def load_config(
     directorio = Path(conf_dir) if conf_dir else default_conf_dir()
     datos = _read_yaml(directorio / "base.yml")
     datos = deep_merge(datos, _read_yaml(directorio / f"{env_norm}.yml"))
+    # Overlay del despliegue concreto (ver LOCAL_OVERLAY). Va despues del
+    # entorno para que un cliente pueda ajustar cualquier clave sin bifurcar
+    # los archivos que se distribuyen, y antes de los overrides explicitos para
+    # que un parametro de job siga ganandole.
+    if use_local_overlay:
+        datos = deep_merge(datos, _read_yaml_optional(directorio / LOCAL_OVERLAY))
 
     if overrides:
         datos = deep_merge(datos, overrides)
@@ -323,8 +357,10 @@ def load_config(
     if use_env_vars:
         datos = deep_merge(datos, overrides_from_env())
 
-    presupuestos_path = directorio / "budgets.yml"
-    presupuestos = _read_yaml(presupuestos_path) if presupuestos_path.exists() else {}
+    # Presupuestos: los locales REEMPLAZAN a los versionados si existen.
+    presupuestos = _read_yaml_optional(directorio / LOCAL_BUDGETS) if use_local_overlay else {}
+    if not presupuestos:
+        presupuestos = _read_yaml_optional(directorio / "budgets.yml")
 
     cfg = FinOpsConfig(
         env=env_norm,

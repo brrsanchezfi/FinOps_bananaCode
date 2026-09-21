@@ -457,12 +457,45 @@ def build_usage_priced(spark: SparkSession, cfg: FinOpsConfig) -> DataFrame:
         {"custom_tags": "_tags_usage", "cluster_tags": "_tags_cluster", "job_tags": "_tags_job"},
     )
 
+    # Nombre de los SQL warehouses (ultima version conocida de cada uno).
+    if table_exists(spark, BRZ_WAREHOUSES.fqn(cfg)):
+        warehouses = _latest_by(
+            spark.table(BRZ_WAREHOUSES.fqn(cfg)), ["workspace_id", "warehouse_id"], "change_time"
+        ).select(
+            F.col("workspace_id").alias("_w_ws"),
+            F.col("warehouse_id").alias("_w_id"),
+            F.col("warehouse_name").alias("_warehouse_name"),
+        )
+        df = df.join(
+            F.broadcast(warehouses),
+            (df["workspace_id"] == warehouses["_w_ws"]) & (df["warehouse_id"] == warehouses["_w_id"]),
+            "left",
+        ).drop("_w_ws", "_w_id")
+    else:
+        df = df.withColumn("_warehouse_name", F.lit(None).cast("string"))
+
     # --- nombre legible de la entidad ---
+    # Cada tipo toma su nombre de donde exista; si no hay, queda el id. El
+    # nombre es solo para mostrar: agrupar siempre por entity_key/entity_id,
+    # porque un nombre puede repetirse o cambiar.
     df = df.withColumn(
         "entity_name",
         F.coalesce(
-            F.when(F.col("entity_type") == "JOB", F.col("job_name")),
+            F.when(
+                F.col("entity_type") == "JOB",
+                F.coalesce(F.col("job_name"), _blank_to_null(_struct_field(usage, "usage_metadata", "job_name"))),
+            ),
             F.when(F.col("entity_type") == "CLUSTER", F.col("cluster_name")),
+            F.when(F.col("entity_type") == "WAREHOUSE", F.col("_warehouse_name")),
+            F.when(F.col("entity_type") == "APP", _blank_to_null(_struct_field(usage, "usage_metadata", "app_name"))),
+            F.when(
+                F.col("entity_type") == "MODEL_ENDPOINT",
+                _blank_to_null(_struct_field(usage, "usage_metadata", "endpoint_name")),
+            ),
+            F.when(
+                F.col("entity_type") == "NOTEBOOK",
+                _blank_to_null(_struct_field(usage, "usage_metadata", "notebook_path")),
+            ),
             F.col("entity_id"),
         ),
     ).withColumn(

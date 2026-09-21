@@ -238,7 +238,7 @@ class TestTablasQueDebenExistirSiempre:
         from finops.schemas import tablas_con_esquema
 
         raiz = Path(__file__).resolve().parents[1]
-        cfg = load_config("dev", conf_dir=raiz / "conf", use_env_vars=False)
+        cfg = load_config("dev", conf_dir=raiz / "conf", use_env_vars=False, use_local_overlay=False)
         mapa = {fqn: clave for clave, fqn in table_map(cfg).items()}
 
         # Tablas que crea siempre alguna etapa del pipeline: bronze y silver se

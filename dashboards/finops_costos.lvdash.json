@@ -128,7 +128,6 @@
         "  sku_group,\n",
         "  team,\n",
         "  cost_center,\n",
-        "  project,\n",
         "  environment,\n",
         "  ROUND(usage_quantity, 4) AS dbus,\n",
         "  ROUND(total_cost_usd, 4) AS costo_usd\n",
@@ -840,10 +839,6 @@
                       "expression": "`cost_center`"
                     },
                     {
-                      "name": "project",
-                      "expression": "`project`"
-                    },
-                    {
                       "name": "environment",
                       "expression": "`environment`"
                     },
@@ -882,9 +877,6 @@
                   },
                   {
                     "fieldName": "cost_center"
-                  },
-                  {
-                    "fieldName": "project"
                   },
                   {
                     "fieldName": "environment"

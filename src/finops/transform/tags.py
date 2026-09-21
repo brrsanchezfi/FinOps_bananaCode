@@ -103,6 +103,7 @@ def resolve_tags(
     value_map: dict[str, dict[str, str]] | None = None,
     unallocated_value: str = "SIN_ASIGNAR",
     source_order: tuple[str, ...] | list[str] = DEFAULT_SOURCE_ORDER,
+    derive: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Resuelve todas las dimensiones para un registro.
 
@@ -114,6 +115,10 @@ def resolve_tags(
         value_map: normalizacion de valores por dimension.
         unallocated_value: valor cuando ninguna fuente resuelve la dimension.
         source_order: precedencia de fuentes.
+        derive: homologacion destino -> origen (ej. {"cost_center": "negocio"}).
+            Solo completa el destino si ninguna fuente lo resolvio, de modo que
+            una etiqueta explicita siempre gana. El destino homologado queda con
+            `tag_source_<dim>` = 'derived:<origen>'.
 
     Returns:
         dict con una clave por dimension, mas:
@@ -141,6 +146,16 @@ def resolve_tags(
         canonico = canonicalize_value(dimension, bruto, value_map)
         salida[dimension] = canonico if canonico is not None else unallocated_value
         salida[f"tag_source_{dimension}"] = origen.get(dimension, "default")
+
+    # Homologacion entre dimensiones (ver `derive`). Se aplica despues del bucle
+    # anterior para que una etiqueta explicita del destino siempre gane, y antes
+    # del conteo para que la cobertura refleje el costo realmente imputado.
+    for destino, fuente in (derive or {}).items():
+        if destino not in dimensions or fuente not in dimensions:
+            continue
+        if salida[destino] == unallocated_value and salida[fuente] != unallocated_value:
+            salida[destino] = salida[fuente]
+            salida[f"tag_source_{destino}"] = f"derived:{fuente}"
 
     resueltas = sum(1 for d in dimensions if salida[d] != unallocated_value)
     salida["tags_resolved"] = resueltas

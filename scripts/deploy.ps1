@@ -3,8 +3,14 @@
     Despliegue del bundle FinOps: validar configuracion + bundle + deploy.
 
 .EXAMPLE
-    pwsh scripts/deploy.ps1 -Env dev
-    pwsh scripts/deploy.ps1 -Env prd -OnlyValidate
+    pwsh scripts/deploy.ps1 -Env dev -DatabricksProfile finops
+    pwsh scripts/deploy.ps1 -Env dev -OnlyValidate
+
+.DESCRIPTION
+    El workspace destino sale del perfil del CLI (-Profile) o de DATABRICKS_HOST:
+    no esta escrito en databricks.yml, porque el repositorio es producto y se
+    despliega sobre la cuenta de cada cliente. El warehouse_id de los dashboards
+    se pasa con la variable de entorno BUNDLE_VAR_warehouse_id.
 
 .NOTES
     Requiere databricks CLI v0.230+, Python 3.10+ y `pip install -e .` en el
@@ -16,6 +22,11 @@ param(
     [ValidateSet('dev', 'qa', 'prd')]
     [string]$Env,
 
+    # Perfil del CLI de Databricks (~/.databrickscfg). Define el workspace destino.
+    # No se llama -Profile porque $PROFILE es una variable automatica de
+    # PowerShell y un parametro con ese nombre la sombrearia dentro del script.
+    [string]$DatabricksProfile,
+
     [switch]$OnlyValidate
 )
 
@@ -23,13 +34,23 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $repoRoot
 
-Write-Host "==> 1/4 Validando la configuracion de $Env" -ForegroundColor Cyan
+# Arreglo vacio cuando no hay perfil: pasar una cadena vacia haria que el CLI la
+# tomara como nombre de perfil y fallara.
+$perfilArgs = @()
+if ($DatabricksProfile) {
+    $perfilArgs = @('-p', $DatabricksProfile)
+}
+elseif (-not $env:DATABRICKS_HOST) {
+    Write-Warning "Sin -DatabricksProfile ni DATABRICKS_HOST, el CLI usara el perfil DEFAULT. Verifica que apunte al workspace que esperas."
+}
+
+Write-Host "==> 1/5 Validando la configuracion de $Env" -ForegroundColor Cyan
 python -m finops.cli validate --env $Env
 if ($LASTEXITCODE -ne 0) { throw "La validacion de configuracion fallo" }
 
 # Los dashboards estan versionados ya resueltos por entorno. Este paso solo
 # avisa si difieren del generador; no es un paso de build previo al deploy.
-Write-Host "==> 2/4 Verificando que los dashboards esten al dia" -ForegroundColor Cyan
+Write-Host "==> 2/5 Verificando que los dashboards esten al dia" -ForegroundColor Cyan
 python scripts/dashboards.py check
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Regenerando..." -ForegroundColor Yellow
@@ -38,8 +59,16 @@ if ($LASTEXITCODE -ne 0) {
     Write-Warning "Los dashboards cambiaron. Revisa el diff y commitea."
 }
 
-Write-Host "==> 3/4 Validando el bundle" -ForegroundColor Cyan
-databricks bundle validate -t $Env
+# Reescribe los tableros contra el catalogo real (conf/local.yml incluido) en
+# build/dashboards/, que es a donde apunta resources/dashboards.yml. Sin este
+# paso el deploy falla; si apuntara directo a los versionados, no fallaria y los
+# cuatro tableros saldrian vacios contra un catalogo ajeno.
+Write-Host "==> 3/5 Resolviendo los dashboards para esta instalacion" -ForegroundColor Cyan
+python scripts/dashboards.py render --env $Env
+if ($LASTEXITCODE -ne 0) { throw "La resolucion de dashboards fallo" }
+
+Write-Host "==> 4/5 Validando el bundle" -ForegroundColor Cyan
+databricks bundle validate -t $Env @perfilArgs
 if ($LASTEXITCODE -ne 0) { throw "La validacion del bundle fallo" }
 
 if ($OnlyValidate) {
@@ -47,11 +76,11 @@ if ($OnlyValidate) {
     exit 0
 }
 
-Write-Host "==> 4/4 Desplegando a $Env" -ForegroundColor Cyan
-databricks bundle deploy -t $Env
+Write-Host "==> 5/5 Desplegando a $Env" -ForegroundColor Cyan
+databricks bundle deploy -t $Env @perfilArgs
 if ($LASTEXITCODE -ne 0) { throw "El deploy fallo" }
 
 Write-Host ""
 Write-Host "Despliegue completo. Siguientes pasos:" -ForegroundColor Green
-Write-Host "  databricks bundle run finops_pipeline_diario -t $Env"
-Write-Host "  databricks bundle summary -t $Env"
+Write-Host "  databricks bundle run finops_pipeline_diario -t $Env $perfilArgs"
+Write-Host "  databricks bundle summary -t $Env $perfilArgs"

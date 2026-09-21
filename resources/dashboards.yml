@@ -1,13 +1,19 @@
 # =============================================================================
 # Dashboards Lakeview.
 #
-# Los archivos apuntan a `dashboards/`, que estan VERSIONADOS y se generan con:
+# Los archivos apuntan a `build/dashboards/`, que NO se versiona: son los
+# tableros resueltos contra el catalogo de ESTA instalacion. Se producen con
 #
-#     python scripts/dashboards.py generate
+#     python scripts/dashboards.py render --env <entorno>
 #
-# No hay paso de build previo al deploy: `databricks bundle deploy` funciona
-# directamente sobre el repositorio. Si cambias el SQL o el layout, edita
-# `scripts/dashboards.py`, regenera y commitea (CI verifica que no haya deriva).
+# que `scripts/deploy.*` ejecuta antes de desplegar. Si corres
+# `databricks bundle deploy` a mano, corre `render` primero o el deploy fallara
+# con "no such file or directory".
+#
+# Por que no apuntar directo a `dashboards/`: esos JSON estan resueltos contra
+# la configuracion NEUTRA del repositorio y nombran el catalogo `finops`. Una
+# instalacion con otro catalogo desplegaria cuatro tableros apuntando a un
+# catalogo ajeno, que no fallan: salen VACIOS.
 #
 # Un solo juego de archivos sirve para los tres entornos porque comparten
 # catalogo y schemas. Los nombres de tabla salen de la configuracion, nunca
@@ -22,19 +28,19 @@ resources:
   dashboards:
     finops_ejecutivo:
       display_name: "[FinOps] Vista ejecutiva (${bundle.target})"
-      file_path: ../dashboards/finops_ejecutivo.lvdash.json
+      file_path: ../build/dashboards/finops_ejecutivo.lvdash.json
       warehouse_id: ${var.warehouse_id}
       parent_path: ${workspace.root_path}/dashboards
 
     finops_costos:
       display_name: "[FinOps] Costos y chargeback (${bundle.target})"
-      file_path: ../dashboards/finops_costos.lvdash.json
+      file_path: ../build/dashboards/finops_costos.lvdash.json
       warehouse_id: ${var.warehouse_id}
       parent_path: ${workspace.root_path}/dashboards
 
     finops_optimizacion:
       display_name: "[FinOps] Optimizacion y gobierno (${bundle.target})"
-      file_path: ../dashboards/finops_optimizacion.lvdash.json
+      file_path: ../build/dashboards/finops_optimizacion.lvdash.json
       warehouse_id: ${var.warehouse_id}
       parent_path: ${workspace.root_path}/dashboards
 
@@ -44,6 +50,6 @@ resources:
     # credenciales embebidas.
     finops_etiquetado:
       display_name: "[FinOps] Gobierno de etiquetado (${bundle.target})"
-      file_path: ../dashboards/finops_etiquetado.lvdash.json
+      file_path: ../build/dashboards/finops_etiquetado.lvdash.json
       warehouse_id: ${var.warehouse_id}
       parent_path: ${workspace.root_path}/dashboards

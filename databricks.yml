@@ -1,14 +1,25 @@
 # =============================================================================
 # Databricks Asset Bundle — Plataforma de analitica FinOps
 #
-# Despliegue:
-#   databricks bundle validate -t dev
-#   databricks bundle deploy   -t dev
-#   databricks bundle run finops_pipeline_diario -t dev
+# El WORKSPACE DESTINO no esta escrito aqui: sale del perfil del CLI o de
+# DATABRICKS_HOST. Este repositorio es producto y se despliega sobre la cuenta
+# de cada cliente; un host quemado se heredaria en instalaciones ajenas.
 #
-# O bien, con el script que encadena los tres pasos:
-#   pwsh scripts/deploy.ps1 -Env dev
-#   bash scripts/deploy.sh dev
+#   databricks auth login --host https://adb-XXXX.N.azuredatabricks.net -p finops
+#
+# Despliegue:
+#   databricks bundle validate -t dev -p finops
+#   databricks bundle deploy   -t dev -p finops
+#   databricks bundle run finops_pipeline_diario -t dev -p finops
+#
+# O bien, con el script que encadena los pasos:
+#   pwsh scripts/deploy.ps1 -Env dev -Profile finops
+#   bash scripts/deploy.sh dev --profile finops
+#
+# El `warehouse_id` que alimenta los dashboards tampoco tiene valor por defecto.
+# Se pasa con --var o con la variable de entorno equivalente:
+#   databricks warehouses list -p finops
+#   export BUNDLE_VAR_warehouse_id=<id>
 # =============================================================================
 
 bundle:
@@ -31,6 +42,19 @@ artifacts:
     path: .
 
 sync:
+  # El CLI excluye del bundle todo lo que git ignora, y la configuracion de la
+  # instalacion (conf/local.yml) esta ignorada a proposito. Sin estas dos lineas
+  # el pipeline corre EN EL WORKSPACE con la configuracion neutra del
+  # repositorio: sin workspaces mapeados, sin presupuestos y con todo el costo
+  # cayendo en SIN_ASIGNAR, sin ningun error visible.
+  include:
+    - conf/local.yml
+    - conf/budgets.local.yml
+    # Los tableros resueltos para esta instalacion (ver resources/dashboards.yml).
+    # `build/` esta en .gitignore, asi que sin esta linea el deploy falla con
+    # "no such file or directory" sobre el primer dashboard.
+    - build/dashboards/*.lvdash.json
+
   exclude:
     - .git/**
     - .venv/**
@@ -38,38 +62,63 @@ sync:
     - .ruff_cache/**
     - __pycache__/**
     - dist/**
-    - build/**
+    # `build/**` NO se excluye aqui: git ya lo ignora, y excluirlo ademas
+    # tapaba el `include` de build/dashboards/ de arriba.
     - tests/**
     - "*.egg-info/**"
 
 variables:
   catalog:
     description: Catalogo de Unity Catalog donde vive el modelo FinOps.
-    default: finops_dev
+    default: finops
 
   warehouse_id:
     description: >-
       ID del SQL warehouse que alimenta los dashboards. Obtenerlo con
       `databricks warehouses list -p <perfil>`. Es obligatorio para desplegar
-      los dashboards. Se define por target, no aqui: un default apuntando al
-      warehouse de un entorno se heredaria silenciosamente en los demas.
-    default: ""
+      los dashboards. SIN VALOR POR DEFECTO a proposito: el warehouse pertenece
+      al workspace del cliente, y un default apuntando a otro haria fallar el
+      deploy con un error opaco en vez de pedir el dato. Pasarlo con
+      `--var="warehouse_id=..."` o `BUNDLE_VAR_warehouse_id`.
 
   node_type_id:
-    description: Tipo de nodo del cluster de job (Azure).
-    default: Standard_D4ds_v5
+    description: >-
+      Tipo de nodo del cluster de job (Azure). El pipeline es liviano y no pide
+      hardware concreto, asi que este valor es solo "algo que exista y tenga
+      capacidad en la region del workspace".
+
+      Si el cluster muere con CLOUD_PROVIDER_RESOURCE_STOCKOUT / SkuNotAvailable
+      -- que la tarea reporta como INTERNAL_ERROR, sin parecerse a la causa --
+      la SKU esta agotada en esa region: cambiala por otra familia, no por otro
+      tamano de la misma. Pools distintos: D2ads_v6 (AMD v6), D4ds_v5 (Intel v5),
+      DS3_v2 (v2, la generacion mas vieja y la mas disponible).
+
+          databricks clusters list-node-types -p <perfil>
+          databricks bundle deploy -t dev -p <perfil> --var="node_type_id=Standard_DS3_v2"
+    default: Standard_D2ads_v6
 
   spark_version:
     description: Version de Databricks Runtime (LTS recomendado).
-    default: 15.4.x-scala2.12
+    default: 16.4.x-scala2.12
 
   num_workers:
-    description: Workers del cluster de job. El pipeline es liviano; 1-2 basta.
-    default: 1
+    description: >-
+      Workers del cluster del pipeline diario. 0 = NODO UNICO, que es el valor
+      por defecto: el pipeline lee una ventana corta de las system tables y
+      escribe agregados, asi que no hay reparto que justifique workers. Ademas
+      pedir UNA VM en vez de varias reduce la probabilidad de chocar con las
+      restricciones de capacidad de la region.
+
+      Si se sube, hay que quitar tambien `spark.master`,
+      `spark.databricks.cluster.profile` y el tag `ResourceClass` del cluster en
+      resources/jobs.yml: un cluster declarado singleNode con workers no arranca.
+    default: 0
 
   notification_email:
-    description: Correo que recibe las notificaciones de fallo de los jobs.
-    default: finops@dataknow.com.co
+    description: >-
+      Correo que recibe las notificaciones de fallo de los jobs. Ajustar por
+      instalacion con `--var` o `BUNDLE_VAR_notification_email`.
+    default: finops@example.com
 
   cron_pipeline:
     description: >-
@@ -95,44 +144,29 @@ targets:
     mode: development     # prefija los recursos con el usuario y pausa schedules
     default: true
     workspace:
-      host: https://adb-4198581253243445.5.azuredatabricks.net
+      # Sin `host`: lo aporta el perfil del CLI (-p) o DATABRICKS_HOST. Ver el
+      # encabezado de este archivo.
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
     variables:
-      catalog: finops_dev
-      num_workers: 1
-      pipeline_paused: PAUSED
-      warehouse_id: "730b460717eaeb62"
-
-  # ---------------------------------------------------------------------------
-  qa:
-    mode: production
-    workspace:
-      host: https://adb-2370424844216896.16.azuredatabricks.net
-      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
-    variables:
-      catalog: finops_qa
-      num_workers: 1
-      pipeline_paused: UNPAUSED
-      warehouse_id: ""      # TODO: warehouse de qa
-    run_as:
-      # TODO: reemplazar por el service principal de qa. Con `mode: production`
-      #       Databricks exige que el propietario del despliegue sea explicito.
-      user_name: ${workspace.current_user.userName}
-
-  # ---------------------------------------------------------------------------
-  prd:
-    mode: production
-    workspace:
-      host: https://adb-7042033821150253.13.azuredatabricks.net
-      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
-    variables:
       catalog: finops
-      num_workers: 2
-      pipeline_paused: UNPAUSED
-      warehouse_id: ""      # TODO: warehouse de produccion
-    run_as:
-      # TODO: reemplazar por el service principal de produccion.
-      user_name: ${workspace.current_user.userName}
-    permissions:
-      - level: CAN_VIEW
-        group_name: users
+      num_workers: 0
+      pipeline_paused: PAUSED
+
+# ---------------------------------------------------------------------------
+# Un unico target de despliegue: dev.
+#
+# El modelo FinOps describe el consumo de la CUENTA, no de un ambiente: lee
+# `system.billing.usage`, que cubre todos los workspaces de la cuenta. El
+# pipeline corriendo en un solo workspace mide igual el gasto de los demas, asi
+# que no hace falta una copia desplegada por ambiente. Ver docs/adr/0005.
+#
+# Los targets `qa` y `prd` se retiraron: desplegaban sobre workspaces de la
+# misma cuenta y solo duplicaban jobs y tableros sobre los mismos datos. Si una
+# instalacion necesita aislar el despliegue, agregar el target aqui con su
+# propio `root_path` y desplegarlo con el perfil de ese workspace.
+#
+# `conf/qa.yml` y `conf/prd.yml` se conservan a proposito: son overlays de
+# CONFIGURACION, un eje distinto del despliegue. `scripts/dashboards.py` los usa
+# para verificar que los tres entornos generen tableros identicos, y varios
+# tests los parametrizan.
+# ---------------------------------------------------------------------------

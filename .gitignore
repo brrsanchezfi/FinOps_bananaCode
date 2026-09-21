@@ -26,8 +26,19 @@ htmlcov/
 .env
 *.pem
 *.key
-conf/local.yml
 conf/*.secret.yml
+
+# Configuracion del DESPLIEGUE CONCRETO: workspaces, unidades de negocio,
+# presupuestos y responsables del cliente. El repositorio distribuye producto,
+# no instalaciones. Las plantillas `conf/*.example.yml` SI se versionan.
+#
+# OJO: el CLI de Databricks excluye del bundle lo que git ignora, asi que estos
+# archivos se fuerzan de vuelta con `sync.include` en databricks.yml. Si se
+# quitan de ahi, el pipeline corre en el workspace con la configuracion neutra
+# del repositorio y las cifras salen sin atribuir.
+conf/local.yml
+conf/*.local.yml
+!conf/*.example.yml
 
 # Sistema operativo / editores
 .DS_Store
