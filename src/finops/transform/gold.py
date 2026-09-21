@@ -56,6 +56,24 @@ def _dimensions(cfg: FinOpsConfig) -> list[str]:
     return list(cfg.get("tagging.dimensions", []) or [])
 
 
+def cost_daily_grain(cfg: FinOpsConfig) -> list[str]:
+    """Columnas que forman el grano de `fct_cost_daily`.
+
+    Es UNA sola definicion a proposito: la usa el constructor de la tabla y el
+    chequeo de duplicados. Cuando estaban escritas por separado, el chequeo
+    agrupaba por (fecha, workspace, sku, entidad) -- un subconjunto -- y
+    reportaba como duplicadas filas que difieren en `sku_group`, en
+    `compute_family` o en cualquier dimension de etiqueta. Es un chequeo de
+    severidad `error`: con `fail_pipeline_on_error: true` tumbaba el pipeline
+    en qa y prd con el modelo perfectamente sano.
+    """
+    return [
+        "usage_date", "account_id", "workspace_id", "cloud", "sku_name", "sku_group",
+        "compute_family", "is_serverless", "is_photon",
+        "entity_key", "entity_type", "entity_id", *_dimensions(cfg),
+    ]
+
+
 def _sum_measures(alias_prefix: str = "") -> list[Any]:
     from pyspark.sql import functions as F
 
@@ -192,16 +210,11 @@ def build_cost_daily(spark: SparkSession, cfg: FinOpsConfig) -> DataFrame:
     """Hecho de costo diario. Grano: fecha x workspace x sku x entidad x etiquetas."""
     from pyspark.sql import functions as F
 
-    dims = _dimensions(cfg)
     silver = spark.table(SLV_USAGE_PRICED.fqn(cfg)).filter(
         F.col("usage_date").between(cfg.min_date, cfg.max_date)
     )
 
-    claves = [
-        "usage_date", "account_id", "workspace_id", "cloud", "sku_name", "sku_group",
-        "compute_family", "is_serverless", "is_photon",
-        "entity_key", "entity_type", "entity_id", *dims,
-    ]
+    claves = cost_daily_grain(cfg)
     return (
         silver.groupBy(*claves)
         .agg(

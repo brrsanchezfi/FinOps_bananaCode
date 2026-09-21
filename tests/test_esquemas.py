@@ -264,3 +264,44 @@ class TestTablasQueDebenExistirSiempre:
         assert sin_garantia == set(), (
             f"consultan tablas que podrian no existir: {sorted(sin_garantia)}"
         )
+
+
+class TestGranoDeCostoDiario:
+    """El grano de `fct_cost_daily` se declara UNA vez.
+
+    El chequeo de duplicados agrupaba por (fecha, workspace, sku, entidad), un
+    subconjunto del grano real. Filas que difieren en `sku_group`,
+    `compute_family` o en una dimension de etiqueta salian como duplicadas; al
+    ser un chequeo de severidad `error`, con `fail_pipeline_on_error: true`
+    tumbaba el pipeline en qa y prd con el modelo sano.
+    """
+
+    def test_el_grano_incluye_las_dimensiones_de_etiqueta(self, cfg_dev):
+        from finops.transform.gold import cost_daily_grain
+
+        grano = cost_daily_grain(cfg_dev)
+        for dimension in cfg_dev.get("tagging.dimensions"):
+            assert dimension in grano, f"'{dimension}' no esta en el grano"
+
+    def test_el_grano_incluye_las_columnas_que_separan_filas(self, cfg_dev):
+        from finops.transform.gold import cost_daily_grain
+
+        grano = cost_daily_grain(cfg_dev)
+        # Estas fueron justamente las que provocaban el falso positivo: un mismo
+        # sku_name puede caer en dos sku_group distintos en la misma fecha,
+        # workspace y entidad.
+        for columna in ("sku_group", "compute_family", "is_serverless", "is_photon"):
+            assert columna in grano, f"'{columna}' no esta en el grano"
+
+    def test_el_chequeo_no_usa_una_clave_propia(self):
+        """Si vuelve a escribirse la clave a mano, las dos definiciones derivan."""
+        from pathlib import Path
+
+        raiz = Path(__file__).resolve().parents[1]
+        fuente = (raiz / "src" / "finops" / "quality" / "checks.py").read_text(encoding="utf-8")
+        assert "cost_daily_grain" in fuente, (
+            "el chequeo de duplicados debe agrupar por gold.cost_daily_grain"
+        )
+        assert '"usage_date", "workspace_id", "sku_name", "entity_key"' not in fuente, (
+            "el chequeo volvio a declarar su propia clave de duplicados"
+        )

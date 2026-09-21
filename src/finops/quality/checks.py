@@ -304,13 +304,14 @@ def run_checks(spark: SparkSession, cfg: FinOpsConfig) -> list[CheckResult]:
             ratio = (float(fila["attr"] or 0.0) / total_costo) if total_costo > 0 else 1.0
             resultados.append(evaluate_tag_coverage(ratio, minimo_cobertura, dimension, gold_fqn))
 
-        duplicados = (
-            gold.groupBy("usage_date", "workspace_id", "sku_name", "entity_key")
-            .count()
-            .filter(F.col("count") > 1)
-            .count()
-        )
-        resultados.append(evaluate_duplicates(duplicados, gold_fqn, "combinacion fecha/workspace/sku/entidad"))
+        # El grano sale de `gold.cost_daily_grain`, no escrito de nuevo aqui: una
+        # clave mas corta que la real marca como duplicadas filas que difieren
+        # en una columna del grano, y este chequeo es bloqueante.
+        from ..transform.gold import cost_daily_grain
+
+        grano = [c for c in cost_daily_grain(cfg) if c in gold.columns]
+        duplicados = gold.groupBy(*grano).count().filter(F.col("count") > 1).count()
+        resultados.append(evaluate_duplicates(duplicados, gold_fqn, "combinacion del grano de fct_cost_daily"))
 
     resumen = summarize(resultados)
     log.info(
