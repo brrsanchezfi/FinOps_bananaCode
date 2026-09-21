@@ -85,6 +85,31 @@ operacion de administracion, no de un pipeline de datos.
 > El pipeline no intenta crear el catalogo si ya existe, asi que una vez creado
 > el problema no reaparece.
 
+> **Si el catalogo se crea bien pero falla al escribir la primera TABLA**
+>
+> Dos variantes distintas, las dos con el mismo sintoma aparente ("el catalogo
+> existe, los schemas existen, y aun asi no funciona"):
+>
+> 1. **`DAC_DOES_NOT_EXIST: Root storage credential for metastore ... does not
+>    exist`.** El metastore declara un `storage_root` pero no tiene credencial
+>    raiz. `CREATE SCHEMA` no falla -- los schemas quedan creados -- y el error
+>    aparece recien al crear la primera tabla gestionada, asi que el catalogo se
+>    ve perfectamente montado y no sirve. Solucion: dar al catalogo su propia
+>    ubicacion, apuntando a una external location que si tenga credencial:
+>    ```bash
+>    databricks external-locations list -p <perfil>
+>    databricks catalogs create <catalogo> >      --storage-root "abfss://<contenedor>@<cuenta>.dfs.core.windows.net/<ruta>" -p <perfil>
+>    ```
+>    y dejarlo anotado en `conf/local.yml` bajo `catalog.managed_location`, para
+>    que una recreacion del catalogo no repita el diagnostico.
+>
+> 2. **`NATIVE_IO_ERROR ... DEADLINE_EXCEEDED: acquiring connection`.** La
+>    credencial y la ruta estan bien (se puede comprobar escribiendo una tabla
+>    desde un SQL warehouse serverless); lo que no se establece es la conexion
+>    del compute al storage. Suele ser una regla de red en la cuenta de
+>    almacenamiento que no contempla la subred de los clusters clasicos de ese
+>    workspace.
+
 **3. Lectura para los consumidores de los dashboards.**
 
 ```sql
