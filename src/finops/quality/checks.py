@@ -98,11 +98,31 @@ def evaluate_row_count(total_rows: int, min_rows: int, table: str = "") -> Check
     )
 
 
-def evaluate_negative_cost(negative_rows: int, max_rows: int, table: str = "") -> CheckResult:
+def evaluate_negative_cost(
+    negative_rows: int, max_rows: int, table: str = "", *, retraction_rows: int = 0
+) -> CheckResult:
+    """Filas con costo negativo que NO se explican por una retractacion.
+
+    Un costo negativo normalmente delata un defecto de valorizacion, y por eso
+    el chequeo es bloqueante. Pero Databricks corrige consumo ya facturado
+    emitiendo una fila `RETRACTION` con cantidad NEGATIVA mas una `RESTATEMENT`
+    con el valor corregido: la negativa es el mecanismo, no el sintoma, y anula
+    a la original al sumar.
+
+    Contarlas hacia el limite tumbaba el pipeline en qa y prd -- donde
+    `fail_pipeline_on_error` esta en true -- cada vez que una correccion legitima
+    caia dentro de la ventana procesada.
+
+    `retraction_rows` se reporta para que la exclusion sea visible: si las
+    retractaciones se disparan, es una senhal contable que hay que mirar aunque
+    el chequeo pase.
+    """
     ok = negative_rows <= max_rows
+    mensaje = f"{negative_rows:,} filas con costo negativo (maximo tolerado {max_rows:,})"
+    if retraction_rows:
+        mensaje += f"; {retraction_rows:,} retractacion(es) excluida(s) por record_type"
     return CheckResult(
-        "negative_cost", table, ok, SEVERITY_ERROR, float(negative_rows), float(max_rows),
-        f"{negative_rows:,} filas con costo negativo (maximo tolerado {max_rows:,})",
+        "negative_cost", table, ok, SEVERITY_ERROR, float(negative_rows), float(max_rows), mensaje,
     )
 
 
@@ -239,11 +259,23 @@ def run_checks(spark: SparkSession, cfg: FinOpsConfig) -> list[CheckResult]:
     if patrones_ignorados:
         ventana = ventana.filter(~ignorados)
 
+    # Una retractacion de Databricks es una fila de cantidad negativa que anula
+    # consumo ya facturado: es el mecanismo de correccion, no un defecto. Se
+    # separa del conteo de costos negativos y se reporta aparte.
+    es_retractacion = (
+        F.upper(F.coalesce(F.col("record_type"), F.lit(""))) == "RETRACTION"
+        if "record_type" in ventana.columns
+        else F.lit(False)
+    )
+
     agregado = ventana.agg(
         F.count("*").alias("total"),
         F.max("usage_date").alias("max_date"),
         F.sum(F.when(F.col("total_cost_usd").isNull(), 1).otherwise(0)).alias("null_cost"),
-        F.sum(F.when(F.col("total_cost_usd") < 0, 1).otherwise(0)).alias("negative_cost"),
+        F.sum(
+            F.when((F.col("total_cost_usd") < 0) & ~es_retractacion, 1).otherwise(0)
+        ).alias("negative_cost"),
+        F.sum(F.when((F.col("total_cost_usd") < 0) & es_retractacion, 1).otherwise(0)).alias("retractaciones"),
         F.sum(F.when(~F.col("price_missing"), 1).otherwise(0)).alias("priced"),
     ).collect()[0]
 
@@ -262,7 +294,8 @@ def run_checks(spark: SparkSession, cfg: FinOpsConfig) -> list[CheckResult]:
     )
     resultados.append(
         evaluate_negative_cost(
-            int(agregado["negative_cost"] or 0), int(checks_cfg.get("max_negative_cost_rows", 0)), silver_fqn
+            int(agregado["negative_cost"] or 0), int(checks_cfg.get("max_negative_cost_rows", 0)), silver_fqn,
+            retraction_rows=int(agregado["retractaciones"] or 0),
         )
     )
     precios_resueltos = int(agregado["priced"] or 0)
