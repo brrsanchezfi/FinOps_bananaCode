@@ -1,0 +1,84 @@
+{
+  "_doc": "Bronze — Snapshot de definiciones de jobs (system.lakeflow.jobs).",
+  "catalog": "{catalog.bronze}",
+  "schema": "{path.schema_bronze}",
+  "name": "brz_lakeflow_jobs",
+  "type": "MANAGED",
+  "format": "DELTA",
+  "comment": "Snapshot de definiciones de jobs (system.lakeflow.jobs).",
+  "owner": "finops",
+  "columns": [
+    {
+      "name": "account_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "workspace_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "job_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "name",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "description",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "creator_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "tags",
+      "type": "MAP",
+      "nullable": true,
+      "comment": "MAP<STRING,STRING>"
+    },
+    {
+      "name": "change_time",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "delete_time",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "run_as",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "_ingested_at",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "_run_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "_source",
+      "type": "STRING",
+      "nullable": true
+    }
+  ],
+  "partitions": [],
+  "properties": {
+    "layer": "bronze",
+    "quality": "raw",
+    "merge_schema": true
+  }
+}

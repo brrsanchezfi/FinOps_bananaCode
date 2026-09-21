@@ -1,0 +1,55 @@
+{
+  "_doc": "Bronze — Marcas de agua de ingesta por fuente.",
+  "catalog": "{catalog.bronze}",
+  "schema": "{path.schema_bronze}",
+  "name": "ops_watermark",
+  "type": "MANAGED",
+  "format": "DELTA",
+  "comment": "Marcas de agua de ingesta por fuente.",
+  "owner": "finops",
+  "columns": [
+    {
+      "name": "source_key",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "watermark_date",
+      "type": "DATE",
+      "nullable": true
+    },
+    {
+      "name": "rows_ingested",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "run_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "pipeline_environment",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "updated_at",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "details",
+      "type": "MAP",
+      "nullable": true,
+      "comment": "MAP<STRING,STRING>"
+    }
+  ],
+  "partitions": [],
+  "properties": {
+    "layer": "bronze",
+    "quality": "raw",
+    "merge_schema": true
+  }
+}

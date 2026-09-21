@@ -1,0 +1,60 @@
+{
+  "_doc": "Bronze — Catalogo de tipos de nodo disponibles (system.compute.node_types).",
+  "catalog": "{catalog.bronze}",
+  "schema": "{path.schema_bronze}",
+  "name": "brz_compute_node_types",
+  "type": "MANAGED",
+  "format": "DELTA",
+  "comment": "Catalogo de tipos de nodo disponibles (system.compute.node_types).",
+  "owner": "finops",
+  "columns": [
+    {
+      "name": "account_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "node_type",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "core_count",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "memory_mb",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "gpu_count",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "_ingested_at",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "_run_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "_source",
+      "type": "STRING",
+      "nullable": true
+    }
+  ],
+  "partitions": [],
+  "properties": {
+    "layer": "bronze",
+    "quality": "raw",
+    "merge_schema": true
+  }
+}

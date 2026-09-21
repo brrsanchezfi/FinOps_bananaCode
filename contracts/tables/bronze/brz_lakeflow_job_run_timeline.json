@@ -1,0 +1,107 @@
+{
+  "_doc": "Bronze — Linea de tiempo de ejecuciones de jobs.",
+  "catalog": "{catalog.bronze}",
+  "schema": "{path.schema_bronze}",
+  "name": "brz_lakeflow_job_run_timeline",
+  "type": "MANAGED",
+  "format": "DELTA",
+  "comment": "Linea de tiempo de ejecuciones de jobs.",
+  "owner": "finops",
+  "columns": [
+    {
+      "name": "account_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "workspace_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "job_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "run_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "period_start_time",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "period_end_time",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "trigger_type",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "run_type",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "run_name",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "compute_ids",
+      "type": "ARRAY",
+      "nullable": true,
+      "comment": "ARRAY<STRING>"
+    },
+    {
+      "name": "result_state",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "termination_code",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "job_parameters",
+      "type": "MAP",
+      "nullable": true,
+      "comment": "MAP<STRING,MAP<STRING,STRING>>"
+    },
+    {
+      "name": "run_date",
+      "type": "DATE",
+      "nullable": true
+    },
+    {
+      "name": "_ingested_at",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "_run_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "_source",
+      "type": "STRING",
+      "nullable": true
+    }
+  ],
+  "partitions": [
+    "run_date"
+  ],
+  "properties": {
+    "layer": "bronze",
+    "quality": "raw",
+    "merge_schema": true
+  }
+}
