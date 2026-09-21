@@ -386,9 +386,19 @@ def stage_analytics(spark: SparkSession, cfg: FinOpsConfig, result: PipelineResu
                     for line in lineas
                 )
             if filas:
-                metrica.rows = merge_table(
+                # Snapshot completo, NO merge.
+                #
+                # Cada corrida recalcula TODOS los periodos de la ventana desde
+                # fct_cost_daily, asi que `filas` ya es el resultado entero y no
+                # un delta. Un merge con claves ["period", "allocation_dimension",
+                # "unit"] convertia la tabla en un acumulador: `unit` es un VALOR
+                # que cambia (Transversales -> Transversal al canonizar, o toda la
+                # dimension al cambiar allocation_dimension), y una fila cuyo valor
+                # cambio deja de coincidir, asi que el merge insertaba la nueva y
+                # dejaba la vieja para siempre. El tablero de chargeback acababa
+                # sumando varias generaciones de la misma unidad.
+                metrica.rows = overwrite_table(
                     spark, rows_to_dataframe(spark, filas, esquemas["chargeback"]), GOLD_CHARGEBACK.fqn(cfg),
-                    keys=["period", "allocation_dimension", "unit"],
                     properties=propiedades, dry_run=cfg.dry_run,
                 )
             else:
