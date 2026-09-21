@@ -403,7 +403,17 @@ quality:
     # aqui es gasto que deja de vigilarse. Bajar el umbral global en su lugar
     # enmascararia un SKU nuevo genuinamente sin valorizar.
     # Admite comodines glob, p. ej. "*_FREE" o "NETWORKING_*".
-    price_match_ignore_skus: []
+    #
+    # `*_FREE_USAGE` viene por defecto: es la convencion de Databricks para el
+    # consumo NO FACTURABLE (GENIE_FREE_USAGE y companhia), que por diseno no
+    # tiene precio de lista y factura 0. Sin esta entrada, el primer chequeo de
+    # calidad de CUALQUIER instalacion con Genie habilitado falla -- y como
+    # `price_match` es de severidad error, en qa y prd tumba el pipeline.
+    #
+    # Excluir aqui no es silenciar: el chequeo reporta cuantos registros
+    # excluyo, asi que si un SKU no facturable empieza a facturar se nota.
+    price_match_ignore_skus:
+      - "*_FREE_USAGE"
 
 # ---------------------------------------------------------------------------
 # Ejecucion / rendimiento
