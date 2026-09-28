@@ -438,6 +438,16 @@ def validate_config(cfg: FinOpsConfig) -> None:
         pct = regla.get("discount_pct", 0.0) if isinstance(regla, dict) else None
         if pct is None or not (0.0 <= float(pct) < 1.0):
             errores.append(f"pricing.discounts['{regla}'].discount_pct debe estar en [0, 1)")
+        # Un rango [...] de glob no tiene equivalente en SQL LIKE: la regla se
+        # evaluaria distinto en Python que en el pipeline. Mejor fallar aqui, en
+        # `finops validate` y en CI, que en silencio en la factura.
+        for esperado in ((regla.get("match") or {}).values() if isinstance(regla, dict) else []):
+            for patron in esperado if isinstance(esperado, (list, tuple)) else [esperado]:
+                if "[" in str(patron) or "]" in str(patron):
+                    errores.append(
+                        f"pricing.discounts['{regla.get('name')}']: el patron '{patron}' usa un "
+                        "rango [...], que SQL LIKE no soporta. Usa '*' o '?'."
+                    )
 
     dims = cfg.get("tagging.dimensions", []) or []
     if not dims:

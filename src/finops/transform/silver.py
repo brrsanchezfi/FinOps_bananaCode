@@ -115,7 +115,7 @@ def _map_literal(mapping: dict[str, Any]) -> Column:
 
 
 # ---------------------------------------------------------------------------
-# Clasificacion de SKU en Spark (espejo de pricing.classify_sku)
+# Clasificacion de SKU en Spark: compila pricing.CASCADA_DE_SKU
 # ---------------------------------------------------------------------------
 def sku_group_expr(sku_col: str = "sku_name", product_col: str = "billing_origin_product") -> Column:
     """Compila `pricing.CASCADA_DE_SKU` a una expresion CASE WHEN.
@@ -161,22 +161,35 @@ def sku_group_expr(sku_col: str = "sku_name", product_col: str = "billing_origin
 
 
 def discount_expr(discount_rules: list[dict[str, Any]] | None) -> tuple[Column, Column]:
-    """Construye (descuento, nombre_regla) evaluando las reglas en orden."""
+    """Compila las reglas de descuento a (descuento, nombre_regla).
+
+    No reimplementa la regla: usa las piezas de `pricing` que usa la version
+    Python -- `CLAVES_DE_DESCUENTO`, `glob_a_like`, `pct_de_regla` y
+    `nombre_de_regla` -- para que las dos no puedan divergir.
+
+    Divergian, y de forma que pegaba en la factura. Probado contra el motor
+    real de Databricks:
+
+      - Un descuento por `account_id` (un UUID en minusculas) NUNCA se aplicaba:
+        el patron se pasaba a mayusculas y la columna no, y LIKE distingue
+        mayusculas. Python lo aplicaba. El tablero reportaba precio de lista,
+        por encima de la factura, sin ningun error.
+      - `_` en un patron es comodin en LIKE y literal en glob.
+      - Con `*`, un valor NULL coincidia en Spark (se convertia en '' y
+        `'' LIKE '%'` es verdadero) y no en Python.
+
+    Ahora toda columna del contexto se pasa a mayusculas, el patron se traduce
+    con `glob_a_like`, y un NULL no coincide con nada (`IS NOT NULL`).
+
+    La cascada se recorre al reves para que la PRIMERA regla que coincida quede
+    en el `when` mas externo: es el orden en que la evalua Python.
+    """
     from pyspark.sql import functions as F
 
-    contexto = {
-        "workspace_id": F.col("workspace_id").cast("string"),
-        "account_id": F.col("account_id").cast("string"),
-        "sku_name": F.upper(F.col("sku_name").cast("string")),
-        "sku_group": F.col("sku_group"),
-        "billing_origin_product": F.upper(F.coalesce(F.col("billing_origin_product").cast("string"), F.lit(""))),
-        "cloud": F.upper(F.coalesce(F.col("cloud").cast("string"), F.lit(""))),
-    }
+    contexto = {clave: F.upper(F.col(clave).cast("string")) for clave in P.CLAVES_DE_DESCUENTO}
 
     descuento = F.lit(0.0)
     nombre = F.lit("sin_descuento")
-    # Se construye de la ultima a la primera para que la primera regla que
-    # coincida sea la que quede en el `when` mas externo.
     for regla in reversed(discount_rules or []):
         if not isinstance(regla, dict):
             continue
@@ -184,22 +197,19 @@ def discount_expr(discount_rules: list[dict[str, Any]] | None) -> tuple[Column, 
         for clave, esperado in (regla.get("match") or {}).items():
             columna = contexto.get(clave)
             if columna is None:
+                # Clave que el contexto no conoce: tampoco coincide en Python.
                 condicion = F.lit(False)
                 break
             candidatos = esperado if isinstance(esperado, (list, tuple)) else [esperado]
-            sub = F.lit(False)
+            alguno = F.lit(False)
             for candidato in candidatos:
-                sub = sub | columna.like(str(candidato).upper().replace("*", "%"))
-            condicion = condicion & sub
-        pct = max(0.0, min(float(regla.get("discount_pct", 0.0) or 0.0), 0.999))
-        descuento = F.when(condicion, F.lit(pct)).otherwise(descuento)
-        nombre = F.when(condicion, F.lit(str(regla.get("name", "sin_nombre")))).otherwise(nombre)
+                alguno = alguno | columna.like(P.glob_a_like(candidato))
+            condicion = condicion & columna.isNotNull() & alguno
+        descuento = F.when(condicion, F.lit(P.pct_de_regla(regla))).otherwise(descuento)
+        nombre = F.when(condicion, F.lit(P.nombre_de_regla(regla))).otherwise(nombre)
     return descuento, nombre
 
 
-# ---------------------------------------------------------------------------
-# Etiquetas
-# ---------------------------------------------------------------------------
 def _aliases_by_dimension(cfg: FinOpsConfig) -> dict[str, list[str]]:
     """Alias normalizados por dimension, respetando el indice de precedencia."""
     aliases = cfg.get("tagging.aliases", {}) or {}

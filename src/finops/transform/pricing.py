@@ -214,19 +214,85 @@ def compute_family(sku_group: str) -> str:
 # ---------------------------------------------------------------------------
 # Descuentos
 # ---------------------------------------------------------------------------
+#: Claves por las que una regla de descuento puede discriminar.
+#:
+#: Es UNA lista para las dos implementaciones: `build_pricing_context` (Python)
+#: y `silver.discount_expr` (Spark, la que corre en el pipeline). Antes cada una
+#: declaraba las suyas, y aunque hoy coincidian, nada impedia que divergieran.
+CLAVES_DE_DESCUENTO: tuple[str, ...] = (
+    "workspace_id", "account_id", "sku_name", "sku_group", "billing_origin_product", "cloud",
+)
+
+#: Descuento maximo aplicable. Un 100 % convertiria el consumo en gratis y
+#: taparia errores de configuracion.
+_DESCUENTO_MAXIMO = 0.999
+
+
+def glob_a_like(patron: str) -> str:
+    """Traduce un patron glob de una regla de descuento a SQL LIKE.
+
+    Es la pieza que hace que Python (fnmatch) y Spark (LIKE) coincidan, y no
+    coincidian. Los dos lenguajes de comodines no son el mismo:
+
+        glob   *  cualquier cosa     ?  un caracter     _ %  literales
+        LIKE   %  cualquier cosa     _  un caracter
+
+    Antes solo se traducia `*` -> `%`. El `_` -- que abunda en los nombres de SKU
+    -- quedaba como comodin de LIKE: `PREMIUM_JOBS_*` coincidia en Spark con
+    `PREMIUMXJOBSXCOMPUTE` y en Python no. Y `?` quedaba literal en Spark.
+
+    Se devuelve en MAYUSCULAS: la comparacion es insensible a mayusculas en los
+    dos lados, y en Spark la columna tambien se pasa a mayusculas.
+
+    Los rangos `[...]` de glob no tienen equivalente en LIKE: se rechazan (ver
+    `validate_config`) en vez de traducirlos a algo que diverja en silencio.
+    """
+    texto = str(patron).upper()
+    if "[" in texto or "]" in texto:
+        raise ValueError(
+            f"Patron de descuento '{patron}' con rango [...]: no tiene equivalente en "
+            "SQL LIKE y se clasificaria distinto en Python y en Spark. Usa '*' o '?'."
+        )
+    salida = []
+    for caracter in texto:
+        if caracter == "*":
+            salida.append("%")
+        elif caracter == "?":
+            salida.append("_")
+        elif caracter in "%_\\":
+            salida.append("\\" + caracter)
+        else:
+            salida.append(caracter)
+    return "".join(salida)
+
+
+def pct_de_regla(regla: dict[str, Any]) -> float:
+    """Descuento de una regla, acotado a [0, 0.999]. Compartido con Spark."""
+    return max(0.0, min(float(regla.get("discount_pct", 0.0) or 0.0), _DESCUENTO_MAXIMO))
+
+
+def nombre_de_regla(regla: dict[str, Any]) -> str:
+    return str(regla.get("name", "sin_nombre"))
+
+
 def _matches_rule(match: dict[str, Any], context: dict[str, Any]) -> bool:
     """Evalua el bloque `match` de una regla de descuento contra un contexto.
 
     Un `match` vacio siempre coincide (regla por defecto). Los valores admiten
-    comodines estilo glob y listas (OR).
+    comodines estilo glob y listas (OR). Un valor ausente NO coincide con nada,
+    ni siquiera con `*`: el compilador de Spark hace lo mismo con `IS NOT NULL`.
+
+    `fnmatchcase` y no `fnmatch`: `fnmatch` pasa por `os.path.normcase`, que en
+    Windows cambia la barra por barra invertida, asi que el resultado dependia del sistema
+    operativo -- y las pruebas corren en Windows en local y en Linux en CI.
     """
     for clave, esperado in (match or {}).items():
         actual = context.get(clave)
         if actual is None:
             return False
-        actual_txt = str(actual)
+        actual_txt = str(actual).upper()
         candidatos = esperado if isinstance(esperado, (list, tuple)) else [esperado]
-        if not any(fnmatch.fnmatch(actual_txt.upper(), str(c).upper()) for c in candidatos):
+        if not any(fnmatch.fnmatchcase(actual_txt, str(c).upper()) for c in candidatos):
             return False
     return True
 
@@ -241,8 +307,7 @@ def resolve_discount(rules: list[dict[str, Any]] | None, context: dict[str, Any]
         if not isinstance(regla, dict):
             continue
         if _matches_rule(regla.get("match", {}), context):
-            pct = float(regla.get("discount_pct", 0.0) or 0.0)
-            return max(0.0, min(pct, 0.999)), str(regla.get("name", "sin_nombre"))
+            return pct_de_regla(regla), nombre_de_regla(regla)
     return 0.0, "sin_descuento"
 
 
@@ -293,24 +358,25 @@ def infra_factor_for(cfg_infra: dict[str, Any] | None, sku_group: str) -> float:
 
 def build_pricing_context(record: dict[str, Any]) -> dict[str, Any]:
     """Extrae del registro crudo las claves que pueden usarse en `match`."""
-    return {
-        "workspace_id": record.get("workspace_id"),
-        "account_id": record.get("account_id"),
-        "sku_name": record.get("sku_name"),
-        "sku_group": record.get("sku_group") or classify_sku(
-            record.get("sku_name"), record.get("billing_origin_product")
-        ),
-        "billing_origin_product": record.get("billing_origin_product"),
-        "cloud": record.get("cloud"),
-    }
+    contexto = {clave: record.get(clave) for clave in CLAVES_DE_DESCUENTO}
+    contexto["sku_group"] = contexto["sku_group"] or classify_sku(
+        record.get("sku_name"), record.get("billing_origin_product")
+    )
+    return contexto
 
 
 def enrich_usage_record(record: dict[str, Any], pricing_cfg: dict[str, Any]) -> dict[str, Any]:
     """Aplica clasificacion + descuento + valorizacion a un registro de consumo.
 
-    Es la version pura de la transformacion silver; la implementacion Spark en
-    `silver.py` replica exactamente esta semantica y se contrasta contra esta
-    funcion en las pruebas.
+    Es la version pura de la transformacion silver. Las piezas que deciden algo
+    -- `CASCADA_DE_SKU`, `CLAVES_DE_DESCUENTO`, `glob_a_like`, `pct_de_regla` --
+    las comparte con la implementacion Spark de `silver.py`, en vez de que cada
+    lado tenga la suya.
+
+    Esta docstring afirmaba antes que la version Spark "se contrasta contra esta
+    funcion en las pruebas". No era cierto: `silver.py` estaba al 0 % de
+    cobertura, y la divergencia que habia -- un descuento por `account_id` que
+    Spark nunca aplicaba -- paso inadvertida justamente por eso.
     """
     grupo = classify_sku(record.get("sku_name"), record.get("billing_origin_product"))
     contexto = build_pricing_context({**record, "sku_group": grupo})
