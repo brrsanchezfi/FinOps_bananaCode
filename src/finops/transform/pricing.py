@@ -314,6 +314,42 @@ def resolve_discount(rules: list[dict[str, Any]] | None, context: dict[str, Any]
 # ---------------------------------------------------------------------------
 # Valorizacion
 # ---------------------------------------------------------------------------
+
+#: Campos del struct `pricing` de system.billing.list_prices, en orden de
+#: precedencia: se toma el primero que no sea nulo.
+#:
+#: `effective_list.default` va primero porque refleja el precio realmente
+#: aplicable cuando hay promociones vigentes; `default` es el precio de lista
+#: puro. En una cuenta real difieren en 300 de 1.067 tramos, asi que el orden
+#: no es cosmetico.
+#:
+#: Lo consumen las DOS valorizaciones del producto: la capa silver (tablas gold)
+#: y la vista `vw_usage_live` (tablero de gobierno). Antes cada una tenia su
+#: lista y la de la vista no traia `promotional`. Medido sobre esa cuenta, esa
+#: diferencia no movia ninguna cifra -- ningun tramo carece de precio principal
+#: -- pero era la unica diferencia de definicion entre dos joins sincronizados a
+#: mano, y nada impedia que crecieran otras.
+CAMPOS_DE_PRECIO: tuple[str, ...] = ("effective_list.default", "default", "promotional.default")
+
+
+def campos_de_precio_disponibles(campos_del_struct: dict[str, list[str] | None]) -> list[str]:
+    """Campos de `CAMPOS_DE_PRECIO` que existen en el esquema real de `pricing`.
+
+    `campos_del_struct` mapea cada campo de primer nivel a sus subcampos, o a
+    None si no es un struct. Funcion pura: el esquema de las system tables
+    cambia, y decidir que columnas leer no deberia requerir una SparkSession
+    para probarse.
+    """
+    salida = []
+    for ruta in CAMPOS_DE_PRECIO:
+        partes = ruta.split(".")
+        if partes[0] not in campos_del_struct:
+            continue
+        if len(partes) == 1 or partes[1] in (campos_del_struct[partes[0]] or []):
+            salida.append(ruta)
+    return salida
+
+
 def price_record(
     *,
     usage_quantity: float | None,

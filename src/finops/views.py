@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING
 from .catalog import TableDef
 from .config import FinOpsConfig
 from .logging_utils import get_logger
+from .transform.pricing import CAMPOS_DE_PRECIO
 from .transform.tags import build_alias_index, normalize_key
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -198,6 +199,10 @@ def build_usage_live_sql(cfg: FinOpsConfig) -> str:
     origen = str(cfg.get("sources.billing_usage.table", "system.billing.usage"))
     precios = str(cfg.get("sources.billing_list_prices.table", "system.billing.list_prices"))
     clave_norm = _NORM.format(expr="e.key")
+    # La misma precedencia que la capa silver (ver pricing.CAMPOS_DE_PRECIO).
+    # El esquema de system.billing.list_prices trae los tres campos, asi que
+    # aqui no hace falta el filtro por existencia que si necesita silver.
+    precio_unitario = "COALESCE(" + ", ".join(f"pricing.{c}" for c in CAMPOS_DE_PRECIO) + ")"
 
     return f"""
 CREATE OR REPLACE VIEW {fqn} AS
@@ -208,7 +213,7 @@ WITH precios AS (
     UPPER(COALESCE(CAST(cloud AS STRING), '')) AS cloud,
     price_start_time,
     price_end_time,
-    COALESCE(pricing.effective_list.default, pricing.default) AS unit_price
+    {precio_unitario} AS unit_price
   FROM {precios}
 )
 SELECT

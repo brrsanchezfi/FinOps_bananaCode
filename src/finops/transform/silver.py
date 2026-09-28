@@ -294,7 +294,11 @@ def resolve_tag_columns(df: DataFrame, cfg: FinOpsConfig, tag_map_columns: dict[
 # Precios
 # ---------------------------------------------------------------------------
 def _unit_price_column(prices: DataFrame) -> Column:
-    """Extrae el precio unitario del struct `pricing`, con respaldos."""
+    """Precio unitario del struct `pricing`, segun `pricing.CAMPOS_DE_PRECIO`.
+
+    La decision de que campos leer vive en `campos_de_precio_disponibles`, que
+    es pura; aqui solo se traduce a columnas.
+    """
     from pyspark.sql import functions as F
     from pyspark.sql.types import StructType
 
@@ -304,20 +308,14 @@ def _unit_price_column(prices: DataFrame) -> Column:
     if not isinstance(tipo, StructType):
         return F.col("pricing").cast("double")
 
-    campos = tipo.fieldNames()
-    candidatos: list[Column] = []
-    # `effective_list.default` refleja el precio realmente aplicable cuando hay
-    # promociones vigentes; `default` es el precio de lista puro.
-    if "effective_list" in campos:
-        sub = tipo["effective_list"].dataType
-        if isinstance(sub, StructType) and "default" in sub.fieldNames():
-            candidatos.append(F.col("pricing.effective_list.default").cast("double"))
-    if "default" in campos:
-        candidatos.append(F.col("pricing.default").cast("double"))
-    if "promotional" in campos:
-        sub = tipo["promotional"].dataType
-        if isinstance(sub, StructType) and "default" in sub.fieldNames():
-            candidatos.append(F.col("pricing.promotional.default").cast("double"))
+    estructura = {
+        campo.name: (campo.dataType.fieldNames() if isinstance(campo.dataType, StructType) else None)
+        for campo in tipo.fields
+    }
+    candidatos = [
+        F.col(f"pricing.{ruta}").cast("double")
+        for ruta in P.campos_de_precio_disponibles(estructura)
+    ]
     return F.coalesce(*candidatos) if candidatos else F.lit(None).cast("double")
 
 
