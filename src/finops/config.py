@@ -449,6 +449,18 @@ def validate_config(cfg: FinOpsConfig) -> None:
                         "rango [...], que SQL LIKE no soporta. Usa '*' o '?'."
                     )
 
+    # Un factor negativo RESTARIA costo del total. Antes no se validaba, Spark
+    # no lo acotaba y Python si, asi que las dos versiones daban cifras
+    # distintas con la misma configuracion.
+    for familia, factor in (cfg.get("pricing.infra_estimate.factor_by_compute") or {}).items():
+        try:
+            negativo = float(factor) < 0
+        except (TypeError, ValueError):
+            errores.append(f"pricing.infra_estimate.factor_by_compute.{familia} debe ser un numero")
+            continue
+        if negativo:
+            errores.append(f"pricing.infra_estimate.factor_by_compute.{familia} no puede ser negativo")
+
     dims = cfg.get("tagging.dimensions", []) or []
     if not dims:
         errores.append("tagging.dimensions no puede estar vacio")

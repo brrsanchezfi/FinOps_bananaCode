@@ -133,7 +133,7 @@ def sku_group_expr(sku_col: str = "sku_name", product_col: str = "billing_origin
 
     sku = F.upper(F.coalesce(F.col(sku_col).cast("string"), F.lit("")))
     producto = F.upper(F.trim(F.coalesce(F.col(product_col).cast("string"), F.lit(""))))
-    serverless = sku.rlike("(?i)SERVERLESS") | producto.rlike("(?i)SERVERLESS")
+    serverless = sku.rlike(f"(?i){P.PATRON_SERVERLESS}") | producto.rlike(f"(?i){P.PATRON_SERVERLESS}")
 
     columnas = {"producto": producto, "sku": sku}
 
@@ -366,50 +366,65 @@ def join_prices(usage: DataFrame, prices: DataFrame) -> DataFrame:
 # ---------------------------------------------------------------------------
 # slv_usage_priced
 # ---------------------------------------------------------------------------
-def build_usage_priced(spark: SparkSession, cfg: FinOpsConfig) -> DataFrame:
-    """Construye el DataFrame de consumo valorizado para la ventana de proceso."""
+# ---------------------------------------------------------------------------
+# Consumo valorizado (slv_usage_priced), paso a paso
+#
+# Antes era UNA funcion de 215 lineas que hacia siete cosas distintas y en dos
+# de ellas reimplementaba a mano logica que ya existia en `pricing`. Ahora cada
+# paso es una funcion DataFrame -> DataFrame con nombre, que se puede ubicar,
+# leer y probar por separado. `build_usage_priced` solo los encadena.
+#
+#     extraer_entidad      que recurso genero el consumo (job, cluster, ...)
+#     clasificar_sku       grupo, familia de computo, serverless, photon
+#     adjuntar_etiquetas   tags del consumo, del cluster y del job -> dimensiones
+#     adjuntar_nombres     nombre legible de la entidad y responsable
+#     valorizar            precio, descuento, infraestructura y costo
+#     columnas_de_salida   el contrato de columnas de la tabla
+#
+# Cada paso tiene sus pruebas en tests/test_silver_pasos.py, en una clase con
+# el mismo nombre que la funcion.
+# ---------------------------------------------------------------------------
+
+#: Campos de `usage_metadata` que identifican el recurso que genero el consumo.
+CAMPOS_DE_ENTIDAD = (
+    "job_id", "job_run_id", "cluster_id", "warehouse_id", "dlt_pipeline_id",
+    "endpoint_id", "instance_pool_id", "notebook_id", "app_id", "metastore_id",
+)
+
+
+def extraer_entidad(df: DataFrame) -> DataFrame:
+    """Recurso que genero cada registro: `entity_type`, `entity_id`, `entity_key`.
+
+    La prioridad sale de `tags.ENTITY_PRIORITY`, la misma que usa la version
+    Python. Se recorre al reves para que la primera coincidencia quede en el
+    `when` mas externo.
+    """
     from pyspark.sql import functions as F
 
-    usage = spark.table(BRZ_USAGE.fqn(cfg)).filter(
-        F.col("usage_date").between(cfg.min_date, cfg.max_date)
-    )
-    prices = spark.table(BRZ_LIST_PRICES.fqn(cfg))
+    from .tags import ENTITY_PRIORITY
 
-    # --- entidad de consumo ---
-    metadata_cols = {
-        campo: _struct_field(usage, "usage_metadata", campo)
-        for campo in (
-            "job_id", "job_run_id", "cluster_id", "warehouse_id", "dlt_pipeline_id",
-            "endpoint_id", "instance_pool_id", "notebook_id", "app_id", "metastore_id",
-        )
-    }
-    df = usage
-    for campo, columna in metadata_cols.items():
-        df = df.withColumn(campo, _blank_to_null(columna))
+    for campo in CAMPOS_DE_ENTIDAD:
+        df = df.withColumn(campo, _blank_to_null(_struct_field(df, "usage_metadata", campo)))
     df = df.withColumn(
         "run_as",
         _blank_to_null(
             F.coalesce(
-                _struct_field(usage, "identity_metadata", "run_as"),
-                _struct_field(usage, "identity_metadata", "owned_by"),
-                _struct_field(usage, "usage_metadata", "run_as"),
+                _struct_field(df, "identity_metadata", "run_as"),
+                _struct_field(df, "identity_metadata", "owned_by"),
+                _struct_field(df, "usage_metadata", "run_as"),
             )
         ),
     )
 
     tipo_entidad = F.lit("UNKNOWN")
     id_entidad = F.lit(None).cast("string")
-    # Se recorre la prioridad al reves para que la primera coincidencia quede
-    # en el `when` mas externo (mismo criterio que tags.ENTITY_PRIORITY).
-    from .tags import ENTITY_PRIORITY
-
     for clave, etiqueta in reversed(ENTITY_PRIORITY):
         if clave not in df.columns:
             continue
         tipo_entidad = F.when(F.col(clave).isNotNull(), F.lit(etiqueta)).otherwise(tipo_entidad)
         id_entidad = F.when(F.col(clave).isNotNull(), F.col(clave)).otherwise(id_entidad)
 
-    df = (
+    return (
         df.withColumn("entity_type", tipo_entidad)
         .withColumn("entity_id", id_entidad)
         .withColumn(
@@ -418,109 +433,137 @@ def build_usage_priced(spark: SparkSession, cfg: FinOpsConfig) -> DataFrame:
         )
     )
 
-    # --- clasificacion de SKU ---
-    df = (
+
+def clasificar_sku(df: DataFrame) -> DataFrame:
+    """`sku_group`, `compute_family`, `is_serverless` e `is_photon`.
+
+    Todo sale de `pricing`: la cascada de grupos, los grupos con familia propia
+    y los patrones de serverless y photon. Antes las tres ultimas columnas se
+    escribian aqui a mano; hoy coincidian con Python, pero nada lo garantizaba.
+    """
+    from pyspark.sql import functions as F
+
+    sku = F.upper(F.coalesce(F.col("sku_name"), F.lit("")))
+    producto = F.upper(F.coalesce(F.col("billing_origin_product").cast("string"), F.lit("")))
+    return (
         df.withColumn("sku_group", sku_group_expr())
         .withColumn(
             "compute_family",
-            F.when(F.col("sku_group").startswith("SERVERLESS"), F.lit("SERVERLESS"))
-            .when(F.col("sku_group").isin("ALL_PURPOSE", "JOBS", "DLT", "SQL"), F.col("sku_group"))
+            F.when(F.col("sku_group").startswith(P.PATRON_SERVERLESS), F.lit("SERVERLESS"))
+            .when(F.col("sku_group").isin(*sorted(P.GRUPOS_CON_FAMILIA_PROPIA)), F.col("sku_group"))
             .otherwise(F.lit("OTHER")),
         )
         .withColumn(
             "is_serverless",
-            F.upper(F.coalesce(F.col("sku_name"), F.lit(""))).rlike("(?i)SERVERLESS")
-            | F.upper(F.coalesce(F.col("billing_origin_product").cast("string"), F.lit(""))).rlike("(?i)SERVERLESS"),
+            sku.rlike(f"(?i){P.PATRON_SERVERLESS}") | producto.rlike(f"(?i){P.PATRON_SERVERLESS}"),
         )
-        .withColumn("is_photon", F.upper(F.coalesce(F.col("sku_name"), F.lit(""))).rlike("(?i)PHOTON"))
+        .withColumn("is_photon", sku.rlike(f"(?i){P.PATRON_PHOTON}"))
     )
 
-    # --- etiquetas: custom_tags del consumo + tags del cluster + tags del job ---
+
+def _adjuntar_ultima_version(
+    df: DataFrame,
+    spark: SparkSession,
+    fqn: str,
+    claves: list[tuple[str, str]],
+    columnas: dict[str, Column],
+    vacias: dict[str, Column],
+) -> DataFrame:
+    """Une la ultima version de una tabla de catalogo, o rellena si no existe.
+
+    Los catalogos de clusters, jobs y warehouses son fuentes OPCIONALES: el
+    principal puede no tener permiso, o la system table puede no existir en la
+    cuenta. Su ausencia no rompe el pipeline; deja esas columnas vacias.
+
+    Antes el mismo bloque "si existe, une la ultima version; si no, rellena con
+    nulos" estaba copiado tres veces, una por catalogo.
+
+    `claves` son pares (columna en df, columna en el catalogo).
+    """
+    from pyspark.sql import functions as F
+
+    if not table_exists(spark, fqn):
+        for nombre, valor in vacias.items():
+            df = df.withColumn(nombre, valor)
+        return df
+
+    catalogo = _latest_by(spark.table(fqn), [c for _, c in claves], "change_time")
+    alias = {c: f"_k_{c}" for _, c in claves}
+    catalogo = catalogo.select(
+        *[F.col(c).cast("string").alias(alias[c]) for _, c in claves],
+        *[col.alias(nombre) for nombre, col in columnas.items()],
+    )
+    condicion = None
+    for propia, ajena in claves:
+        parte = df[propia].cast("string") == catalogo[alias[ajena]]
+        condicion = parte if condicion is None else condicion & parte
+    return df.join(F.broadcast(catalogo), condicion, "left").drop(*alias.values())
+
+
+def adjuntar_etiquetas(spark: SparkSession, cfg: FinOpsConfig, df: DataFrame) -> DataFrame:
+    """Etiquetas del consumo, del cluster y del job -> dimensiones canonicas."""
+    from pyspark.sql import functions as F
+
     df = df.withColumn(
         "_tags_usage",
         _normalized_tag_map(F.col("custom_tags")) if "custom_tags" in df.columns else _map_literal({}),
     )
-
-    if table_exists(spark, BRZ_CLUSTERS.fqn(cfg)):
-        clusters = _latest_by(spark.table(BRZ_CLUSTERS.fqn(cfg)), ["cluster_id"], "change_time")
-        clusters = clusters.select(
-            F.col("cluster_id").alias("_c_cluster_id"),
-            _normalized_tag_map(F.col("tags")).alias("_tags_cluster"),
-            F.col("cluster_name").alias("cluster_name"),
-            F.col("owned_by").alias("cluster_owner"),
-        )
-        df = df.join(F.broadcast(clusters), df["cluster_id"] == clusters["_c_cluster_id"], "left").drop(
-            "_c_cluster_id"
-        )
-    else:
-        df = df.withColumn("_tags_cluster", _map_literal({}))
-        df = df.withColumn("cluster_name", F.lit(None).cast("string"))
-        df = df.withColumn("cluster_owner", F.lit(None).cast("string"))
-
-    if table_exists(spark, BRZ_JOBS.fqn(cfg)):
-        jobs = _latest_by(spark.table(BRZ_JOBS.fqn(cfg)), ["workspace_id", "job_id"], "change_time")
-        jobs = jobs.select(
-            F.col("workspace_id").alias("_j_ws"),
-            F.col("job_id").cast("string").alias("_j_job_id"),
-            _normalized_tag_map(F.col("tags")).alias("_tags_job"),
-            F.col("name").alias("job_name"),
-            F.col("run_as").alias("job_run_as"),
-        )
-        df = df.join(
-            F.broadcast(jobs),
-            (df["workspace_id"] == jobs["_j_ws"]) & (df["job_id"] == jobs["_j_job_id"]),
-            "left",
-        ).drop("_j_ws", "_j_job_id")
-    else:
-        df = df.withColumn("_tags_job", _map_literal({}))
-        df = df.withColumn("job_name", F.lit(None).cast("string"))
-        df = df.withColumn("job_run_as", F.lit(None).cast("string"))
-
-    df = resolve_tag_columns(
-        df,
-        cfg,
+    nulo = F.lit(None).cast("string")
+    df = _adjuntar_ultima_version(
+        df, spark, BRZ_CLUSTERS.fqn(cfg),
+        claves=[("cluster_id", "cluster_id")],
+        columnas={
+            "_tags_cluster": _normalized_tag_map(F.col("tags")),
+            "cluster_name": F.col("cluster_name"),
+            "cluster_owner": F.col("owned_by"),
+        },
+        vacias={"_tags_cluster": _map_literal({}), "cluster_name": nulo, "cluster_owner": nulo},
+    )
+    df = _adjuntar_ultima_version(
+        df, spark, BRZ_JOBS.fqn(cfg),
+        claves=[("workspace_id", "workspace_id"), ("job_id", "job_id")],
+        columnas={
+            "_tags_job": _normalized_tag_map(F.col("tags")),
+            "job_name": F.col("name"),
+            "job_run_as": F.col("run_as"),
+        },
+        vacias={"_tags_job": _map_literal({}), "job_name": nulo, "job_run_as": nulo},
+    )
+    return resolve_tag_columns(
+        df, cfg,
         {"custom_tags": "_tags_usage", "cluster_tags": "_tags_cluster", "job_tags": "_tags_job"},
     )
 
-    # Nombre de los SQL warehouses (ultima version conocida de cada uno).
-    if table_exists(spark, BRZ_WAREHOUSES.fqn(cfg)):
-        warehouses = _latest_by(
-            spark.table(BRZ_WAREHOUSES.fqn(cfg)), ["workspace_id", "warehouse_id"], "change_time"
-        ).select(
-            F.col("workspace_id").alias("_w_ws"),
-            F.col("warehouse_id").alias("_w_id"),
-            F.col("warehouse_name").alias("_warehouse_name"),
-        )
-        df = df.join(
-            F.broadcast(warehouses),
-            (df["workspace_id"] == warehouses["_w_ws"]) & (df["warehouse_id"] == warehouses["_w_id"]),
-            "left",
-        ).drop("_w_ws", "_w_id")
-    else:
-        df = df.withColumn("_warehouse_name", F.lit(None).cast("string"))
 
-    # --- nombre legible de la entidad ---
-    # Cada tipo toma su nombre de donde exista; si no hay, queda el id. El
-    # nombre es solo para mostrar: agrupar siempre por entity_key/entity_id,
-    # porque un nombre puede repetirse o cambiar.
-    df = df.withColumn(
+def adjuntar_nombres(spark: SparkSession, cfg: FinOpsConfig, df: DataFrame) -> DataFrame:
+    """Nombre legible de la entidad y su responsable.
+
+    El nombre es solo para mostrar: agrupar siempre por entity_key/entity_id,
+    porque un nombre puede repetirse o cambiar. Cada tipo toma su nombre de
+    donde exista; si no hay, queda el id.
+    """
+    from pyspark.sql import functions as F
+
+    df = _adjuntar_ultima_version(
+        df, spark, BRZ_WAREHOUSES.fqn(cfg),
+        claves=[("workspace_id", "workspace_id"), ("warehouse_id", "warehouse_id")],
+        columnas={"_warehouse_name": F.col("warehouse_name")},
+        vacias={"_warehouse_name": F.lit(None).cast("string")},
+    )
+
+    def metadato(campo: str) -> Column:
+        return _blank_to_null(_struct_field(df, "usage_metadata", campo))
+
+    tipo = F.col("entity_type")
+    return df.withColumn(
         "entity_name",
         F.coalesce(
-            F.when(
-                F.col("entity_type") == "JOB",
-                F.coalesce(F.col("job_name"), _blank_to_null(_struct_field(usage, "usage_metadata", "job_name"))),
-            ),
-            F.when(F.col("entity_type") == "CLUSTER", F.col("cluster_name")),
-            F.when(F.col("entity_type") == "WAREHOUSE", F.col("_warehouse_name")),
-            F.when(F.col("entity_type") == "APP", _blank_to_null(_struct_field(usage, "usage_metadata", "app_name"))),
-            F.when(
-                F.col("entity_type") == "MODEL_ENDPOINT",
-                _blank_to_null(_struct_field(usage, "usage_metadata", "endpoint_name")),
-            ),
-            F.when(
-                F.col("entity_type") == "NOTEBOOK",
-                _blank_to_null(_struct_field(usage, "usage_metadata", "notebook_path")),
-            ),
+            F.when(tipo == "JOB", F.coalesce(F.col("job_name"), metadato("job_name"))),
+            F.when(tipo == "CLUSTER", F.col("cluster_name")),
+            F.when(tipo == "WAREHOUSE", F.col("_warehouse_name")),
+            F.when(tipo == "APP", metadato("app_name")),
+            F.when(tipo == "MODEL_ENDPOINT", metadato("endpoint_name")),
+            F.when(tipo == "NOTEBOOK", metadato("notebook_path")),
             F.col("entity_id"),
         ),
     ).withColumn(
@@ -528,40 +571,62 @@ def build_usage_priced(spark: SparkSession, cfg: FinOpsConfig) -> DataFrame:
         F.coalesce(F.col("run_as"), F.col("job_run_as"), F.col("cluster_owner")),
     )
 
-    # --- precios y costo ---
-    df = join_prices(df, prices)
-    descuento, regla = discount_expr(cfg.get("pricing.discounts"))
-    infra_cfg = cfg.get("pricing.infra_estimate", {}) or {}
+
+def factor_de_infraestructura(cfg: FinOpsConfig) -> Column:
+    """Factor del estimador de infraestructura segun la familia de computo.
+
+    Acotado en 0 por abajo, como `pricing.price_record`: un factor negativo
+    restaria costo del total. Antes Spark no lo acotaba y Python si, y
+    `validate_config` no lo revisaba, asi que un factor negativo pasaba.
+    """
+    from pyspark.sql import functions as F
+
+    infra = cfg.get("pricing.infra_estimate", {}) or {}
+    if not bool(infra.get("enabled", False)):
+        return F.lit(0.0)
     factores = {
-        familia: float((infra_cfg.get("factor_by_compute") or {}).get(familia, 0.0) or 0.0)
+        familia: str(float((infra.get("factor_by_compute") or {}).get(familia, 0.0) or 0.0))
         for familia in P.COMPUTE_FAMILIES
     }
-    infra_habilitado = bool(infra_cfg.get("enabled", False))
+    bruto = F.element_at(_map_literal(factores), F.col("compute_family")).cast("double")
+    return F.greatest(F.coalesce(bruto, F.lit(0.0)), F.lit(0.0))
 
-    factor_col = F.lit(0.0)
-    if infra_habilitado:
-        factor_col = F.coalesce(
-            F.element_at(_map_literal({k: str(v) for k, v in factores.items()}), F.col("compute_family")).cast("double"),
-            F.lit(0.0),
-        )
 
+def valorizar(df: DataFrame, prices: DataFrame, cfg: FinOpsConfig) -> DataFrame:
+    """Precio de lista vigente, descuento, estimacion de infraestructura y costo.
+
+    La aritmetica es `pricing.componentes_de_costo`, la MISMA funcion que evalua
+    Python, aplicada sobre Columns en vez de floats. Antes estaba reescrita aqui
+    a mano y redondeaba en otro orden que Python.
+    """
+    from pyspark.sql import functions as F
+
+    df = join_prices(df, prices)
+    descuento, regla = discount_expr(cfg.get("pricing.discounts"))
     df = (
         df.withColumn("discount_pct", descuento)
         .withColumn("discount_rule", regla)
-        .withColumn("infra_factor", factor_col)
+        .withColumn("infra_factor", factor_de_infraestructura(cfg))
         .withColumn("price_missing", F.col("unit_price").isNull())
-        .withColumn(
-            "list_cost_usd",
-            F.round(F.coalesce(F.col("usage_quantity"), F.lit(0.0)) * F.coalesce(F.col("unit_price"), F.lit(0.0)), 6),
-        )
-        .withColumn("discount_amount_usd", F.round(F.col("list_cost_usd") * F.col("discount_pct"), 6))
-        .withColumn("effective_cost_usd", F.round(F.col("list_cost_usd") - F.col("discount_amount_usd"), 6))
-        .withColumn("estimated_infra_cost_usd", F.round(F.col("effective_cost_usd") * F.col("infra_factor"), 6))
-        .withColumn(
-            "total_cost_usd", F.round(F.col("effective_cost_usd") + F.col("estimated_infra_cost_usd"), 6)
-        )
     )
+    costos = P.componentes_de_costo(
+        cantidad=F.coalesce(F.col("usage_quantity"), F.lit(0.0)),
+        precio=F.coalesce(F.col("unit_price"), F.lit(0.0)),
+        descuento=F.col("discount_pct"),
+        factor=F.col("infra_factor"),
+        redondear=lambda c: F.round(c, P.DECIMALES_DE_COSTO),
+    )
+    for nombre, columna in costos.items():
+        df = df.withColumn(nombre, columna)
+    return df
 
+
+def columnas_de_salida(df: DataFrame, cfg: FinOpsConfig) -> DataFrame:
+    """El contrato de columnas de slv_usage_priced, en su orden.
+
+    Se proyectan solo las que existen: las fuentes opcionales pueden faltar y
+    su ausencia no rompe la tabla.
+    """
     dimensiones = list(cfg.get("tagging.dimensions", []) or [])
     columnas = [
         "record_id", "account_id", "workspace_id", "cloud", "sku_name", "usage_date",
@@ -573,15 +638,30 @@ def build_usage_priced(spark: SparkSession, cfg: FinOpsConfig) -> DataFrame:
         "endpoint_id", "instance_pool_id", "owner_resolved",
         "unit_price", "price_currency", "price_missing",
         "discount_pct", "discount_rule", "infra_factor",
-        "list_cost_usd", "discount_amount_usd", "effective_cost_usd",
-        "estimated_infra_cost_usd", "total_cost_usd",
+        *P.COMPONENTES_DE_COSTO,
         *dimensiones,
         *[f"tag_source_{d}" for d in dimensiones],
         "tags_resolved", "tags_expected", "is_fully_tagged", "is_untagged",
         "_run_id",
     ]
-    disponibles = [c for c in columnas if c in df.columns]
-    return df.select(*disponibles)
+    return df.select(*[c for c in columnas if c in df.columns])
+
+
+def build_usage_priced(spark: SparkSession, cfg: FinOpsConfig) -> DataFrame:
+    """Consumo valorizado de la ventana de proceso. Solo encadena los pasos."""
+    from pyspark.sql import functions as F
+
+    uso = spark.table(BRZ_USAGE.fqn(cfg)).filter(
+        F.col("usage_date").between(cfg.min_date, cfg.max_date)
+    )
+    precios = spark.table(BRZ_LIST_PRICES.fqn(cfg))
+
+    df = extraer_entidad(uso)
+    df = clasificar_sku(df)
+    df = adjuntar_etiquetas(spark, cfg, df)
+    df = adjuntar_nombres(spark, cfg, df)
+    df = valorizar(df, precios, cfg)
+    return columnas_de_salida(df, cfg)
 
 
 def _latest_by(df: DataFrame, keys: list[str], order_col: str) -> DataFrame:

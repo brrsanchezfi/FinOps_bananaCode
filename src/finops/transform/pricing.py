@@ -42,8 +42,18 @@ SKU_GROUPS = (
 #: Familias de precio para el estimador de infraestructura.
 COMPUTE_FAMILIES = ("ALL_PURPOSE", "JOBS", "DLT", "SQL", "SERVERLESS", "OTHER")
 
-_SERVERLESS_TOKEN = re.compile(r"SERVERLESS", re.IGNORECASE)
-_PHOTON_TOKEN = re.compile(r"PHOTON", re.IGNORECASE)
+#: Patrones que marcan un SKU como serverless o Photon. Los comparten la version
+#: Python (`is_serverless`, `is_photon`) y la de Spark (`silver.clasificar_sku`,
+#: `silver.sku_group_expr`), que antes escribian cada una el suyo.
+PATRON_SERVERLESS = "SERVERLESS"
+PATRON_PHOTON = "PHOTON"
+
+_SERVERLESS_TOKEN = re.compile(PATRON_SERVERLESS, re.IGNORECASE)
+_PHOTON_TOKEN = re.compile(PATRON_PHOTON, re.IGNORECASE)
+
+#: Grupos de SKU que son su propia familia de computo. Todo SERVERLESS_* cae en
+#: SERVERLESS y el resto en OTHER.
+GRUPOS_CON_FAMILIA_PROPIA = frozenset({"ALL_PURPOSE", "JOBS", "DLT", "SQL"})
 
 # Orden importa: la primera coincidencia gana. Se declaran como cadenas para
 # poder reutilizar exactamente los mismos patrones en el motor de Spark (rlike),
@@ -204,9 +214,9 @@ def classify_sku(sku_name: str | None, billing_origin_product: str | None = None
 
 def compute_family(sku_group: str) -> str:
     """Familia usada por el estimador de costo de infraestructura."""
-    if sku_group.startswith("SERVERLESS"):
+    if sku_group.startswith(PATRON_SERVERLESS):
         return "SERVERLESS"
-    if sku_group in {"ALL_PURPOSE", "JOBS", "DLT", "SQL"}:
+    if sku_group in GRUPOS_CON_FAMILIA_PROPIA:
         return sku_group
     return "OTHER"
 
@@ -350,6 +360,49 @@ def campos_de_precio_disponibles(campos_del_struct: dict[str, list[str] | None])
     return salida
 
 
+#: Decimales de todo importe del modelo.
+DECIMALES_DE_COSTO = 6
+
+#: Columnas de costo, en orden. Son las claves que devuelve
+#: `componentes_de_costo`, y forman parte del contrato de slv_usage_priced.
+COMPONENTES_DE_COSTO: tuple[str, ...] = (
+    "list_cost_usd", "discount_amount_usd", "effective_cost_usd",
+    "estimated_infra_cost_usd", "total_cost_usd",
+)
+
+
+def componentes_de_costo(cantidad, precio, descuento, factor, redondear) -> dict[str, Any]:
+    """LA formula de costo. Se evalua sobre floats (Python) o sobre Columns (Spark).
+
+    Esta escrita una sola vez y se le inyecta como redondear: `round(x, 6)` en
+    Python, `F.round(c, 6)` en Spark. Los operadores `*`, `-` y `+` funcionan
+    igual sobre floats que sobre Columns, asi que las dos implementaciones son
+    la MISMA funcion y no pueden divergir.
+
+    Divergian. Python redondeaba solo al final y Spark en cada paso, arrastrando
+    el valor redondeado. Medido sobre 9.502 registros reales con 15 % de
+    descuento y factor 0,85: el 30 % daba distinto, aunque en plata la
+    diferencia era de $0,000157 en un mes.
+
+    Se eligio la version de Spark -- redondear en cada paso -- no por exactitud
+    sino porque CUADRA: cada componente sale de los ya redondeados, asi que
+    `lista - descuento == efectivo` y `efectivo + infra == total` exactos. Con
+    el redondeo al final, el 42 % de los registros no cuadraba. En un reporte
+    financiero, columnas que no suman se notan antes que un micro-dolar.
+    """
+    lista = redondear(cantidad * precio)
+    monto_descuento = redondear(lista * descuento)
+    efectivo = redondear(lista - monto_descuento)
+    infra = redondear(efectivo * factor)
+    return {
+        "list_cost_usd": lista,
+        "discount_amount_usd": monto_descuento,
+        "effective_cost_usd": efectivo,
+        "estimated_infra_cost_usd": infra,
+        "total_cost_usd": redondear(efectivo + infra),
+    }
+
+
 def price_record(
     *,
     usage_quantity: float | None,
@@ -357,30 +410,19 @@ def price_record(
     discount_pct: float = 0.0,
     infra_factor: float = 0.0,
 ) -> dict[str, float]:
-    """Calcula los componentes de costo de un registro de consumo.
+    """Componentes de costo de un registro de consumo (version Python).
 
-    Devuelve list_cost_usd, discount_amount_usd, effective_cost_usd,
-    estimated_infra_cost_usd y total_cost_usd. Los None se tratan como 0 para
-    que un precio faltante no propague nulos al modelo (queda visible via
-    `price_missing`, que calcula la capa silver).
+    Los None se tratan como 0 para que un precio faltante no propague nulos al
+    modelo (queda visible via `price_missing`, que calcula la capa silver). La
+    formula es `componentes_de_costo`, la misma que evalua Spark.
     """
-    cantidad = float(usage_quantity or 0.0)
-    precio = float(unit_price or 0.0)
-    descuento = max(0.0, min(float(discount_pct or 0.0), 0.999))
-    factor = max(0.0, float(infra_factor or 0.0))
-
-    costo_lista = cantidad * precio
-    monto_descuento = costo_lista * descuento
-    costo_efectivo = costo_lista - monto_descuento
-    costo_infra = costo_efectivo * factor
-
-    return {
-        "list_cost_usd": round(costo_lista, 6),
-        "discount_amount_usd": round(monto_descuento, 6),
-        "effective_cost_usd": round(costo_efectivo, 6),
-        "estimated_infra_cost_usd": round(costo_infra, 6),
-        "total_cost_usd": round(costo_efectivo + costo_infra, 6),
-    }
+    return componentes_de_costo(
+        cantidad=float(usage_quantity or 0.0),
+        precio=float(unit_price or 0.0),
+        descuento=max(0.0, min(float(discount_pct or 0.0), _DESCUENTO_MAXIMO)),
+        factor=max(0.0, float(infra_factor or 0.0)),
+        redondear=lambda x: round(x, DECIMALES_DE_COSTO),
+    )
 
 
 def infra_factor_for(cfg_infra: dict[str, Any] | None, sku_group: str) -> float:
