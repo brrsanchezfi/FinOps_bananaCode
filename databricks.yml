@@ -160,7 +160,12 @@ targets:
   # UNA instalacion, que cubre todos los ambientes de la cuenta. Ver el bloque
   # de abajo y docs/adr/0006.
   finops:
-    mode: development     # prefija los recursos con el usuario y pausa schedules
+    # production: nombres limpios y schedules que respetan `pause_status`. NO
+    # enciende nada por si solo: `pipeline_paused` (abajo) sigue en PAUSED, y
+    # encender los schedules es una decision aparte. En `development` el bundle
+    # anteponia `[dev <usuario>]` a cada recurso y pausaba todo a la fuerza.
+    # Ver docs/03-despliegue.md, "Modo del target".
+    mode: production
     default: true
     workspace:
       # Sin `host`: lo aporta el perfil del CLI (-p) o DATABRICKS_HOST. Ver el

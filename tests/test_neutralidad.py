@@ -223,3 +223,39 @@ class TestElAmbienteDelTableroNoContaminaLaDimension:
             "Tags que clasifican el costo de FinOps usan el nombre del target: "
             f"{culpables}. Deben usar ${{var.resource_environment}}."
         )
+
+
+class TestNingunScheduleSeEnciendeSolo:
+    """Encender los schedules tiene que ser una decision, no un efecto colateral.
+
+    En `mode: development` el bundle pausaba todos los schedules a la fuerza, y
+    eso tapaba cualquier descuido. El target `finops` esta en `production`, que
+    respeta `pause_status` -- y un schedule SIN `pause_status` arranca como
+    UNPAUSED. Un job programado nuevo que olvide la variable se encenderia solo
+    en el siguiente despliegue, en el workspace del cliente y con su costo.
+    """
+
+    def _jobs(self) -> dict:
+        return yaml.safe_load(_texto(REPO_ROOT / "resources" / "jobs.yml"))["resources"]["jobs"]
+
+    def test_hay_schedules_que_revisar(self):
+        """Si esto falla, la prueba de abajo dejo de proteger algo."""
+        assert any(j.get("schedule") for j in self._jobs().values())
+
+    def test_todo_schedule_obedece_a_pipeline_paused(self):
+        sueltos = [
+            f"{nombre}: pause_status={(job['schedule'] or {}).get('pause_status')!r}"
+            for nombre, job in self._jobs().items()
+            if job.get("schedule")
+            and (job["schedule"] or {}).get("pause_status") != "${var.pipeline_paused}"
+        ]
+        assert sueltos == [], (
+            f"Schedules que no obedecen a pipeline_paused: {sueltos}. En production "
+            "un schedule sin pause_status arranca encendido."
+        )
+
+    def test_el_producto_se_despliega_con_los_schedules_apagados(self):
+        bundle = yaml.safe_load(_texto(REPO_ROOT / "databricks.yml"))
+        target = bundle["targets"]["finops"]
+        assert target["mode"] == "production"
+        assert target["variables"]["pipeline_paused"] == "PAUSED"

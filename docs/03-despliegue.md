@@ -288,9 +288,36 @@ que hay que notificar.
 
 ### Dashboards
 
-Se publican en `${workspace.root_path}/dashboards`. En `dev` el `root_path` es la
-carpeta personal del usuario (por `mode: development`); en `qa` y `prd` es
-`/Workspace/Shared/.bundle/...`.
+Se publican en `${workspace.root_path}/dashboards`.
+
+### Modo del target: `production`
+
+El target `finops` despliega en `mode: production`:
+
+- Los recursos llevan su nombre limpio (`[FinOps] Pipeline diario`). En
+  `development` el bundle les anteponia `[dev <usuario>]`.
+- Los schedules **respetan** `pause_status`, en vez de quedar pausados a la
+  fuerza. Siguen apagados porque el target fija `pipeline_paused: PAUSED`:
+  encenderlos es una decision aparte.
+
+  ```bash
+  BUNDLE_VAR_pipeline_paused=UNPAUSED bash scripts/deploy.sh --profile <perfil>
+  ```
+
+**PENDIENTE — toda instalacion debe desplegarse con un service principal.**
+Decidido el 2026-09-28; por ahora se sigue desplegando con el usuario mientras
+se prepara. Hoy el `root_path` es `/Workspace/Users/<quien despliega>/.bundle/...`
+y los jobs corren con la identidad de esa persona: si pierde el acceso, la
+instalacion queda huerfana. Lo que falta:
+
+1. un **service principal** como identidad de despliegue y de ejecucion
+   (`run_as` en el target), y
+2. un `root_path` compartido, por ejemplo `/Workspace/Shared/.bundle/finops`.
+
+Ojo: cambiar el `root_path` de una instalacion ya desplegada NO la mueve. El
+bundle arranca un estado nuevo en la ruta nueva, crea otro juego de jobs y
+tableros, y deja los anteriores sin administrar. Hay que retirarlos a mano, o
+decidir la ruta antes del primer despliegue.
 
 ---
 
