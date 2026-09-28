@@ -110,23 +110,67 @@ def _expr_workspace_default(dimension: str, defaults_ws: dict | None) -> str:
     return "CASE " + " ".join(ramas) + " END"
 
 
-def _expr_dimension(alias: list[str], default_expr: str = "") -> str:
+def _expr_value_map(dimension: str, value_map: dict | None, expr: str) -> str:
+    """Canoniza el valor de la dimension segun `tagging.value_map`, como CASE SQL.
+
+    Devuelve `expr` sin tocar si la dimension no declara homologaciones.
+
+    Esto faltaba, y era una divergencia real con las tablas gold: `value_map` de
+    `environment` viaja por defecto en conf/base.yml (prod, produccion,
+    production, productivo -> PRD), asi que TODA instalacion veia esos valores
+    unificados en `fct_cost_daily` y separados en las vistas en vivo. El tablero
+    de gobierno partia un mismo ambiente en cuatro y reportaba una cobertura
+    distinta de la del modelo. El sintoma ya se habia visto en gold: el
+    comentario de `productivo` en conf/base.yml documenta que aparecia como un
+    bucket propio, separado de PRD.
+
+    La comparacion normaliza la clave igual que `tags.normalize_key`: sin
+    mayusculas, sin guiones, sin guiones bajos ni espacios.
+    """
+    mapa = (value_map or {}).get(dimension) or {}
+    if not mapa:
+        return expr
+
+    ramas = []
+    for crudo, canonico in mapa.items():
+        clave = normalize_key(str(crudo)).replace("'", "''")
+        valor = str(canonico).replace("'", "''")
+        ramas.append(f"WHEN {_NORM.format(expr=expr)} = '{clave}' THEN '{valor}'")
+    return "CASE " + " ".join(ramas) + f" ELSE {expr} END"
+
+
+def _expr_dimension(
+    alias: list[str],
+    default_expr: str = "",
+    *,
+    dimension: str = "",
+    value_map: dict | None = None,
+) -> str:
     """Primer alias de la dimension que resuelva, sobre el mapa normalizado.
 
-    `default_expr` es el valor por defecto del workspace y va SIEMPRE al final
-    del COALESCE: es un ultimo recurso, la etiqueta del recurso siempre gana.
-    Debe replicar la precedencia de `resolve_tag_columns` en transform/silver.py;
-    si divergen, el tablero de gobierno y las tablas gold reportan cifras
-    distintas para la misma dimension.
+    Replica la precedencia de `resolve_tag_columns` en transform/silver.py, que
+    es la que produce las tablas gold. Si divergen, el tablero de gobierno y el
+    modelo reportan cifras distintas para la misma dimension.
+
+    El orden importa y es el de silver:
+      1. primer alias que resuelva,
+      2. canonizado con `value_map`,
+      3. y solo entonces el valor por defecto del workspace, que es un ULTIMO
+         recurso y NO se canoniza (ya viene escrito en su forma canonica).
     """
     candidatos = [_valor_util(f"tags_norm['{a}']") for a in alias]
-    if default_expr:
-        candidatos.append(default_expr)
-    if not candidatos:
+    if not candidatos and not default_expr:
         return "CAST(NULL AS STRING)"
-    if len(candidatos) == 1:
-        return candidatos[0]
-    return "COALESCE(" + ", ".join(candidatos) + ")"
+
+    if candidatos:
+        crudo = candidatos[0] if len(candidatos) == 1 else "COALESCE(" + ", ".join(candidatos) + ")"
+        resuelto = _expr_value_map(dimension, value_map, crudo)
+    else:
+        resuelto = ""
+
+    if default_expr and resuelto:
+        return f"COALESCE({resuelto}, {default_expr})"
+    return resuelto or default_expr
 
 
 def alias_por_dimension(cfg: FinOpsConfig) -> dict[str, list[str]]:
@@ -259,10 +303,14 @@ def build_tag_coverage_sql(cfg: FinOpsConfig) -> str:
     alias = alias_por_dimension(cfg)
 
     defaults_ws = cfg.get("tagging.workspace_defaults", {}) or {}
+    value_map = cfg.get("tagging.value_map", {}) or {}
 
     bloques = []
     for dimension, claves in alias.items():
-        expr = _expr_dimension(claves, _expr_workspace_default(dimension, defaults_ws))
+        expr = _expr_dimension(
+            claves, _expr_workspace_default(dimension, defaults_ws),
+            dimension=dimension, value_map=value_map,
+        )
         bloques.append(
             f"""SELECT
   usage_date,
@@ -305,8 +353,9 @@ def build_untagged_spend_sql(cfg: FinOpsConfig) -> str:
     alias = alias_por_dimension(cfg)
 
     defaults_ws = cfg.get("tagging.workspace_defaults", {}) or {}
+    value_map = cfg.get("tagging.value_map", {}) or {}
     resueltas = [
-        f"({_expr_dimension(claves, _expr_workspace_default(dimension, defaults_ws))} IS NOT NULL)"
+        f"({_expr_dimension(claves, _expr_workspace_default(dimension, defaults_ws), dimension=dimension, value_map=value_map)} IS NOT NULL)"
         for dimension, claves in alias.items()
         if claves
     ]
