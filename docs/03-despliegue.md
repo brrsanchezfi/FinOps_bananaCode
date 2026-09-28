@@ -304,10 +304,11 @@ El target `finops` despliega en `mode: production`:
   BUNDLE_VAR_pipeline_paused=UNPAUSED bash scripts/deploy.sh --profile <perfil>
   ```
 
-**Atencion para una instalacion en un cliente.** El `root_path` sigue siendo
-`/Workspace/Users/<quien despliega>/.bundle/...` y los jobs corren con la
-identidad de esa persona. Si esa persona pierde el acceso, la instalacion queda
-huerfana. Para un despliegue productivo conviene:
+**PENDIENTE — toda instalacion debe desplegarse con un service principal.**
+Decidido el 2026-09-28; por ahora se sigue desplegando con el usuario mientras
+se prepara. Hoy el `root_path` es `/Workspace/Users/<quien despliega>/.bundle/...`
+y los jobs corren con la identidad de esa persona: si pierde el acceso, la
+instalacion queda huerfana. Lo que falta:
 
 1. un **service principal** como identidad de despliegue y de ejecucion
    (`run_as` en el target), y
