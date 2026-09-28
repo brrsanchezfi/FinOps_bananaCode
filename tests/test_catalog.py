@@ -31,14 +31,14 @@ class TestRegistro:
     def test_capas_validas(self):
         assert {t.layer for t in ALL_TABLES} <= {"bronze", "silver", "gold"}
 
-    def test_fqn_usa_la_configuracion(self, cfg_dev):
-        assert TABLES_BY_KEY["fct_cost_daily"].fqn(cfg_dev) == "finops.gold.fct_cost_daily"
+    def test_fqn_usa_la_configuracion(self, cfg_repo):
+        assert TABLES_BY_KEY["fct_cost_daily"].fqn(cfg_repo) == "finops.gold.fct_cost_daily"
 
-    def test_table_map_cubre_tablas_y_vistas(self, cfg_dev):
+    def test_table_map_cubre_tablas_y_vistas(self, cfg_repo):
         """Los dashboards referencian vistas ademas de tablas; ambas resuelven."""
         from finops.views import ALL_VIEWS
 
-        mapa = table_map(cfg_dev)
+        mapa = table_map(cfg_repo)
         assert len(mapa) == len(ALL_TABLES) + len(ALL_VIEWS)
         assert all(v.count(".") == 2 for v in mapa.values())
 
@@ -51,7 +51,8 @@ class TestRegistro:
         assert not (claves_tabla & claves_vista)
 
 
-ENTORNOS = ("dev", "qa", "prd")
+#: Una sola instalacion por cuenta (ver docs/adr/0006).
+ENTORNO = "finops"
 NOMBRES = ("finops_ejecutivo", "finops_costos", "finops_optimizacion", "finops_etiquetado")
 
 
@@ -79,7 +80,7 @@ def _generados() -> list[tuple[str, dict]]:
 
     return [
         (nombre, json.loads(contenido))
-        for nombre, contenido in generador.render_env(ENTORNOS[0]).items()
+        for nombre, contenido in generador.render_env(ENTORNO).items()
     ]
 
 
@@ -115,7 +116,7 @@ class TestCoherenciaConDashboards:
         assert pendientes == set(), f"marcadores sin resolver: {sorted(pendientes)}"
 
     def test_las_tablas_referenciadas_existen_en_el_registro(self):
-        cfg = _config("prd")
+        cfg = _config("finops")
         conocidas = set(table_map(cfg).values())
         # Cualquier FQN de tres partes bajo el catalogo del modelo. `system.*` y
         # otros catalogos no aplican aqui.
@@ -126,20 +127,6 @@ class TestCoherenciaConDashboards:
                 if fqn not in conocidas:
                     desconocidas.add(f"{archivo.name}:{fqn}")
         assert desconocidas == set(), f"tablas fuera del registro: {sorted(desconocidas)}"
-
-    def test_los_tres_entornos_resuelven_a_las_mismas_tablas(self):
-        """Es la condicion que permite versionar un solo juego de dashboards.
-
-        Si algun entorno vuelve a apuntar a otro catalogo o schema, hay que
-        generar por entorno otra vez y apuntar `resources/dashboards.yml` a
-        `dashboards/${bundle.target}/`.
-        """
-        resueltos = {env: table_map(_config(env)) for env in ENTORNOS}
-        referencia = resueltos[ENTORNOS[0]]
-        distintos = {env: m for env, m in resueltos.items() if m != referencia}
-        assert distintos == {}, (
-            f"estos entornos resuelven a tablas distintas de '{ENTORNOS[0]}': {sorted(distintos)}"
-        )
 
     def test_ningun_catalogo_escrito_a_mano(self):
         """Los nombres deben salir de la configuracion, no estar quemados.
@@ -170,7 +157,7 @@ class TestCoherenciaConDashboards:
         import dashboards as generador
 
         manuales = _mantenidos_a_mano()
-        for nombre, contenido in generador.render_env(ENTORNOS[0]).items():
+        for nombre, contenido in generador.render_env(ENTORNO).items():
             if nombre.split(".", 1)[0] in manuales:
                 continue
             archivo = DASHBOARDS_DIR / nombre
@@ -201,7 +188,7 @@ class TestRenderPorInstalacion:
         from finops.config import load_config
 
         return load_config(
-            ENTORNOS[0], conf_dir=REPO_ROOT / "conf", use_env_vars=False,
+            ENTORNO, conf_dir=REPO_ROOT / "conf", use_env_vars=False,
             use_local_overlay=False,
             overrides={"catalog": {"catalog": self.CATALOGO_ALTERNO}},
         )
@@ -209,7 +196,7 @@ class TestRenderPorInstalacion:
     def test_los_generados_toman_el_catalogo_efectivo(self):
         generador = self._generador()
         cfg = self._config_alterna()
-        for nombre, contenido in generador.render_env(ENTORNOS[0], cfg=cfg).items():
+        for nombre, contenido in generador.render_env(ENTORNO, cfg=cfg).items():
             if nombre.split(".", 1)[0] in generador.MANTENIDOS_A_MANO:
                 continue
             assert f"{self.CATALOGO_ALTERNO}." in contenido, f"{nombre} no resolvio al catalogo alterno"
@@ -221,7 +208,7 @@ class TestRenderPorInstalacion:
         from finops.catalog import table_map
 
         generador = self._generador()
-        cfg_repo = _config(ENTORNOS[0])
+        cfg_repo = _config(ENTORNO)
         homologacion = {
             neutro: table_map(self._config_alterna())[clave]
             for clave, neutro in table_map(cfg_repo).items()
@@ -274,19 +261,27 @@ class TestSqlDeCreacion:
 
 
 class TestPoliticaDeCreacionDeCatalogo:
-    def test_dev_permite_crear(self, conf_dir):
+    """Crear un catalogo es administracion, no trabajo de un pipeline.
+
+    Antes `dev` lo permitia y `qa`/`prd` no. Con una sola instalacion queda el
+    criterio del perfil productivo, y quien quiera que el pipeline lo cree
+    durante una implantacion lo activa en su `conf/local.yml`.
+    """
+
+    def test_el_producto_no_crea_catalogos(self, conf_dir):
         from finops.config import load_config
 
-        cfg = load_config("dev", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
-        assert cfg.get("catalog.create_if_missing") is True
-
-    @pytest.mark.parametrize("env", ["qa", "prd"])
-    def test_entornos_gobernados_no_crean_catalogo(self, conf_dir, env):
-        """En qa/prd crear el catalogo es tarea de un administrador, no del pipeline."""
-        from finops.config import load_config
-
-        cfg = load_config(env, conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
+        cfg = load_config("finops", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
         assert cfg.get("catalog.create_if_missing") is False
+
+    def test_una_instalacion_puede_habilitarlo(self, conf_dir):
+        from finops.config import load_config
+
+        cfg = load_config(
+            "finops", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False,
+            overrides={"catalog": {"create_if_missing": True}},
+        )
+        assert cfg.get("catalog.create_if_missing") is True
 
 
 class TestWidgetsDeDashboard:

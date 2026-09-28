@@ -12,7 +12,7 @@ class TestSkusNoFacturables:
     def test_el_repositorio_ignora_el_consumo_gratuito(self, conf_dir):
         from finops.config import load_config
 
-        cfg = load_config("dev", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
+        cfg = load_config("finops", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
         patrones = cfg.get("quality.checks.price_match_ignore_skus") or []
         assert "*_FREE_USAGE" in patrones, (
             "conf/base.yml debe ignorar el consumo no facturable de Databricks"

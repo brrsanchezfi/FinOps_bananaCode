@@ -6,7 +6,7 @@
 -- dashboard sigue vacio, el problema es del widget; si aqui tampoco hay filas,
 -- el problema es de datos o de permisos.
 --
--- El catalogo `finops` es el mismo para los tres entornos (ver ADR 0005).
+-- El catalogo `finops` es el de la unica instalacion (ver ADR 0005 y 0006).
 -- =============================================================================
 
 -- 1. ¿Existen las tablas y tienen filas?

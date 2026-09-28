@@ -82,67 +82,80 @@ class TestOverrides:
 
 
 class TestLoadConfig:
-    def test_carga_dev(self, conf_dir):
-        cfg = load_config("dev", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
-        assert cfg.env == "dev"
+    def test_carga_la_instalacion_por_defecto(self, conf_dir):
+        cfg = load_config("finops", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
+        assert cfg.env == "finops"
         assert cfg.catalog == "finops"
         assert cfg.table("gold", "fct_cost_daily") == "finops.gold.fct_cost_daily"
 
-    @pytest.mark.parametrize("env", ["dev", "qa", "prd"])
-    def test_los_tres_entornos_comparten_catalogo(self, conf_dir, env):
-        """El modelo FinOps describe el consumo de la CUENTA, no de un ambiente.
+    def test_el_nombre_de_la_instalacion_no_cambia_la_configuracion(self, conf_dir):
+        """`env` es una ETIQUETA, no un perfil.
 
-        Los tres entornos leen las mismas system tables y producen las mismas
-        cifras, asi que comparten destino. Lo que los separa es donde corre el
-        codigo y que jobs estan programados.
+        Antes elegia entre dev, qa y prd, cada uno con su overlay y sus umbrales.
+        Ahora nombra la instalacion: dos nombres distintos sin overlay propio
+        producen exactamente la misma configuracion.
         """
-        cfg = load_config(env, conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
-        assert cfg.catalog == "finops"
-        assert cfg.schema("gold") == "gold"
+        a = load_config("finops", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
+        b = load_config("otra_instalacion", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
+        assert a.data == b.data
 
-    def test_overlay_de_entorno_gana_sobre_base(self, conf_dir):
-        base = load_config("prd", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
-        dev = load_config("dev", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
-        assert base.get("ingestion.lookback_days") == 7
-        assert dev.get("ingestion.lookback_days") == 3
+    def test_el_overlay_por_nombre_es_opcional_pero_sigue_ganando(self, tmp_path):
+        """El punto de extension se conserva para quien despliegue varias
+        instalaciones en una cuenta (un banco de pruebas junto al productivo)."""
+        import shutil
 
-    def test_param_overrides_ganan_sobre_entorno(self, conf_dir):
+        from tests.conftest import CONF_DIR
+
+        shutil.copy(CONF_DIR / "base.yml", tmp_path / "base.yml")
+        sin = load_config("lab", conf_dir=tmp_path, use_env_vars=False, use_local_overlay=False)
+        (tmp_path / "lab.yml").write_text("ingestion:\n  lookback_days: 2\n", encoding="utf-8")
+        con = load_config("lab", conf_dir=tmp_path, use_env_vars=False, use_local_overlay=False)
+        assert sin.get("ingestion.lookback_days") == 7
+        assert con.get("ingestion.lookback_days") == 2
+
+    def test_param_overrides_ganan_sobre_la_base(self, conf_dir):
         cfg = load_config(
-            "dev", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False,
+            "finops", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False,
             param_overrides={"ingestion.lookback_days": "30"},
         )
         assert cfg.get("ingestion.lookback_days") == 30
 
     def test_ventana_respeta_lookback(self, conf_dir):
-        cfg = load_config("dev", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False, run_date="2026-07-15")
+        cfg = load_config("finops", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False, run_date="2026-07-15")
         assert cfg.max_date == date(2026, 7, 15)
-        assert cfg.min_date == date(2026, 7, 12)  # dev usa lookback 3
+        assert cfg.min_date == date(2026, 7, 8)  # lookback_days = 7
 
     def test_full_refresh_amplia_la_ventana(self, conf_dir):
         cfg = load_config(
-            "dev", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False, run_date="2026-07-15",
+            "finops", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False, run_date="2026-07-15",
             param_overrides={"ingestion.full_refresh": "true"},
         )
-        # dev define initial_load_days = 90
-        assert cfg.lookback_days == 90
-        assert cfg.min_date == date(2026, 7, 15) - timedelta(days=90)
+        assert cfg.lookback_days == 400  # initial_load_days
+        assert cfg.min_date == date(2026, 7, 15) - timedelta(days=400)
 
-    def test_entorno_invalido(self, conf_dir):
+    @pytest.mark.parametrize("nombre", ["", "1finops", "Finops Prod", "fin/ops", "x" * 40])
+    def test_nombre_de_instalacion_invalido(self, conf_dir, nombre):
+        """Se valida la FORMA, no una lista cerrada: el nombre acaba en nombres
+        de tabla y de job."""
         with pytest.raises(ConfigError, match="invalido"):
-            load_config("staging", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
+            load_config(nombre, conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
 
-    def test_require_falla_si_no_existe(self, cfg_dev):
+    @pytest.mark.parametrize("nombre", ["finops", "lab", "cliente-a", "prd_2"])
+    def test_nombres_validos(self, conf_dir, nombre):
+        assert load_config(nombre, conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False).env == nombre
+
+    def test_require_falla_si_no_existe(self, cfg_repo):
         with pytest.raises(ConfigError, match="obligatoria"):
-            cfg_dev.require("clave.que.no.existe")
+            cfg_repo.require("clave.que.no.existe")
 
-    def test_capa_desconocida(self, cfg_dev):
+    def test_capa_desconocida(self, cfg_repo):
         with pytest.raises(ConfigError, match="Capa desconocida"):
-            cfg_dev.schema("platinum")
+            cfg_repo.schema("platinum")
 
 
 class TestValidacion:
     def _cfg_valida(self, conf_dir):
-        return load_config("dev", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
+        return load_config("finops", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
 
     def test_descuento_fuera_de_rango(self, conf_dir):
         cfg = self._cfg_valida(conf_dir)
@@ -187,13 +200,19 @@ class TestValidacion:
 class TestConfiguracionDelRepositorio:
     """Los tres entornos versionados deben ser validos en todo momento."""
 
-    @pytest.mark.parametrize("env", ["dev", "qa", "prd"])
-    def test_entornos_validos(self, conf_dir, env):
-        cfg = load_config(env, conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
+    def test_la_configuracion_del_producto_es_valida(self, conf_dir):
+        cfg = load_config("finops", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
         assert cfg.catalog
         assert cfg.get("tagging.dimensions")
 
+    def test_no_quedan_overlays_de_entorno(self, conf_dir):
+        """Se colapsaron en base.yml. Si reaparecen, reaparece la idea de que el
+        tablero se despliega por ambiente -- y no: una instalacion ya cubre
+        todos los ambientes de la cuenta."""
+        sobrantes = [n for n in ("dev.yml", "qa.yml", "prd.yml") if (conf_dir / n).exists()]
+        assert sobrantes == [], f"overlays de entorno sobrantes: {sobrantes}"
+
     def test_los_presupuestos_del_repo_son_validos(self, conf_dir):
-        cfg = load_config("prd", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
+        cfg = load_config("finops", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
         ids = [b["id"] for b in cfg.budgets["budgets"]]
         assert len(ids) == len(set(ids))

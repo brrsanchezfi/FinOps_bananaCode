@@ -26,8 +26,8 @@ from finops.views import (
 
 
 @pytest.fixture
-def cfg(cfg_dev):
-    return cfg_dev
+def cfg(cfg_repo):
+    return cfg_repo
 
 
 class TestRegistro:
@@ -158,8 +158,7 @@ class TestLasVistasCoincidenConElModelo:
     def _cfg(self, conf_dir, **overrides):
         from finops.config import load_config
 
-        return load_config(
-            "dev", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False,
+        return load_config("finops", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False,
             overrides=overrides or None,
         )
 

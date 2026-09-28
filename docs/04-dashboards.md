@@ -166,8 +166,6 @@ detectan y avisan que hay que generar por entorno otra vez; una prueba
 - Que no quede ningun marcador `{{...}}` sin sustituir.
 - Que toda tabla referenciada exista en el registro de `finops.catalog`.
 - Que ningun catalogo este escrito a mano en el JSON.
-- Que los tres entornos sigan resolviendo a las mismas tablas (la condicion que
-  permite un solo juego de archivos).
 - Que los archivos versionados coincidan **byte a byte** con lo que produce el
   generador (falla si alguien edito un JSON a mano).
 
@@ -305,7 +303,7 @@ Si hace falta un tipo de widget que el generador no cubre, la via fiable es
 construirlo en la UI, exportarlo y copiar su forma:
 
 ```bash
-databricks bundle generate dashboard --existing-path "/Workspace/Users/<usuario>/<dashboard>" -t dev
+databricks bundle generate dashboard --existing-path "/Workspace/Users/<usuario>/<dashboard>" -t finops
 ```
 
 Nunca al reves: editar el JSON a mano se pierde en el siguiente `generate`.
@@ -339,7 +337,7 @@ paso es manual y hay que repetirlo si el dashboard se recrea desde cero.
 ### Comprobar que se desplegaron
 
 ```bash
-databricks bundle summary -t dev
+databricks bundle summary -t finops
 ```
 
 Deben aparecer los tres dashboards. En el workspace quedan bajo

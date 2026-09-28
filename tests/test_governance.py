@@ -23,7 +23,7 @@ pytest.importorskip("DKOps", reason="DKOps no esta instalado")
 def _cfg(conf_dir):
     from finops.config import load_config
 
-    return load_config("dev", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
+    return load_config("finops", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
 
 
 def _tablas_bronze():
@@ -63,7 +63,7 @@ class TestAmbienteDerivadoDeFinOps:
         from finops.governance import build_environment_dict
 
         entorno = build_environment_dict(_cfg(conf_dir))
-        assert entorno["DATABRICKS_TARGET"] == "dev"
+        assert entorno["DATABRICKS_TARGET"] == "finops"
         assert list(entorno["environments"]) == ["finops"]
 
     def test_el_catalogo_sigue_al_de_finops(self):
@@ -71,8 +71,7 @@ class TestAmbienteDerivadoDeFinOps:
         from finops.config import FinOpsConfig
         from finops.governance import build_environment_dict
 
-        cfg = FinOpsConfig(
-            env="dev",
+        cfg = FinOpsConfig(env="finops",
             data={"catalog": {
                 "catalog": "otro_catalogo",
                 "bronze_schema": "b", "silver_schema": "s", "gold_schema": "g",

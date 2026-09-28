@@ -22,9 +22,11 @@ from typing import Any
 
 #: Columnas de auditoria comunes a las tablas derivadas.
 #:
-#: `pipeline_environment` es el ambiente que PRODUJO la fila (dev/qa/prd). No
-#: confundir con `environment`, que en fct_recommendation y fct_cost_daily es el
-#: ambiente DEL RECURSO, resuelto desde sus etiquetas.
+#: `pipeline_environment` es la INSTALACION de FinOps que produjo la fila (por
+#: defecto `finops`; ver docs/adr/0006). No confundir con `environment`, que en
+#: fct_recommendation y fct_cost_daily es el ambiente DEL RECURSO del cliente
+#: (DEV / QA / PRD), resuelto desde sus etiquetas: uno dice quien calculo la
+#: cifra y el otro que se esta midiendo.
 AUDITORIA: dict[str, Any] = {"run_id": str, "pipeline_environment": str, "generated_at": datetime}
 
 #: El pronostico aplana ForecastResult + ForecastPoint, asi que no proviene de

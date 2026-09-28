@@ -58,7 +58,10 @@ def format_plain(alert: Alert, *, env: str = "", workspace_url: str = "") -> str
     if alert.event_date:
         lineas.append(f"Fecha: {alert.event_date.isoformat()}")
     if env:
-        lineas.append(f"Entorno: {env.upper()}")
+        # "Instalacion", no "Entorno": este `env` nombra la instalacion de
+        # FinOps. Rotulado "Entorno" y en mayusculas, quien recibe la alerta lo
+        # lee como el ambiente de SUS recursos (DEV/QA/PRD), que es otra cosa.
+        lineas.append(f"Instalacion FinOps: {env}")
     if workspace_url:
         lineas.append(f"Workspace: {workspace_url}")
     return "\n".join(lineas)
@@ -78,7 +81,7 @@ def format_teams(alert: Alert, *, env: str = "", dashboard_url: str = "") -> dic
     if alert.threshold_value is not None:
         hechos.append({"name": "Umbral", "value": f"{alert.threshold_value:,.2f}"})
     if env:
-        hechos.append({"name": "Entorno", "value": env.upper()})
+        hechos.append({"name": "Instalacion FinOps", "value": env})
 
     tarjeta: dict[str, Any] = {
         "@type": "MessageCard",
@@ -109,7 +112,7 @@ def format_slack(alert: Alert, *, env: str = "", dashboard_url: str = "") -> dic
     if alert.event_date:
         campos.append({"type": "mrkdwn", "text": f"*Fecha:*\n{alert.event_date.isoformat()}"})
     if env:
-        campos.append({"type": "mrkdwn", "text": f"*Entorno:*\n{env.upper()}"})
+        campos.append({"type": "mrkdwn", "text": f"*Instalacion FinOps:*\n{env}"})
 
     bloques: list[dict[str, Any]] = [
         {

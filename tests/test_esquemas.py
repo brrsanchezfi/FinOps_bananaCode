@@ -92,7 +92,7 @@ class TestEspecificacionesPlanas:
         grabador = RunRecorder()
         grabador.add(StageMetric(stage="x", status="ok", duration_seconds=1.0, rows=5))
         fila = {
-            **grabador.as_rows("r1", "dev")[0],
+            **grabador.as_rows("r1", "finops")[0],
             "run_started_at": datetime.now(timezone.utc),
             "run_date": date(2026, 3, 1),
         }
@@ -238,7 +238,7 @@ class TestTablasQueDebenExistirSiempre:
         from finops.schemas import tablas_con_esquema
 
         raiz = Path(__file__).resolve().parents[1]
-        cfg = load_config("dev", conf_dir=raiz / "conf", use_env_vars=False, use_local_overlay=False)
+        cfg = load_config("finops", conf_dir=raiz / "conf", use_env_vars=False, use_local_overlay=False)
         mapa = {fqn: clave for clave, fqn in table_map(cfg).items()}
 
         # Tablas que crea siempre alguna etapa del pipeline: bronze y silver se
@@ -246,6 +246,13 @@ class TestTablasQueDebenExistirSiempre:
         # ellas. Las escritas desde Python se crean vacias en el arranque.
         siempre = {t.key for t in ALL_TABLES if t.layer in ("bronze", "silver")}
         siempre |= {tabla.key for tabla, _ in tablas_con_esquema()}
+        # Las vistas `vw_*_live` las crea la etapa `setup.views` en el arranque.
+        # Se agregaron mientras esta prueba estaba muerta (recorria un directorio
+        # que no existia), por eso nunca se le habian ensenado. Salen de
+        # ALL_VIEWS para que una vista nueva quede cubierta sin tocar esto.
+        from finops.views import ALL_VIEWS
+
+        siempre |= {v.key for v in ALL_VIEWS}
         siempre |= {
             "fct_cost_daily", "agg_cost_monthly", "fct_kpi_daily", "fct_tag_coverage_daily",
             "fct_job_run_cost", "fct_warehouse_cost_daily",
@@ -254,7 +261,13 @@ class TestTablasQueDebenExistirSiempre:
 
         patron = re.compile(rf"\b{re.escape(cfg.catalog)}\.[a-z0-9_]+\.[a-z0-9_]+\b")
         sin_garantia: set[str] = set()
-        for archivo in sorted((raiz / "dashboards" / "dev").glob("*.lvdash.json")):
+        # Antes recorria `dashboards/dev/`, un directorio que dejo de existir al
+        # aplanar los tableros: el bucle iteraba CERO archivos y la prueba
+        # afirmaba `set() == set()` sin proteger nada. La guarda impide que una
+        # ruta equivocada la vuelva a dejar vacia en silencio.
+        archivos = sorted((raiz / "dashboards").glob("*.lvdash.json"))
+        assert archivos, "no se encontro ningun dashboard: la prueba no estaria revisando nada"
+        for archivo in archivos:
             contenido = json.loads(archivo.read_text(encoding="utf-8"))
             for ds in contenido["datasets"]:
                 for fqn in patron.findall("".join(ds["queryLines"])):
@@ -276,17 +289,17 @@ class TestGranoDeCostoDiario:
     tumbaba el pipeline en qa y prd con el modelo sano.
     """
 
-    def test_el_grano_incluye_las_dimensiones_de_etiqueta(self, cfg_dev):
+    def test_el_grano_incluye_las_dimensiones_de_etiqueta(self, cfg_repo):
         from finops.transform.gold import cost_daily_grain
 
-        grano = cost_daily_grain(cfg_dev)
-        for dimension in cfg_dev.get("tagging.dimensions"):
+        grano = cost_daily_grain(cfg_repo)
+        for dimension in cfg_repo.get("tagging.dimensions"):
             assert dimension in grano, f"'{dimension}' no esta en el grano"
 
-    def test_el_grano_incluye_las_columnas_que_separan_filas(self, cfg_dev):
+    def test_el_grano_incluye_las_columnas_que_separan_filas(self, cfg_repo):
         from finops.transform.gold import cost_daily_grain
 
-        grano = cost_daily_grain(cfg_dev)
+        grano = cost_daily_grain(cfg_repo)
         # Estas fueron justamente las que provocaban el falso positivo: un mismo
         # sku_name puede caer en dos sku_group distintos en la misma fecha,
         # workspace y entidad.

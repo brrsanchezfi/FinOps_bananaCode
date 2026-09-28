@@ -15,15 +15,16 @@ project:
 # Destino de datos (Unity Catalog)
 # ---------------------------------------------------------------------------
 catalog:
-  # UN SOLO CATALOGO para los tres entornos.
+  # UN SOLO CATALOGO, de la unica instalacion.
   #
-  # El modelo FinOps describe el consumo de la CUENTA, no de un ambiente: los
-  # tres entornos leen exactamente las mismas system tables y producen las mismas
-  # cifras. Tres copias del mismo dato solo multiplicaban el almacenamiento y
-  # obligaban a versionar un dashboard por entorno.
+  # El modelo FinOps describe el consumo de la CUENTA, no de un ambiente: lee
+  # system.billing.usage, que cubre todos los workspaces y todos los ambientes
+  # del cliente. Una instalacion ya muestra dev, qa y prd; desplegar una por
+  # ambiente produciria las mismas cifras varias veces. Ver docs/adr/0005 y 0006.
   #
-  # Lo que separa a los entornos es donde corre el codigo y que jobs estan
-  # programados, no donde viven los datos. Ver docs/adr/0005.
+  # Si el nombre `finops` ya esta tomado en el metastore (pasa: un metastore lo
+  # comparten muchos workspaces), cambialo en conf/local.yml. `scripts/deploy.*`
+  # reescribe los dashboards contra el catalogo efectivo antes de desplegar.
   catalog: finops
   bronze_schema: bronze
   silver_schema: silver
@@ -41,9 +42,13 @@ catalog:
   managed_location: null
 
   # false = el pipeline nunca intenta crear el catalogo y falla con un mensaje
-  # claro si no existe. Recomendado en qa/prd: crear catalogos es una operacion
-  # de administracion, no de un pipeline de datos.
-  create_if_missing: true
+  # claro si no existe. Es el valor por defecto a proposito: crear un catalogo es
+  # una operacion de administracion, no trabajo de un pipeline de datos, y en
+  # Unity Catalog exige permisos que el principal del job no deberia tener.
+  #
+  # Ponlo en true en `conf/local.yml` durante la primera implantacion si
+  # prefieres que el pipeline lo cree solo.
+  create_if_missing: false
 
   # Ubicacion externa opcional para los SCHEMAS (null = heredan la del catalogo)
   storage_root: null
@@ -361,6 +366,7 @@ alerting:
   # Horas de silencio por huella de alerta (evita spam en corridas frecuentes).
   cooldown_hours: 24
   # Severidad minima que se despacha a canales externos.
+  # Los canales de webhook traen su propio minimo, mas alto (ver `channels`).
   min_severity: medium
   # Maximo de alertas por corrida (proteccion anti-tormenta).
   max_alerts_per_run: 50
@@ -414,6 +420,9 @@ alerting:
 # ---------------------------------------------------------------------------
 quality:
   enabled: true
+  # Un chequeo bloqueante fallido detiene la corrida: es preferible no publicar
+  # cifras a publicarlas mal. Durante una implantacion, cuando el etiquetado
+  # todavia esta a medias, puede convenir ponerlo en false en `conf/local.yml`.
   fail_pipeline_on_error: true
   checks:
     freshness_max_lag_hours: 36
@@ -449,5 +458,6 @@ runtime:
   log_level: INFO
   shuffle_partitions: auto
   # Numero de dias a mantener en las tablas gold de series (0 = sin limite).
-  gold_retention_days: 0
+  # 1100 dias = 3 anhos, suficiente para comparaciones interanuales.
+  gold_retention_days: 1100
   dry_run: false

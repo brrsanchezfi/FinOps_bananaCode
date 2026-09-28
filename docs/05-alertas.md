@@ -115,7 +115,7 @@ databricks secrets create-scope finops -p prd
 databricks secrets put-secret finops teams_webhook_url -p prd
 ```
 
-3. Poner `enabled: true` en `conf/prd.yml`.
+3. Poner `enabled: true` en `conf/local.yml`.
 
 ### Configurar Slack
 

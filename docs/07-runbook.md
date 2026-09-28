@@ -57,7 +57,7 @@ WHERE run_id = '<run_id>' AND status = 'error';
 Reintentar una sola etapa:
 
 ```bash
-databricks bundle run finops_pipeline_diario -t prd --params stages=silver
+databricks bundle run finops_pipeline_diario -t finops --params stages=silver
 ```
 
 ### El cluster no arranca (`INTERNAL_ERROR` sin filas en `ops_run_log`)
@@ -83,7 +83,7 @@ las restricciones de capacidad son por familia y region.
 
 ```bash
 databricks clusters list-node-types -p <perfil>
-databricks bundle deploy -t dev -p <perfil> --var="node_type_id=Standard_DS3_v2"
+databricks bundle deploy -t finops -p <perfil> --var="node_type_id=Standard_DS3_v2"
 ```
 
 La UI de Databricks ofrece ademas *flexible node types*, que deja al servicio
@@ -189,7 +189,7 @@ pero no abortan. En `qa` y `prd` si abortan.
 Para desbloquear una corrida en produccion mientras se resuelve la causa raiz:
 
 ```bash
-databricks bundle run finops_pipeline_diario -t prd \
+databricks bundle run finops_pipeline_diario -t finops \
   --params overrides="quality.fail_pipeline_on_error=false"
 ```
 
@@ -278,7 +278,7 @@ Si alguno tiene costo relevante, agregar su patron en
 **Reprocesar un rango de fechas:**
 
 ```bash
-databricks bundle run finops_pipeline_diario -t prd \
+databricks bundle run finops_pipeline_diario -t finops \
   --params run_date=2026-07-31,overrides="ingestion.lookback_days=31"
 ```
 
@@ -288,13 +288,13 @@ repetirlo no duplica.
 **Recalcular solo la analitica tras cambiar un umbral:**
 
 ```bash
-databricks bundle run finops_pipeline_diario -t prd --params stages=analytics
+databricks bundle run finops_pipeline_diario -t finops --params stages=analytics
 ```
 
 **Probar sin escribir:**
 
 ```bash
-databricks bundle run finops_pipeline_diario -t dev --params dry_run=true
+databricks bundle run finops_pipeline_diario -t finops --params dry_run=true
 ```
 
 Calcula todo y reporta las filas que escribiria, sin tocar ninguna tabla. Los
@@ -303,7 +303,7 @@ canales de alerta pasan automaticamente a `noop`.
 **Silenciar temporalmente las alertas externas:**
 
 ```bash
-databricks bundle run finops_alertas -t prd \
+databricks bundle run finops_alertas -t finops \
   --params overrides="alerting.min_severity=critical"
 ```
 
@@ -312,7 +312,7 @@ O poner `enabled: false` en el canal y redesplegar.
 **Backfill completo desde cero:**
 
 ```bash
-databricks bundle run finops_backfill -t prd
+databricks bundle run finops_backfill -t finops
 ```
 
 ---
@@ -325,7 +325,7 @@ databricks bundle run finops_backfill -t prd
 2. Correr con una ventana que cubra el hueco:
 
 ```bash
-databricks bundle run finops_pipeline_diario -t prd \
+databricks bundle run finops_pipeline_diario -t finops \
   --params overrides="ingestion.lookback_days=15"
 ```
 
@@ -360,14 +360,14 @@ el siguiente deploy por diseno.
 - Si el cambio remoto no importa (o ya se traslado al generador):
 
   ```bash
-  databricks bundle deploy -t dev --force
+  databricks bundle deploy -t finops --force
   ```
 
 - Si el cambio remoto vale la pena conservar, primero exportarlo y trasladarlo
   al generador:
 
   ```bash
-  databricks bundle generate dashboard --existing-path "/Workspace/Users/<usuario>/<dashboard>" -t dev
+  databricks bundle generate dashboard --existing-path "/Workspace/Users/<usuario>/<dashboard>" -t finops
   ```
 
   Luego ajustar `scripts/dashboards.py`, `generate`, commitear y desplegar sin
@@ -391,7 +391,7 @@ dias de historia y el pronostico 21. Desde la etapa `setup` se crean vacias con
 su esquema, asi que esto no deberia ocurrir; si ocurre, correr:
 
 ```bash
-databricks bundle run finops_pipeline_diario -t dev --params stages=setup
+databricks bundle run finops_pipeline_diario -t finops --params stages=setup
 ```
 
 **Cero filas.** Con pocos dias de datos es lo esperado en los paneles de

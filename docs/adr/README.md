@@ -9,7 +9,8 @@ alternativas evaluadas, lo que se decidio y **que se pierde** con esa eleccion.
 | [0002](0002-escritura-idempotente-por-rango-de-fechas.md) | Escritura idempotente por reemplazo de rango de fechas | aceptada |
 | [0003](0003-deteccion-de-anomalias-con-mad.md) | Deteccion de anomalias con z-score modificado (mediana + MAD) | aceptada |
 | [0004](0004-dashboards-con-marcadores-de-tabla.md) | Dashboards generados desde configuracion y versionados | aceptada (corregida 2026-08-06) |
-| [0005](0005-un-solo-catalogo.md) | Un solo catalogo para los tres entornos | aceptada |
+| [0005](0005-un-solo-catalogo.md) | Un solo catalogo para los tres entornos | aceptada, reemplazada en parte por 0006 |
+| [0006](0006-una-sola-instalacion.md) | Una sola instalacion, que cubre todos los ambientes | aceptada |
 
 ## Cuando escribir uno
 

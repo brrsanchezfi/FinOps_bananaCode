@@ -14,7 +14,7 @@ resources:
   jobs:
     # -------------------------------------------------------------------------
     finops_pipeline_diario:
-      name: "[FinOps] Pipeline diario (${bundle.target})"
+      name: "[FinOps] Pipeline diario"
       description: >-
         Ingesta las system tables de facturacion, construye el modelo FinOps
         (bronze/silver/gold), ejecuta la analitica (anomalias, pronostico,
@@ -22,7 +22,7 @@ resources:
         datos y despacha las alertas.
       tags:
         proyecto: finops
-        entorno: ${bundle.target}
+        entorno: ${var.resource_environment}
         gestionado_por: databricks-asset-bundle
 
       schedule:
@@ -76,7 +76,7 @@ resources:
               proyecto: finops
               cost_center: PLATAFORMA
               team: FINOPS
-              environment: ${bundle.target}
+              environment: ${var.resource_environment}
 
       parameters:
         - name: env
@@ -193,7 +193,7 @@ resources:
 
     # -------------------------------------------------------------------------
     finops_alertas:
-      name: "[FinOps] Alertamiento (${bundle.target})"
+      name: "[FinOps] Alertamiento"
       description: >-
         Reevalua las reglas de alerta sobre el modelo gold ya construido. Corre
         con mayor frecuencia que el pipeline para acortar el tiempo de deteccion
@@ -201,7 +201,7 @@ resources:
         repetir notificaciones dentro del periodo de enfriamiento.
       tags:
         proyecto: finops
-        entorno: ${bundle.target}
+        entorno: ${var.resource_environment}
 
       schedule:
         quartz_cron_expression: ${var.cron_alertas}
@@ -230,7 +230,7 @@ resources:
               proyecto: finops
               cost_center: PLATAFORMA
               team: FINOPS
-              environment: ${bundle.target}
+              environment: ${var.resource_environment}
 
       tasks:
         - task_key: alertas
@@ -247,14 +247,14 @@ resources:
 
     # -------------------------------------------------------------------------
     finops_backfill:
-      name: "[FinOps] Backfill historico (${bundle.target})"
+      name: "[FinOps] Backfill historico"
       description: >-
         Recarga completa del historico disponible en las system tables. Se
         ejecuta manualmente: no tiene schedule. Usa `ingestion.initial_load_days`
         del entorno para determinar cuanto historico traer.
       tags:
         proyecto: finops
-        entorno: ${bundle.target}
+        entorno: ${var.resource_environment}
         tipo: manual
 
       max_concurrent_runs: 1
@@ -284,7 +284,7 @@ resources:
               proyecto: finops
               cost_center: PLATAFORMA
               team: FINOPS
-              environment: ${bundle.target}
+              environment: ${var.resource_environment}
 
       parameters:
         - name: env

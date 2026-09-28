@@ -161,7 +161,7 @@ haya configurado la maquina donde corren.
 
 `validate_config` verifica invariantes al cargar (descuentos en rango, alias
 definidos para cada dimension, canales sin duplicar, presupuestos con monto
-positivo). CI valida los tres entornos en cada PR, asi que un YAML mal formado
+positivo). CI valida la configuracion del producto en cada PR, asi que un YAML mal formado
 no llega a produccion.
 
 ---

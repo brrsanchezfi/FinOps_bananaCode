@@ -67,13 +67,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
-      - name: Validar los tres entornos
+      # Una sola instalacion por cuenta (docs/adr/0006): ya no hay tres
+      # entornos que validar por separado.
+      - name: Validar la configuracion del producto
         run: |
-          for env in dev qa prd; do
-            echo "--- $env ---"
-            python -m finops.cli validate --env "$env"
-            python -m finops.cli plan --env "$env" > /dev/null
-          done
+          python -m finops.cli validate
+          python -m finops.cli plan > /dev/null
 
       - name: Verificar que los dashboards versionados esten al dia
         run: python scripts/dashboards.py check
@@ -99,12 +98,19 @@ jobs:
 
       - name: Validar bundle
         env:
-          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST_DEV }}
-          DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID_DEV }}
-          DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET_DEV }}
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+          DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+          # Sin valor por defecto en databricks.yml a proposito (es del
+          # workspace del cliente), asi que CI tiene que aportarlo.
+          BUNDLE_VAR_warehouse_id: ${{ secrets.DATABRICKS_WAREHOUSE_ID }}
         run: |
           if [ -z "$DATABRICKS_HOST" ]; then
             echo "::notice::Secretos de Databricks no configurados; se omite la validacion del bundle."
             exit 0
           fi
-          databricks bundle validate -t dev
+          # resources/dashboards.yml apunta a build/dashboards/, que produce
+          # `render` y no se versiona. Sin este paso el bundle no encuentra los
+          # tableros.
+          python scripts/dashboards.py render
+          databricks bundle validate -t finops

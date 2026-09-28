@@ -1,8 +1,13 @@
 # ADR 0005 — Un solo catalogo para los tres entornos
 
-- **Estado:** aceptada
+- **Estado:** aceptada, reemplazada parcialmente por [ADR 0006](0006-una-sola-instalacion.md)
 - **Fecha:** 2026-08-10
 - **Reemplaza parcialmente:** [ADR 0004](0004-dashboards-con-marcadores-de-tabla.md)
+
+> **Nota (2026-09-27).** El catalogo unico sigue vigente. Lo que el ADR 0006
+> retira son los TRES ENTORNOS de despliegue que esta decision conservaba: la
+> tabla dev/qa/prd de abajo, los overlays `conf/dev.yml` y afines, y la prueba
+> `test_los_tres_entornos_resuelven_a_las_mismas_tablas` ya no existen.
 
 ## Contexto
 

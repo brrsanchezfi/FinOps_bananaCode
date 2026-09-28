@@ -75,7 +75,7 @@ class TestCuandoNoUsarElFeed:
         from finops.config import FinOpsConfig
 
         datos = {"ingestion": {"cdf": {"enabled": True, "max_lookback_hours": 48}, **overrides}}
-        return FinOpsConfig(env="dev", data=datos)
+        return FinOpsConfig(env="finops", data=datos)
 
     def test_sin_corrida_previa_no_hay_punto_de_partida(self):
         assert since_for(self._cfg(), None) is None
@@ -104,14 +104,14 @@ class TestCuandoNoUsarElFeed:
     def test_llega_desactivado(self, valor):
         from finops.config import FinOpsConfig
 
-        cfg = FinOpsConfig(env="dev", data={"ingestion": {"cdf": {"enabled": valor}}})
+        cfg = FinOpsConfig(env="finops", data={"ingestion": {"cdf": {"enabled": valor}}})
         assert not cdf_enabled(cfg)
 
     def test_el_repositorio_lo_distribuye_apagado(self, conf_dir):
         """Rinde al subir la frecuencia del schedule; activarlo es una decision."""
         from finops.config import load_config
 
-        cfg = load_config("dev", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
+        cfg = load_config("finops", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
         assert cfg.get("ingestion.cdf.enabled") is False
 
 
@@ -121,8 +121,7 @@ class TestLaVentanaFluyeAlPipeline:
     def _cfg(self):
         from finops.config import FinOpsConfig
 
-        return FinOpsConfig(
-            env="dev",
+        return FinOpsConfig(env="finops",
             data={"ingestion": {"lookback_days": 7}},
             run_date=date(2026, 9, 21),
         )
@@ -142,8 +141,7 @@ class TestLaVentanaFluyeAlPipeline:
         """Si no ganara, bronze y gold procesarian rangos distintos."""
         from finops.config import FinOpsConfig
 
-        cfg = FinOpsConfig(
-            env="dev",
+        cfg = FinOpsConfig(env="finops",
             data={"ingestion": {"lookback_days": 7, "max_usage_date": "2026-08-01"}},
             run_date=date(2026, 9, 21),
         )

@@ -1,7 +1,7 @@
 # 02 — Modelo de datos
 
 Todos los nombres se resuelven desde `src/finops/catalog.py`. El catalogo es
-**`finops`** para los tres entornos: el modelo describe el consumo de la cuenta,
+**`finops`**, el de la unica instalacion: el modelo describe el consumo de la cuenta,
 no de un ambiente (ver [ADR 0005](adr/0005-un-solo-catalogo.md)).
 
 ---

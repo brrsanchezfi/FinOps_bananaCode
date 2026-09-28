@@ -1,17 +1,34 @@
 """Carga, fusion y validacion de la configuracion FinOps.
 
 Precedencia (de menor a mayor):
-    1. conf/base.yml
-    2. conf/<env>.yml
-    3. conf/local.yml            (opcional, NO versionado)
+    1. conf/base.yml             configuracion del PRODUCTO
+    2. conf/<env>.yml            opcional, casi nunca necesario (ver abajo)
+    3. conf/local.yml            la INSTALACION, opcional y NO versionado
     4. overrides explicitos (parametros de job / widgets del notebook)
     5. variables de entorno con prefijo FINOPS__ (doble guion bajo = nivel)
        ej: FINOPS__CATALOG__CATALOG=finops_sandbox
 
 La capa 3 es la del DESPLIEGUE CONCRETO: workspaces, unidades de negocio,
-responsables. El repositorio solo trae valores neutros y una plantilla
-`conf/local.example.yml`; lo que identifica a una instalacion vive en
+responsables, umbrales propios. El repositorio solo trae valores neutros y una
+plantilla `conf/local.example.yml`; lo que identifica a una instalacion vive en
 `conf/local.yml` y `conf/budgets.local.yml`, ambos ignorados por git.
+
+Sobre `env`
+-----------
+Antes habia tres entornos fijos (dev, qa, prd) con un overlay obligatorio cada
+uno. Se eliminaron: el modelo describe el consumo de la CUENTA -- lee
+`system.billing.usage`, que cubre todos los workspaces -- asi que desplegar tres
+copias producia las mismas cifras tres veces. Se despliega UNA instalacion.
+
+`env` sobrevive como ETIQUETA de esa instalacion, no como perfil de
+configuracion: es lo que queda en `pipeline_environment` de `ops_run_log` y
+`ops_watermark`, util cuando una cuenta tiene mas de un despliegue (por ejemplo
+un banco de pruebas junto al productivo). Ya no se valida contra una lista
+cerrada y `conf/<env>.yml` es opcional.
+
+OJO, no confundir con la DIMENSION `environment`, que clasifica los recursos
+DEL CLIENTE en DEV/QA/PRD y es el corazon del modelo de costo. Esa no tiene
+nada que ver con esto.
 
 La configuracion se expone como un objeto `FinOpsConfig` con acceso por ruta
 punteada (`cfg.get("anomaly.window_days")`) y helpers para nombres de tabla.
@@ -22,6 +39,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+import re
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -31,7 +49,12 @@ import yaml
 
 from .errors import ConfigError
 
-VALID_ENVIRONMENTS = ("dev", "qa", "prd")
+#: Nombre por defecto de la instalacion. Ver "Sobre `env`" arriba.
+DEFAULT_ENVIRONMENT = "finops"
+
+#: Forma admitida de un nombre de instalacion. Se valida la FORMA y no una lista
+#: cerrada: el nombre es una etiqueta libre y acaba en nombres de tabla y de job.
+_ENV_VALIDO = re.compile(r"^[a-z][a-z0-9_-]{0,30}$")
 _ENV_PREFIX = "FINOPS__"
 
 #: Overlay del despliegue concreto. Opcional y fuera de git: es donde cada
@@ -348,12 +371,19 @@ def load_config(
             sin importar que instalacion este configurada al lado.
     """
     env_norm = str(env).strip().lower()
-    if env_norm not in VALID_ENVIRONMENTS:
-        raise ConfigError(f"Entorno '{env}' invalido. Validos: {VALID_ENVIRONMENTS}")
+    if not _ENV_VALIDO.match(env_norm):
+        raise ConfigError(
+            f"Nombre de instalacion '{env}' invalido. Debe empezar por letra y usar "
+            "solo minusculas, digitos, '_' o '-' (maximo 31 caracteres): acaba en "
+            "nombres de tabla y de job."
+        )
 
     directorio = Path(conf_dir) if conf_dir else default_conf_dir()
     datos = _read_yaml(directorio / "base.yml")
-    datos = deep_merge(datos, _read_yaml(directorio / f"{env_norm}.yml"))
+    # Opcional: `base.yml` ya trae la configuracion del producto y lo propio de
+    # la instalacion va en `local.yml`. Se conserva el punto de extension para
+    # quien despliegue varias instalaciones en una misma cuenta.
+    datos = deep_merge(datos, _read_yaml_optional(directorio / f"{env_norm}.yml"))
     # Overlay del despliegue concreto (ver LOCAL_OVERLAY). Va despues del
     # entorno para que un cliente pueda ajustar cualquier clave sin bifurcar
     # los archivos que se distribuyen, y antes de los overrides explicitos para

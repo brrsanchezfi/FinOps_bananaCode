@@ -8,9 +8,9 @@
 #   databricks auth login --host https://adb-XXXX.N.azuredatabricks.net -p finops
 #
 # Despliegue:
-#   databricks bundle validate -t dev -p finops
-#   databricks bundle deploy   -t dev -p finops
-#   databricks bundle run finops_pipeline_diario -t dev -p finops
+#   databricks bundle validate -t finops -p finops
+#   databricks bundle deploy   -t finops -p finops
+#   databricks bundle run finops_pipeline_diario -t finops -p finops
 #
 # O bien, con el script que encadena los pasos:
 #   pwsh scripts/deploy.ps1 -Env dev -Profile finops
@@ -94,7 +94,7 @@ variables:
       DS3_v2 (v2, la generacion mas vieja y la mas disponible).
 
           databricks clusters list-node-types -p <perfil>
-          databricks bundle deploy -t dev -p <perfil> --var="node_type_id=Standard_DS3_v2"
+          databricks bundle deploy -t finops -p <perfil> --var="node_type_id=Standard_DS3_v2"
     default: Standard_D2ads_v6
 
   spark_version:
@@ -138,9 +138,28 @@ variables:
     description: PAUSED para desplegar sin activar el schedule, UNPAUSED para activarlo.
     default: PAUSED
 
+  resource_environment:
+    description: >-
+      Ambiente con el que se ETIQUETA el propio computo de FinOps (jobs y
+      clusters), para que su costo se clasifique como cualquier otro recurso
+      del cliente. Es la dimension `environment` del modelo -- DEV, QA o PRD --
+      y NO tiene nada que ver con el nombre del target: ese nombra la
+      instalacion de FinOps, este dice en que ambiente vive su computo.
+
+      Estuvieron atados al target y eso era un error latente: al renombrarlo,
+      el costo del pipeline habria aparecido en un ambiente inexistente con el
+      nombre del target. Va en su forma canonica para no depender de
+      `tagging.value_map`.
+
+      PRD por defecto: instalado en un cliente, FinOps es una carga productiva.
+      En un banco de pruebas: BUNDLE_VAR_resource_environment=DEV.
+    default: PRD
+
 targets:
   # ---------------------------------------------------------------------------
-  dev:
+  # UNA instalacion, que cubre todos los ambientes de la cuenta. Ver el bloque
+  # de abajo y docs/adr/0006.
+  finops:
     mode: development     # prefija los recursos con el usuario y pausa schedules
     default: true
     workspace:
@@ -153,20 +172,20 @@ targets:
       pipeline_paused: PAUSED
 
 # ---------------------------------------------------------------------------
-# Un unico target de despliegue: dev.
+# Un unico target: `finops`.
 #
-# El modelo FinOps describe el consumo de la CUENTA, no de un ambiente: lee
-# `system.billing.usage`, que cubre todos los workspaces de la cuenta. El
-# pipeline corriendo en un solo workspace mide igual el gasto de los demas, asi
-# que no hace falta una copia desplegada por ambiente. Ver docs/adr/0005.
+# El tablero se vende como producto terminado y describe el consumo de la
+# CUENTA: lee `system.billing.usage`, que cubre todos los workspaces y todos los
+# ambientes del cliente. Una sola instalacion ya muestra dev, qa y prd; tres
+# instalaciones producirian las mismas cifras tres veces. Ver docs/adr/0006.
 #
-# Los targets `qa` y `prd` se retiraron: desplegaban sobre workspaces de la
-# misma cuenta y solo duplicaban jobs y tableros sobre los mismos datos. Si una
-# instalacion necesita aislar el despliegue, agregar el target aqui con su
-# propio `root_path` y desplegarlo con el perfil de ese workspace.
+# Hasta el 27 sep 2026 se llamaba `dev`, y habia overlays conf/dev.yml, qa.yml y
+# prd.yml. Se colapsaron en conf/base.yml (el perfil estricto de prd) mas
+# conf/local.yml (lo propio de cada instalacion).
 #
-# `conf/qa.yml` y `conf/prd.yml` se conservan a proposito: son overlays de
-# CONFIGURACION, un eje distinto del despliegue. `scripts/dashboards.py` los usa
-# para verificar que los tres entornos generen tableros identicos, y varios
-# tests los parametrizan.
+# NO confundir dos cosas que comparten la palabra "ambiente":
+#   - el TARGET nombra la instalacion de FinOps. Hay una.
+#   - `resource_environment` y la dimension `environment` clasifican los
+#     recursos del cliente en DEV / QA / PRD. Eso es un dato que el tablero
+#     MIDE, y sigue existiendo intacto.
 # ---------------------------------------------------------------------------

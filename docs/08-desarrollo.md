@@ -9,7 +9,7 @@ pip install -e ".[dev]"
 
 pytest -q
 ruff check src tests scripts
-python -m finops.cli validate --env dev
+python -m finops.cli validate
 ```
 
 La suite corre **sin Spark ni Databricks**. Si quieres ejecutar tambien las
@@ -109,7 +109,7 @@ las mas valiosas:
 
 - `test_catalog.py` — ningun dashboard referencia una tabla inexistente ni tiene
   un catalogo incrustado.
-- `test_config.py` — los tres entornos versionados son validos.
+- `test_config.py` — la configuracion del producto es valida y no reaparecen overlays por entorno.
 - `test_chargeback.py::TestConciliacion` — el chargeback siempre suma el total.
 - `test_pricing.py::test_identidad_de_componentes` — los componentes de costo
   siempre cuadran entre si.
@@ -188,7 +188,7 @@ git checkout -b feat/mi-cambio
 
 pytest -q
 ruff check --fix src tests scripts
-python -m finops.cli validate --env prd
+python -m finops.cli validate
 
 # Si tocaste dashboards
 python scripts/dashboards.py generate
@@ -204,8 +204,8 @@ entornos, y que los dashboards versionados esten sincronizados con el generador.
 
 ```bash
 databricks auth login --profile dev
-bash scripts/deploy.sh dev
-databricks bundle run finops_pipeline_diario -t dev --params dry_run=true
+bash scripts/deploy.sh
+databricks bundle run finops_pipeline_diario -t finops --params dry_run=true
 ```
 
 `dry_run=true` recorre todo el pipeline y reporta cuantas filas escribiria, sin
@@ -217,13 +217,13 @@ tocar ninguna tabla. Es la forma mas rapida de validar permisos y esquemas.
 
 ```bash
 # Configuracion efectiva de un entorno (con secretos redactados)
-python -m finops.cli validate --env prd --show
+python -m finops.cli validate --show
 
 # Ventana, tablas destino y fuentes configuradas
-python -m finops.cli plan --env prd
+python -m finops.cli plan
 
 # Una etapa aislada, con log detallado
-python -m finops.cli run --env dev --stages silver --log-level DEBUG
+python -m finops.cli run --stages silver --log-level DEBUG
 ```
 
 Dentro de un notebook, `ctx.cfg.redacted()` imprime la configuracion sin exponer
