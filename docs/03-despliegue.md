@@ -130,7 +130,7 @@ otra instalacion.
 ```bash
 export BUNDLE_VAR_warehouse_id=<id>          # bash
 $env:BUNDLE_VAR_warehouse_id = "<id>"        # PowerShell
-databricks bundle deploy -t dev -p finops --var="warehouse_id=<id>"   # o por invocacion
+databricks bundle deploy -t finops -p finops --var="warehouse_id=<id>"   # o por invocacion
 ```
 
 Sin el, el deploy de los dashboards falla con "variable warehouse_id has no
@@ -143,7 +143,7 @@ databricks secrets create-scope finops -p prd
 databricks secrets put-secret finops teams_webhook_url -p prd
 ```
 
-Luego poner `enabled: true` en el canal correspondiente de `conf/prd.yml`. Si el
+Luego poner `enabled: true` en el canal correspondiente de `conf/local.yml`. Si el
 secreto no existe, el canal se omite con advertencia y las alertas igual quedan
 registradas en `ops_alert_log`.
 
@@ -186,8 +186,8 @@ en un archivo versionado.
 Validar sin desplegar nada:
 
 ```bash
-python -m finops.cli validate --env prd --show
-python -m finops.cli plan --env prd
+python -m finops.cli validate --show
+python -m finops.cli plan
 ```
 
 ---
@@ -197,25 +197,25 @@ python -m finops.cli plan --env prd
 ### Camino recomendado
 
 ```bash
-bash scripts/deploy.sh prd --profile finops
+bash scripts/deploy.sh --profile finops
 ```
 
 ```powershell
-pwsh scripts/deploy.ps1 -Env prd -DatabricksProfile finops
+pwsh scripts/deploy.ps1 -DatabricksProfile finops
 ```
 
 Solo validar, sin desplegar:
 
 ```bash
-bash scripts/deploy.sh prd --profile finops --no-deploy
+bash scripts/deploy.sh --profile finops --no-deploy
 ```
 
 ### Camino manual
 
 ```bash
-python -m finops.cli validate --env prd
-databricks bundle validate -t prd
-databricks bundle deploy   -t prd
+python -m finops.cli validate
+databricks bundle validate -t finops
+databricks bundle deploy   -t finops
 ```
 
 No hay paso de build previo: los dashboards estan versionados ya resueltos en
@@ -236,8 +236,8 @@ python scripts/dashboards.py generate
 ### Verificacion
 
 ```bash
-databricks bundle summary -t prd
-databricks bundle run finops_pipeline_diario -t prd
+databricks bundle summary -t finops
+databricks bundle run finops_pipeline_diario -t finops
 ```
 
 ---
@@ -248,7 +248,7 @@ El pipeline diario solo procesa `ingestion.lookback_days` hacia atras. Para trae
 la historia completa disponible en las system tables:
 
 ```bash
-databricks bundle run finops_backfill -t prd
+databricks bundle run finops_backfill -t finops
 ```
 
 Usa `ingestion.initial_load_days` (400 dias en `prd`) y un cluster con
@@ -259,7 +259,7 @@ Alternativa con ventana acotada, util para probar antes de comprometer el
 backfill completo:
 
 ```bash
-databricks bundle run finops_pipeline_diario -t prd \
+databricks bundle run finops_pipeline_diario -t finops \
   --params full_refresh=true,overrides="ingestion.initial_load_days=60"
 ```
 
@@ -299,48 +299,66 @@ carpeta personal del usuario (por `mode: development`); en `qa` y `prd` es
 ### `.github/workflows/ci.yml` — en cada PR
 
 1. Lint con `ruff` y suite completa de `pytest` (Python 3.10 y 3.12).
-2. Validacion de la configuracion de los tres entornos.
+2. Validacion de la configuracion del producto.
 3. `python scripts/dashboards.py check`: verifica que `dashboards/*.lvdash.json`
    este sincronizado con el generador (falla si alguien edito un JSON a mano).
 4. `databricks bundle validate` si hay secretos configurados.
 
 ### `.github/workflows/deploy.yml` — manual o por tag
 
-Ejecuta pruebas, valida y despliega. Usa GitHub Environments, lo que
-permite exigir aprobacion manual antes de tocar `prd`.
+Ejecuta pruebas, valida y despliega la instalacion `finops`. Usa el GitHub
+Environment `finops` como compuerta de aprobacion manual antes de tocar el
+workspace (no tiene relacion con los ambientes DEV/QA/PRD que el tablero mide).
 
-Secretos requeridos en el repositorio:
+Secretos requeridos en el repositorio, compartidos por los dos workflows:
 
 | Secreto | Uso |
 |---|---|
 | `DATABRICKS_HOST` | URL del workspace destino |
 | `DATABRICKS_CLIENT_ID` | Service principal (OAuth M2M) |
 | `DATABRICKS_CLIENT_SECRET` | Secreto del service principal |
+| `DATABRICKS_WAREHOUSE_ID` | SQL warehouse de los dashboards. Obligatorio: `databricks.yml` no trae valor por defecto |
 
-Para el job de validacion en PR se usan las variantes `*_DEV`.
+Antes habia variantes `*_DEV` para el job de validacion en PR; con una sola
+instalacion ya no hacen falta.
 
 ---
 
-## Promocion entre entornos
+## Una sola instalacion
 
-El mismo commit se despliega a los tres entornos. Lo unico que cambia es el
-target del bundle y el overlay de configuracion:
+No hay promocion entre entornos porque no hay entornos de despliegue: se
+despliega **una** instalacion (target `finops`), que ya cubre el consumo de dev,
+qa y prd del cliente (ver [ADR 0006](adr/0006-una-sola-instalacion.md)).
 
 ```bash
-bash scripts/deploy.sh dev    # schedules pausados, alertas solo a tabla
-bash scripts/deploy.sh qa     # schedules activos
-bash scripts/deploy.sh prd    # schedules activos, alertas a canales
+bash scripts/deploy.sh --profile <perfil>
 ```
 
-No hay que editar SQL, ni nombres de tabla, ni notebooks para promocionar: los
-tres comparten el catalogo `finops` (ver [ADR 0005](adr/0005-un-solo-catalogo.md)).
+Si hace falta probar un cambio sin tocar la instalacion productiva, se monta una
+SEGUNDA instalacion -- un banco de pruebas -- con su propio catalogo:
+
+- **En otro workspace** (el caso normal): el mismo target `finops`, con el
+  perfil de ese workspace y su propio `conf/local.yml`. Es como esta montado el
+  banco de pruebas de este repositorio.
+
+  ```bash
+  bash scripts/deploy.sh --profile <perfil-del-banco-de-pruebas>
+  ```
+
+- **En el mismo workspace**: hace falta un segundo bloque en `targets` de
+  `databricks.yml`, porque el nombre del target forma el `root_path` y el nombre
+  de los jobs, y dos instalaciones con el mismo target se pisarian.
+
+**No confundir** el ambiente del tablero (donde corre FinOps) con el ambiente de
+un recurso del cliente (DEV / QA / PRD), que es un dato que el tablero mide y se
+configura en `tagging.workspace_defaults`.
 
 ---
 
 ## Desmontaje
 
 ```bash
-databricks bundle destroy -t dev
+databricks bundle destroy -t finops
 ```
 
 Elimina jobs y dashboards. **No borra los datos**: los schemas y tablas del

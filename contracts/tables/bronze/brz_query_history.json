@@ -1,0 +1,150 @@
+{
+  "_doc": "Bronze — Historial de consultas SQL (system.query.history).",
+  "catalog": "{catalog.bronze}",
+  "schema": "{path.schema_bronze}",
+  "name": "brz_query_history",
+  "type": "MANAGED",
+  "format": "DELTA",
+  "comment": "Historial de consultas SQL (system.query.history).",
+  "owner": "finops",
+  "columns": [
+    {
+      "name": "account_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "workspace_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "statement_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "executed_by",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "executed_by_user_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "statement_type",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "execution_status",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "compute",
+      "type": "STRUCT",
+      "nullable": true,
+      "comment": "STRUCT<TYPE:STRING,CLUSTER_ID:STRING,WAREHOUSE_ID:STRING>"
+    },
+    {
+      "name": "client_application",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "start_time",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "end_time",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "total_duration_ms",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "execution_duration_ms",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "compilation_duration_ms",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "waiting_for_compute_duration_ms",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "read_bytes",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "read_rows",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "produced_rows",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "written_bytes",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "spilled_local_bytes",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "query_date",
+      "type": "DATE",
+      "nullable": true
+    },
+    {
+      "name": "_ingested_at",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "_run_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "_source",
+      "type": "STRING",
+      "nullable": true
+    }
+  ],
+  "partitions": [
+    "query_date"
+  ],
+  "properties": {
+    "layer": "bronze",
+    "quality": "raw",
+    "merge_schema": true
+  }
+}

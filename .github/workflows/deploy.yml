@@ -1,16 +1,20 @@
 name: Deploy
 
+# Despliega LA instalacion de FinOps (target `finops`).
+#
+# Antes se elegia entre dev, qa y prd. Ya no: el tablero se vende como producto
+# terminado y describe el consumo de toda la cuenta -- lee system.billing.usage,
+# que cubre todos los workspaces y todos los ambientes del cliente --, asi que
+# una sola instalacion ya muestra dev, qa y prd. Ver docs/adr/0006.
+#
+# Este workflow despliega la instalacion propia (banco de pruebas o demo). Cada
+# cliente despliega la suya contra su cuenta, con su `conf/local.yml`.
+
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
     inputs:
-      entorno:
-        description: Entorno destino
-        required: true
-        default: qa
-        type: choice
-        options: [dev, qa, prd]
       ejecutar_pipeline:
         description: Ejecutar el pipeline tras desplegar
         required: false
@@ -18,15 +22,20 @@ on:
         type: boolean
 
 concurrency:
-  group: deploy-${{ inputs.entorno || 'prd' }}
+  group: deploy-finops
   cancel-in-progress: false
+
+env:
+  TARGET: finops
 
 jobs:
   desplegar:
-    name: Desplegar a ${{ inputs.entorno || 'prd' }}
+    name: Desplegar la instalacion FinOps
     runs-on: ubuntu-latest
-    # El entorno de GitHub permite exigir aprobacion manual antes de tocar prd.
-    environment: ${{ inputs.entorno || 'prd' }}
+    # El environment de GitHub es la compuerta de aprobacion manual antes de
+    # tocar el workspace. No tiene relacion con los ambientes DEV/QA/PRD que el
+    # tablero mide en los recursos del cliente.
+    environment: finops
 
     steps:
       - uses: actions/checkout@v4
@@ -44,15 +53,16 @@ jobs:
       - name: Pruebas
         run: python -m pytest -q
 
-      - name: Determinar entorno
-        id: env
-        run: echo "target=${{ inputs.entorno || 'prd' }}" >> "$GITHUB_OUTPUT"
-
       - name: Validar configuracion
-        run: python -m finops.cli validate --env "${{ steps.env.outputs.target }}"
+        run: python -m finops.cli validate --env "$TARGET"
 
       - name: Verificar que los dashboards esten al dia
         run: python scripts/dashboards.py check
+
+      # resources/dashboards.yml apunta a build/dashboards/, que produce
+      # `render` contra el catalogo efectivo y no se versiona.
+      - name: Resolver los dashboards para esta instalacion
+        run: python scripts/dashboards.py render --env "$TARGET"
 
       - uses: databricks/setup-cli@main
 
@@ -61,10 +71,11 @@ jobs:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
           DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
           DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
-          DATABRICKS_BUNDLE_ENV: ${{ steps.env.outputs.target }}
+          # Sin valor por defecto en databricks.yml: es del workspace destino.
+          BUNDLE_VAR_warehouse_id: ${{ secrets.DATABRICKS_WAREHOUSE_ID }}
         run: |
-          databricks bundle validate -t "${{ steps.env.outputs.target }}"
-          databricks bundle deploy  -t "${{ steps.env.outputs.target }}"
+          databricks bundle validate -t "$TARGET"
+          databricks bundle deploy   -t "$TARGET"
 
       - name: Ejecutar el pipeline
         if: inputs.ejecutar_pipeline
@@ -72,7 +83,8 @@ jobs:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
           DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
           DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
-        run: databricks bundle run finops_pipeline_diario -t "${{ steps.env.outputs.target }}"
+          BUNDLE_VAR_warehouse_id: ${{ secrets.DATABRICKS_WAREHOUSE_ID }}
+        run: databricks bundle run finops_pipeline_diario -t "$TARGET"
 
       - name: Resumen del despliegue
         if: always()
@@ -80,4 +92,5 @@ jobs:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
           DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
           DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
-        run: databricks bundle summary -t "${{ steps.env.outputs.target }}" || true
+          BUNDLE_VAR_warehouse_id: ${{ secrets.DATABRICKS_WAREHOUSE_ID }}
+        run: databricks bundle summary -t "$TARGET" || true

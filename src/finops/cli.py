@@ -2,10 +2,13 @@
 
 Uso tipico:
 
-    finops validate --env dev              # valida la configuracion sin Spark
-    finops plan --env prd                  # muestra la ventana y las tablas destino
-    finops run --env dev --stages bronze,silver,gold
-    finops run --env prd --set anomaly.score_threshold=4.0
+    finops validate                        # valida la configuracion sin Spark
+    finops plan                            # muestra la ventana y las tablas destino
+    finops run --stages bronze,silver,gold
+    finops run --set anomaly.score_threshold=4.0
+
+`--env` es opcional: nombra la INSTALACION (por defecto `finops`), no elige un
+perfil de configuracion. Ver `finops.config`, seccion "Sobre `env`".
 
 `validate` y `plan` no requieren Spark ni conexion al workspace, por lo que se
 ejecutan en CI para detectar errores de configuracion antes de desplegar.
@@ -19,7 +22,7 @@ import sys
 from typing import Any
 
 from .catalog import ALL_TABLES, table_map
-from .config import VALID_ENVIRONMENTS, load_config
+from .config import DEFAULT_ENVIRONMENT, load_config
 from .errors import FinOpsError
 from .logging_utils import configure_logging, get_logger
 from .pipeline import ALL_STAGES
@@ -54,7 +57,7 @@ def _build_config(args: argparse.Namespace):
 
 def cmd_validate(args: argparse.Namespace) -> int:
     cfg = _build_config(args)
-    print(f"Configuracion valida para el entorno '{cfg.env}'.")
+    print(f"Configuracion valida para la instalacion '{cfg.env}'.")
     print(f"  {cfg.describe()}")
     print(f"  presupuestos definidos: {len(cfg.budgets.get('budgets', []) or [])}")
     canales = [c.get("name") for c in (cfg.get("alerting.channels") or []) if c.get("enabled")]
@@ -66,7 +69,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
 def cmd_plan(args: argparse.Namespace) -> int:
     cfg = _build_config(args)
-    print(f"Plan de ejecucion — entorno {cfg.env}")
+    print(f"Plan de ejecucion — instalacion {cfg.env}")
     print(f"  ventana de proceso : {cfg.min_date} .. {cfg.max_date}")
     print(f"  catalogo destino   : {cfg.catalog}")
     print(f"  etapas             : {', '.join(args.stages.split(',')) if args.stages else ', '.join(ALL_STAGES)}")
@@ -99,7 +102,10 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     def comunes(p: argparse.ArgumentParser) -> None:
-        p.add_argument("--env", required=True, choices=VALID_ENVIRONMENTS, help="Entorno objetivo")
+        p.add_argument(
+            "--env", default=DEFAULT_ENVIRONMENT,
+            help=f"Nombre de la instalacion (por defecto '{DEFAULT_ENVIRONMENT}')",
+        )
         p.add_argument("--conf-dir", default=None, help="Directorio de configuracion (autodetectado si se omite)")
         p.add_argument("--run-date", default=None, help="Fecha logica de la corrida (YYYY-MM-DD)")
         p.add_argument("--set", action="append", metavar="RUTA=VALOR", help="Override de configuracion (repetible)")

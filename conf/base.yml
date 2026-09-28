@@ -15,15 +15,16 @@ project:
 # Destino de datos (Unity Catalog)
 # ---------------------------------------------------------------------------
 catalog:
-  # UN SOLO CATALOGO para los tres entornos.
+  # UN SOLO CATALOGO, de la unica instalacion.
   #
-  # El modelo FinOps describe el consumo de la CUENTA, no de un ambiente: los
-  # tres entornos leen exactamente las mismas system tables y producen las mismas
-  # cifras. Tres copias del mismo dato solo multiplicaban el almacenamiento y
-  # obligaban a versionar un dashboard por entorno.
+  # El modelo FinOps describe el consumo de la CUENTA, no de un ambiente: lee
+  # system.billing.usage, que cubre todos los workspaces y todos los ambientes
+  # del cliente. Una instalacion ya muestra dev, qa y prd; desplegar una por
+  # ambiente produciria las mismas cifras varias veces. Ver docs/adr/0005 y 0006.
   #
-  # Lo que separa a los entornos es donde corre el codigo y que jobs estan
-  # programados, no donde viven los datos. Ver docs/adr/0005.
+  # Si el nombre `finops` ya esta tomado en el metastore (pasa: un metastore lo
+  # comparten muchos workspaces), cambialo en conf/local.yml. `scripts/deploy.*`
+  # reescribe los dashboards contra el catalogo efectivo antes de desplegar.
   catalog: finops
   bronze_schema: bronze
   silver_schema: silver
@@ -41,9 +42,13 @@ catalog:
   managed_location: null
 
   # false = el pipeline nunca intenta crear el catalogo y falla con un mensaje
-  # claro si no existe. Recomendado en qa/prd: crear catalogos es una operacion
-  # de administracion, no de un pipeline de datos.
-  create_if_missing: true
+  # claro si no existe. Es el valor por defecto a proposito: crear un catalogo es
+  # una operacion de administracion, no trabajo de un pipeline de datos, y en
+  # Unity Catalog exige permisos que el principal del job no deberia tener.
+  #
+  # Ponlo en true en `conf/local.yml` durante la primera implantacion si
+  # prefieres que el pipeline lo cree solo.
+  create_if_missing: false
 
   # Ubicacion externa opcional para los SCHEMAS (null = heredan la del catalogo)
   storage_root: null
@@ -105,6 +110,33 @@ ingestion:
   max_usage_date: null
   # Workspaces a excluir del analisis (IDs como string).
   exclude_workspace_ids: []
+
+  # -------------------------------------------------------------------------
+  # Ventana acotada por el Change Data Feed de la fuente.
+  #
+  # `lookback_days` es una suposicion: como no se sabe que registros llegaron
+  # tarde, se rebarren N dias por las dudas. `table_changes()` sobre
+  # system.billing.usage si lo dice, y de ahi salen exactamente los usage_date
+  # a reprocesar -- para bronze, silver, gold y la analitica.
+  #
+  # Medido sobre una cuenta con ~100 workspaces: 296 filas cambiaron en 24 h,
+  # contra las decenas de miles de una ventana de 7 dias. Eso abarata la corrida
+  # lo suficiente para programarla cada hora en vez de una vez al dia.
+  #
+  # OJO con lo que esto NO hace: system.billing.usage publica con su propio
+  # rezago (medido 3.5 h, hasta 12 h segun la documentacion de Databricks, que
+  # ademas dice explicitamente que las system tables no soportan monitoreo en
+  # tiempo real). La frescura del tablero nunca baja de ahi.
+  #
+  # Llega desactivado: activalo cuando vayas a subir la frecuencia del schedule,
+  # que es donde rinde. Si el feed no esta disponible o su historia ya no cubre
+  # la ultima corrida, el pipeline vuelve solo a `lookback_days` sin fallar.
+  # -------------------------------------------------------------------------
+  cdf:
+    enabled: false
+    # Si la ultima ingesta quedo mas atras que esto, ni se intenta: la historia
+    # del feed se poda y lo mas probable es que ya no la cubra.
+    max_lookback_hours: 48
 
 # ---------------------------------------------------------------------------
 # Modelo de costos
@@ -334,6 +366,7 @@ alerting:
   # Horas de silencio por huella de alerta (evita spam en corridas frecuentes).
   cooldown_hours: 24
   # Severidad minima que se despacha a canales externos.
+  # Los canales de webhook traen su propio minimo, mas alto (ver `channels`).
   min_severity: medium
   # Maximo de alertas por corrida (proteccion anti-tormenta).
   max_alerts_per_run: 50
@@ -387,6 +420,9 @@ alerting:
 # ---------------------------------------------------------------------------
 quality:
   enabled: true
+  # Un chequeo bloqueante fallido detiene la corrida: es preferible no publicar
+  # cifras a publicarlas mal. Durante una implantacion, cuando el etiquetado
+  # todavia esta a medias, puede convenir ponerlo en false en `conf/local.yml`.
   fail_pipeline_on_error: true
   checks:
     freshness_max_lag_hours: 36
@@ -403,7 +439,17 @@ quality:
     # aqui es gasto que deja de vigilarse. Bajar el umbral global en su lugar
     # enmascararia un SKU nuevo genuinamente sin valorizar.
     # Admite comodines glob, p. ej. "*_FREE" o "NETWORKING_*".
-    price_match_ignore_skus: []
+    #
+    # `*_FREE_USAGE` viene por defecto: es la convencion de Databricks para el
+    # consumo NO FACTURABLE (GENIE_FREE_USAGE y companhia), que por diseno no
+    # tiene precio de lista y factura 0. Sin esta entrada, el primer chequeo de
+    # calidad de CUALQUIER instalacion con Genie habilitado falla -- y como
+    # `price_match` es de severidad error, en qa y prd tumba el pipeline.
+    #
+    # Excluir aqui no es silenciar: el chequeo reporta cuantos registros
+    # excluyo, asi que si un SKU no facturable empieza a facturar se nota.
+    price_match_ignore_skus:
+      - "*_FREE_USAGE"
 
 # ---------------------------------------------------------------------------
 # Ejecucion / rendimiento
@@ -412,5 +458,6 @@ runtime:
   log_level: INFO
   shuffle_partitions: auto
   # Numero de dias a mantener en las tablas gold de series (0 = sin limite).
-  gold_retention_days: 0
+  # 1100 dias = 3 anhos, suficiente para comparaciones interanuales.
+  gold_retention_days: 1100
   dry_run: false

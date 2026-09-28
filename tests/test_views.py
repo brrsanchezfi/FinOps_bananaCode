@@ -26,8 +26,8 @@ from finops.views import (
 
 
 @pytest.fixture
-def cfg(cfg_dev):
-    return cfg_dev
+def cfg(cfg_repo):
+    return cfg_repo
 
 
 class TestRegistro:
@@ -137,3 +137,84 @@ class TestEscapado:
 
     def test_lista_vacia(self):
         assert _sql_literal_list([]) == ""
+
+
+class TestLasVistasCoincidenConElModelo:
+    """Las vistas en vivo y las tablas gold deben resolver IGUAL una dimension.
+
+    Son dos implementaciones de la misma regla: `resolve_tag_columns` (Spark,
+    produce gold) y `_expr_dimension` (SQL, produce las vistas). El propio codigo
+    ya advertia que si divergen "el tablero de gobierno y las tablas gold
+    reportan cifras distintas para la misma dimension".
+
+    Y divergian: las vistas no aplicaban `tagging.value_map`. Como el mapa de
+    `environment` viaja por defecto en conf/base.yml (prod, produccion,
+    production, productivo -> PRD), TODA instalacion veia un mismo ambiente
+    unificado en `fct_cost_daily` y partido en cuatro en el tablero de gobierno.
+    El sintoma ya se habia visto en gold: el comentario de `productivo` en
+    conf/base.yml documenta que aparecia como bucket propio, separado de PRD.
+    """
+
+    def _cfg(self, conf_dir, **overrides):
+        from finops.config import load_config
+
+        return load_config("finops", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False,
+            overrides=overrides or None,
+        )
+
+    def test_las_vistas_canonizan_los_valores_del_repositorio(self, conf_dir):
+        """`environment` trae value_map por defecto: tiene que estar en el SQL."""
+        from finops.views import build_tag_coverage_sql
+
+        cfg = self._cfg(conf_dir)
+        canonicos = set((cfg.get("tagging.value_map") or {}).get("environment", {}).values())
+        assert canonicos, "conf/base.yml debe traer el value_map de environment"
+
+        sql = build_tag_coverage_sql(cfg)
+        for valor in sorted(canonicos):
+            assert f"'{valor}'" in sql, f"la vista no canoniza environment a '{valor}'"
+
+    def test_canoniza_tambien_una_dimension_configurada_por_el_cliente(self, conf_dir):
+        from finops.views import build_untagged_spend_sql
+
+        cfg = self._cfg(
+            conf_dir,
+            tagging={"value_map": {"cost_center": {"transversales": "Transversal"}}},
+        )
+        assert "'Transversal'" in build_untagged_spend_sql(cfg)
+
+    def test_la_comparacion_normaliza_la_clave(self, conf_dir):
+        """'Cost-Center' y 'costcenter' son la misma clave (ver tags.normalize_key).
+
+        Sin normalizar, un value_map escrito con mayusculas o guiones no
+        coincidiria nunca y la canonizacion seria silenciosamente inutil.
+        """
+        from finops.views import build_tag_coverage_sql
+
+        cfg = self._cfg(
+            conf_dir,
+            tagging={"value_map": {"environment": {"Pre-Produccion": "QA"}}},
+        )
+        sql = build_tag_coverage_sql(cfg)
+        assert "'preproduccion'" in sql, "la clave del value_map debe ir normalizada"
+        assert "'Pre-Produccion'" not in sql
+
+    def test_el_valor_por_defecto_del_workspace_sigue_siendo_el_ultimo_recurso(self, conf_dir):
+        """La etiqueta del recurso gana; el default del workspace solo rellena.
+
+        Es el mismo orden que `resolve_tag_columns`: primero el alias, luego la
+        canonizacion, y solo entonces el default. Invertirlo marcaria como DEV
+        cargas legitimas de otro ambiente.
+        """
+        from finops.views import build_tag_coverage_sql
+
+        cfg = self._cfg(
+            conf_dir,
+            tagging={"workspace_defaults": {"1234567890123456": {"environment": "DEV"}}},
+        )
+        sql = build_tag_coverage_sql(cfg)
+        posicion_default = sql.index("1234567890123456")
+        posicion_alias = sql.index("tags_norm['environment']")
+        assert posicion_alias < posicion_default, (
+            "el default del workspace debe ir DESPUES del alias en el COALESCE"
+        )

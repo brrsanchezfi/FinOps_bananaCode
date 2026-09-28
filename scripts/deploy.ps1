@@ -3,8 +3,8 @@
     Despliegue del bundle FinOps: validar configuracion + bundle + deploy.
 
 .EXAMPLE
-    pwsh scripts/deploy.ps1 -Env dev -DatabricksProfile finops
-    pwsh scripts/deploy.ps1 -Env dev -OnlyValidate
+    pwsh scripts/deploy.ps1 -DatabricksProfile finops
+    pwsh scripts/deploy.ps1 -DatabricksProfile finops -OnlyValidate
 
 .DESCRIPTION
     El workspace destino sale del perfil del CLI (-Profile) o de DATABRICKS_HOST:
@@ -18,9 +18,10 @@
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)]
-    [ValidateSet('dev', 'qa', 'prd')]
-    [string]$Env,
+    # Nombre de la instalacion y del target del bundle. Hay UNA por cuenta
+    # (cubre todos los ambientes del cliente); se deja sobrescribible para quien
+    # despliegue mas de una en la misma cuenta.
+    [string]$Env = 'finops',
 
     # Perfil del CLI de Databricks (~/.databrickscfg). Define el workspace destino.
     # No se llama -Profile porque $PROFILE es una variable automatica de
@@ -44,7 +45,7 @@ elseif (-not $env:DATABRICKS_HOST) {
     Write-Warning "Sin -DatabricksProfile ni DATABRICKS_HOST, el CLI usara el perfil DEFAULT. Verifica que apunte al workspace que esperas."
 }
 
-Write-Host "==> 1/5 Validando la configuracion de $Env" -ForegroundColor Cyan
+Write-Host "==> 1/5 Validando la configuracion de la instalacion $Env" -ForegroundColor Cyan
 python -m finops.cli validate --env $Env
 if ($LASTEXITCODE -ne 0) { throw "La validacion de configuracion fallo" }
 

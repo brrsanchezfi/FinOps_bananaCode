@@ -13,12 +13,42 @@ Funciones puras: reciben listas de dicts / dataclasses ya materializadas.
 
 from __future__ import annotations
 
+import ast
 import hashlib
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, timezone
 from typing import Any
 
 SEVERITY_ORDER = {"low": 0, "medium": 1, "high": 2, "critical": 3}
+
+
+def _umbrales(valor: Any, respaldo: list[float]) -> list[float]:
+    """Lista de umbrales, venga como lista o como el texto que devuelve gold.
+
+    `BudgetStatus.details` se materializa como MAP<STRING, STRING> en Delta, asi
+    que una lista se guarda con `str()` y vuelve como '[50.0, 80.0, 90.0]'.
+    Iterar ese string da CARACTERES, y `float('[')` tumbaba la etapa entera de
+    alertamiento.
+
+    Solo ocurre cuando `alerts` corre en su propia tarea y relee de gold (que es
+    como se despliega): en una corrida de un solo proceso el valor sigue siendo
+    la lista original, que es por lo que ninguna prueba lo veia.
+
+    Ante cualquier cosa que no se pueda interpretar devuelve `respaldo`: no
+    alertar por un presupuesto es malo, pero peor es que el fallo se lleve por
+    delante todas las demas reglas de la corrida.
+    """
+    if isinstance(valor, str):
+        try:
+            valor = ast.literal_eval(valor)
+        except (ValueError, SyntaxError):
+            return respaldo
+    if not isinstance(valor, (list, tuple, set)):
+        return respaldo
+    try:
+        return [float(t) for t in valor]
+    except (TypeError, ValueError):
+        return respaldo
 
 
 @dataclass
@@ -84,8 +114,8 @@ def budget_alerts(
         alcanzado = getattr(estado, "threshold_reached_pct", None)
         if alcanzado is None:
             continue
-        configurados = estado.details.get("thresholds_pct") or umbrales_default
-        if float(alcanzado) not in [float(t) for t in configurados]:
+        configurados = _umbrales(estado.details.get("thresholds_pct"), umbrales_default)
+        if float(alcanzado) not in configurados:
             continue
 
         consumido = float(estado.consumed_pct)

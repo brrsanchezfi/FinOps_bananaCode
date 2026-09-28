@@ -40,10 +40,10 @@ def conf_dir() -> Path:
 
 
 @pytest.fixture
-def cfg_dev():
+def cfg_repo():
     from finops.config import load_config
 
-    return load_config("dev", conf_dir=CONF_DIR, use_env_vars=False, use_local_overlay=False, run_date="2026-07-15")
+    return load_config("finops", conf_dir=CONF_DIR, use_env_vars=False, use_local_overlay=False, run_date="2026-07-15")
 
 
 @pytest.fixture

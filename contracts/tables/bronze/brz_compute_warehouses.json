@@ -1,0 +1,102 @@
+{
+  "_doc": "Bronze — Snapshot de SQL warehouses (system.compute.warehouses).",
+  "catalog": "{catalog.bronze}",
+  "schema": "{path.schema_bronze}",
+  "name": "brz_compute_warehouses",
+  "type": "MANAGED",
+  "format": "DELTA",
+  "comment": "Snapshot de SQL warehouses (system.compute.warehouses).",
+  "owner": "finops",
+  "columns": [
+    {
+      "name": "account_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "workspace_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "warehouse_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "warehouse_name",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "warehouse_type",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "warehouse_channel",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "warehouse_size",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "min_clusters",
+      "type": "INTEGER",
+      "nullable": true,
+      "comment": "INT"
+    },
+    {
+      "name": "max_clusters",
+      "type": "INTEGER",
+      "nullable": true,
+      "comment": "INT"
+    },
+    {
+      "name": "auto_stop_minutes",
+      "type": "INTEGER",
+      "nullable": true,
+      "comment": "INT"
+    },
+    {
+      "name": "tags",
+      "type": "MAP",
+      "nullable": true,
+      "comment": "MAP<STRING,STRING>"
+    },
+    {
+      "name": "change_time",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "delete_time",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "_ingested_at",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "_run_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "_source",
+      "type": "STRING",
+      "nullable": true
+    }
+  ],
+  "partitions": [],
+  "properties": {
+    "layer": "bronze",
+    "quality": "raw",
+    "merge_schema": true
+  }
+}

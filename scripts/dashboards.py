@@ -13,9 +13,9 @@ En el SQL de este archivo las tablas se escriben como marcadores `{{clave}}` del
 registro de `finops.catalog`; `generate` los sustituye por el nombre resuelto
 desde la configuracion. Ningun nombre de catalogo se escribe a mano.
 
-Como los tres entornos comparten catalogo y schemas, los nombres resueltos son
-identicos y basta **un** juego de archivos. Si algun dia un entorno apuntara a
-otro sitio, `check` lo detecta y avisa que hay que volver a generar por entorno.
+Hay una sola instalacion (docs/adr/0006), asi que basta **un** juego de
+archivos. Los versionados se resuelven contra la configuracion NEUTRA; los que se
+despliegan los reescribe `render` contra el catalogo de cada instalacion.
 
 > Los JSON generados **no se editan a mano**: el siguiente `generate` los
 > sobrescribe y CI falla si difieren de lo que produce este archivo.
@@ -36,7 +36,11 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DASHBOARDS_DIR = REPO_ROOT / "dashboards"
 PLACEHOLDER = re.compile(r"\{\{([a-z0-9_]+)\}\}")
-ENVIRONMENTS = ("dev", "qa", "prd")
+#: Nombre de la instalacion con que se generan los JSON versionados. Hay UNA
+#: sola instalacion por cuenta (ver docs/adr/0006): antes se generaba para dev,
+#: qa y prd y se verificaba que los tres coincidieran, porque tres entornos
+#: debian compartir un juego de tableros. Ya no hay nada que comparar.
+ENVIRONMENT = "finops"
 
 #: Lakeview usa una grilla de 12 columnas. Se confirmo exportando un dashboard
 #: real del workspace: contenia un widget en x=7 con width=3, imposible en una
@@ -1172,30 +1176,9 @@ def render_env(env: str, *, cfg=None) -> dict[str, str]:
     return salida
 
 
-def verificar_entornos_coinciden() -> None:
-    """Confirma que los tres entornos resuelven a los mismos nombres de tabla.
-
-    Es la condicion que permite versionar UN solo juego de dashboards. Si alguien
-    hace que un entorno apunte a otro catalogo o schema, esto falla y explica que
-    hay que volver a generar por entorno.
-    """
-    por_entorno = {env: render_env(env) for env in ENVIRONMENTS}
-    referencia = por_entorno[ENVIRONMENTS[0]]
-    distintos = [env for env, r in por_entorno.items() if r != referencia]
-    if distintos:
-        raise SystemExit(
-            f"ERROR: los entornos {distintos} resuelven a tablas distintas de "
-            f"'{ENVIRONMENTS[0]}'.\n"
-            "Un solo juego de dashboards deja de ser valido: habria que generarlos\n"
-            "por entorno y apuntar resources/dashboards.yml a\n"
-            "dashboards/${bundle.target}/."
-        )
-
-
 def cmd_generate(args: argparse.Namespace) -> int:
-    verificar_entornos_coinciden()
     DASHBOARDS_DIR.mkdir(parents=True, exist_ok=True)
-    for nombre, contenido in render_env(ENVIRONMENTS[0]).items():
+    for nombre, contenido in render_env(ENVIRONMENT).items():
         destino = DASHBOARDS_DIR / nombre
         if _es_manual(nombre):
             print(f"OMITIDO  {destino.relative_to(REPO_ROOT).as_posix()} (mantenido a mano)")
@@ -1207,10 +1190,9 @@ def cmd_generate(args: argparse.Namespace) -> int:
 
 def cmd_check(args: argparse.Namespace) -> int:
     """Verifica que los archivos versionados coincidan con lo que produce este script."""
-    verificar_entornos_coinciden()
     desactualizados = [
         nombre
-        for nombre, contenido in render_env(ENVIRONMENTS[0]).items()
+        for nombre, contenido in render_env(ENVIRONMENT).items()
         if not _es_manual(nombre)
         and (
             not (DASHBOARDS_DIR / nombre).exists()
@@ -1287,7 +1269,7 @@ def main(argv: list[str] | None = None) -> int:
         "render",
         help="Escribe en build/dashboards/ los tableros resueltos para ESTA instalacion",
     )
-    p_render.add_argument("--env", default="dev", choices=list(ENVIRONMENTS))
+    p_render.add_argument("--env", default=ENVIRONMENT, help="Nombre de la instalacion")
     p_render.set_defaults(func=cmd_render)
 
     args = parser.parse_args(argv)

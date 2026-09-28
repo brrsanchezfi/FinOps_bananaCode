@@ -28,7 +28,7 @@ log = get_logger("notebook")
 
 #: Parametros que el notebook expone como widgets.
 WIDGETS: tuple[tuple[str, str, str], ...] = (
-    ("env", "dev", "Entorno (dev|qa|prd)"),
+    ("env", "finops", "Nombre de la instalacion"),
     ("stages", "", "Etapas separadas por coma (vacio = todas)"),
     ("run_date", "", "Fecha logica YYYY-MM-DD (vacio = hoy)"),
     ("full_refresh", "false", "Reprocesar ventana historica completa"),
@@ -144,7 +144,7 @@ class NotebookContext:
         )
 
 
-def bootstrap(default_env: str = "dev", conf_dir: str | Path | None = None) -> NotebookContext:
+def bootstrap(default_env: str = "finops", conf_dir: str | Path | None = None) -> NotebookContext:
     """Prepara sesion, parametros y configuracion. Punto de entrada del notebook."""
     ensure_src_on_path()
     from .spark_utils import configure_session, get_spark

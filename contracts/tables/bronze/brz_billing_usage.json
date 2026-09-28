@@ -1,0 +1,130 @@
+{
+  "_doc": "Bronze — Copia incremental de system.billing.usage acotada a la ventana de proceso.",
+  "catalog": "{catalog.bronze}",
+  "schema": "{path.schema_bronze}",
+  "name": "brz_billing_usage",
+  "type": "MANAGED",
+  "format": "DELTA",
+  "comment": "Copia incremental de system.billing.usage acotada a la ventana de proceso.",
+  "owner": "finops",
+  "columns": [
+    {
+      "name": "record_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "account_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "workspace_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "sku_name",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "cloud",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "usage_start_time",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "usage_end_time",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "usage_date",
+      "type": "DATE",
+      "nullable": true
+    },
+    {
+      "name": "custom_tags",
+      "type": "MAP",
+      "nullable": true,
+      "comment": "MAP<STRING,STRING>"
+    },
+    {
+      "name": "usage_unit",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "usage_quantity",
+      "type": "DECIMAL",
+      "nullable": true,
+      "comment": "DECIMAL(38,18)"
+    },
+    {
+      "name": "usage_metadata",
+      "type": "STRUCT",
+      "nullable": true,
+      "comment": "STRUCT<CLUSTER_ID:STRING,JOB_ID:STRING,WAREHOUSE_ID:STRING,INSTANCE_POOL_ID:STRING,NODE_TYPE:STRING,JOB_RUN_ID:STRING,NOTEBOOK_ID:STRING,DLT_PIPELINE_ID:STRING,ENDPOINT_NAME:STRING,ENDPOINT_ID:STRING,DLT_UPDATE_ID:STRING,DLT_MAINTENANCE_ID:STRING,RUN_NAME:STRING,JOB_NAME:STRING,NOTEBOOK_PATH:STRING,CENTRAL_CLEAN_ROOM_ID:STRING,SOURCE_REGION:STRING,DESTINATION_REGION:STRING,APP_ID:STRING,APP_NAME:STRING,METASTORE_ID:STRING,PRIVATE_ENDPOINT_NAME:STRING,STORAGE_API_TYPE:STRING,BUDGET_POLICY_ID:STRING,AI_RUNTIME_POOL_ID:STRING,AI_RUNTIME_WORKLOAD_ID:STRING,UC_TABLE_CATALOG:STRING,UC_TABLE_SCHEMA:STRING,UC_TABLE_NAME:STRING,DATABASE_INSTANCE_ID:STRING,SHARING_MATERIALIZATION_ID:STRING,SCHEMA_ID:STRING,USAGE_POLICY_ID:STRING,BASE_ENVIRONMENT_ID:STRING,AGENT_BRICKS_ID:STRING,INDEX_ID:STRING,CATALOG_ID:STRING,PROJECT_ID:STRING,BRANCH_ID:STRING,TABLE_ID:STRING,SUPERVISOR_AGENT_ID:STRING,NETWORKING_CLIENT:STRING,ASSOCIATED_PRODUCT:STRING,RECIPIENT_ID:STRING,INTERACTIVE_SOURCE:STRING,SNAPSHOT_ID:STRING,AI_GATEWAY:STRUCT<ENDPOINT_NAME:STRING,ENDPOINT_ID:STRING,DESTINATION_ID:STRING,DESTINATION_MODEL:STRING>,GENIE:STRUCT<SURFACE:STRING,CHANNEL:STRING,AGENT_ID:STRING>,DATA_SOURCE:STRING,OPERATION:STRING,SERVERLESS_COMPUTE_ID:STRING,ENTITY_FULL_NAME:STRING,FAILOVER_GROUP_NAME:STRING>"
+    },
+    {
+      "name": "identity_metadata",
+      "type": "STRUCT",
+      "nullable": true,
+      "comment": "STRUCT<RUN_AS:STRING,CREATED_BY:STRING,OWNED_BY:STRING,RUN_BY:STRING>"
+    },
+    {
+      "name": "record_type",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "ingestion_date",
+      "type": "DATE",
+      "nullable": true
+    },
+    {
+      "name": "billing_origin_product",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "product_features",
+      "type": "STRUCT",
+      "nullable": true,
+      "comment": "STRUCT<JOBS_TIER:STRING,SQL_TIER:STRING,DLT_TIER:STRING,IS_SERVERLESS:BOOLEAN,IS_PHOTON:BOOLEAN,SERVING_TYPE:STRING,NETWORKING:STRUCT<CONNECTIVITY_TYPE:STRING>,AI_RUNTIME:STRUCT<COMPUTE_TYPE:STRING>,MODEL_SERVING:STRUCT<OFFERING_TYPE:STRING,RESERVATION_TERM:STRING>,AI_GATEWAY:STRUCT<FEATURE_TYPE:STRING>,SERVERLESS_GPU:STRUCT<WORKLOAD_TYPE:STRING>,PERFORMANCE_TARGET:STRING,AGENT_BRICKS:STRUCT<PROBLEM_TYPE:STRING,WORKLOAD_TYPE:STRING>,AI_FUNCTIONS:STRUCT<AI_FUNCTION:STRING>,APPS:STRUCT<COMPUTE_SIZE:STRING>,LAKEFLOW_CONNECT:STRUCT<TASK_TYPE:STRING,ZEROBUS_REQUEST_TYPE:STRING>,LAKEBASE:STRUCT<STORAGE_TYPE:STRING,COMPUTE_TYPE:STRING>,AI_BI_GENIE:STRUCT<CAPABILITY_TYPE:STRING,OFFERING_TYPE:STRING>,GENIE:STRUCT<OFFERING_TYPE:STRING>>"
+    },
+    {
+      "name": "usage_type",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "_ingested_at",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "_run_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "_source",
+      "type": "STRING",
+      "nullable": true
+    }
+  ],
+  "partitions": [
+    "usage_date"
+  ],
+  "properties": {
+    "layer": "bronze",
+    "quality": "raw",
+    "merge_schema": true
+  }
+}

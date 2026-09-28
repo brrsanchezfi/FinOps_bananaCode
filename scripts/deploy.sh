@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # Despliegue del bundle FinOps: validar configuracion + bundle + deploy.
 #
-#   bash scripts/deploy.sh dev --profile finops
-#   bash scripts/deploy.sh dev --no-deploy     # solo valida
+#   bash scripts/deploy.sh --profile finops
+#   bash scripts/deploy.sh --profile finops --no-deploy     # solo valida
+#
+# Hay UNA instalacion por cuenta (target `finops`): cubre todos los ambientes
+# del cliente, porque el modelo lee system.billing.usage de toda la cuenta.
 #
 # El workspace destino sale del perfil del CLI (--profile) o de DATABRICKS_HOST:
 # no esta escrito en databricks.yml. El `warehouse_id` de los dashboards se pasa
@@ -12,18 +15,10 @@
 # entorno virtual activo (la verificacion de dashboards usa el paquete finops).
 set -euo pipefail
 
-ENV="${1:-}"
-shift || true
-
-if [[ -z "${ENV}" ]]; then
-  echo "Uso: bash scripts/deploy.sh <dev|qa|prd> [--profile <perfil>] [--no-deploy]" >&2
-  exit 1
-fi
-
-case "${ENV}" in
-  dev|qa|prd) ;;
-  *) echo "Entorno invalido '${ENV}'. Validos: dev, qa, prd" >&2; exit 1 ;;
-esac
+# Nombre de la instalacion y del target del bundle. Ya no es un entorno a
+# elegir: existe uno solo. Se deja sobrescribible para quien despliegue mas de
+# una instalacion en la misma cuenta (un banco de pruebas junto al productivo).
+ENV="finops"
 
 SOLO_VALIDAR=false
 PERFIL=""
@@ -31,6 +26,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --no-deploy) SOLO_VALIDAR=true; shift ;;
     --profile|-p) PERFIL="${2:-}"; shift 2 ;;
+    --target|-t) ENV="${2:-}"; shift 2 ;;
     *) echo "Argumento desconocido '$1'" >&2; exit 1 ;;
   esac
 done
@@ -48,7 +44,7 @@ fi
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${REPO_ROOT}"
 
-echo "==> 1/5 Validando la configuracion de ${ENV}"
+echo "==> 1/5 Validando la configuracion de la instalacion ${ENV}"
 python -m finops.cli validate --env "${ENV}"
 
 echo "==> 2/5 Verificando que los dashboards esten al dia"

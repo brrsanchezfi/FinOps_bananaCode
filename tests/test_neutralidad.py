@@ -168,3 +168,58 @@ class TestLaConfiguracionLocalLlegaAlWorkspace:
     def test_hay_plantilla_para_cada_archivo_local(self):
         for plantilla in ("conf/local.example.yml", "conf/budgets.local.example.yml"):
             assert (REPO_ROOT / plantilla).is_file(), f"falta la plantilla {plantilla}"
+
+
+class TestElAmbienteDelTableroNoContaminaLaDimension:
+    """Dos cosas comparten la palabra "ambiente" y no deben mezclarse.
+
+    - El TARGET del bundle nombra la instalacion de FinOps. Hay una sola.
+    - La dimension `environment` clasifica los recursos del cliente en DEV, QA o
+      PRD. Es un dato que el tablero MIDE.
+
+    El propio computo de FinOps es un recurso del cliente y se etiqueta como
+    tal. Esos tags estaban atados a `${bundle.target}`: con el target `dev`
+    funcionaba por casualidad (el value_map lleva `dev` a DEV), pero renombrarlo
+    a `finops` habria clasificado el costo del pipeline en un ambiente
+    inexistente llamado `finops`.
+    """
+
+    def _alias_de_environment(self) -> set[str]:
+        from finops.config import load_config
+        from finops.transform.tags import normalize_key
+
+        cfg = load_config("finops", conf_dir=REPO_ROOT / "conf", use_env_vars=False, use_local_overlay=False)
+        return {normalize_key(a) for a in cfg.get("tagging.aliases.environment") or []}
+
+    def _tags_de_recursos(self) -> list[tuple[str, str, str]]:
+        """(donde, clave, valor) de cada tag de job y de cluster del bundle."""
+        from finops.transform.tags import normalize_key
+
+        jobs = yaml.safe_load(_texto(REPO_ROOT / "resources" / "jobs.yml"))["resources"]["jobs"]
+        salida = []
+        for nombre, job in jobs.items():
+            for clave, valor in (job.get("tags") or {}).items():
+                salida.append((f"{nombre}.tags", normalize_key(clave), str(valor)))
+            for cluster in job.get("job_clusters") or []:
+                for clave, valor in (cluster["new_cluster"].get("custom_tags") or {}).items():
+                    salida.append(
+                        (f"{nombre}.{cluster['job_cluster_key']}", normalize_key(clave), str(valor))
+                    )
+        return salida
+
+    def test_hay_tags_de_ambiente_que_revisar(self):
+        """Si esto falla, la prueba de abajo dejo de proteger algo."""
+        alias = self._alias_de_environment()
+        assert any(clave in alias for _, clave, _ in self._tags_de_recursos())
+
+    def test_ningun_tag_de_ambiente_sale_del_target(self):
+        alias = self._alias_de_environment()
+        culpables = [
+            f"{donde}: {clave}={valor}"
+            for donde, clave, valor in self._tags_de_recursos()
+            if clave in alias and "bundle.target" in valor
+        ]
+        assert culpables == [], (
+            "Tags que clasifican el costo de FinOps usan el nombre del target: "
+            f"{culpables}. Deben usar ${{var.resource_environment}}."
+        )

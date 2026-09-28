@@ -234,18 +234,38 @@ class TestBuildAll:
 
 class TestFormateo:
     def test_texto_plano(self):
-        texto = format_plain(alerta("critical"), env="prd")
+        texto = format_plain(alerta("critical"), env="finops")
         assert "CRITICA" in texto
-        assert "PRD" in texto
+        assert "Instalacion FinOps: finops" in texto
+
+    @pytest.mark.parametrize("formato", ["plano", "teams", "slack"])
+    def test_el_nombre_de_la_instalacion_no_se_rotula_como_entorno(self, formato):
+        """`env` nombra la instalacion de FinOps, no el ambiente de un recurso.
+
+        Rotulado "Entorno" y en mayusculas, quien recibe la alerta lo lee como
+        el DEV/QA/PRD de SUS recursos. Con tres entornos se leia "Entorno: PRD"
+        y pasaba por correcto; con una sola instalacion diria "Entorno: FINOPS".
+        """
+        import json
+
+        a = alerta("critical")
+        salida = {
+            "plano": lambda: format_plain(a, env="finops"),
+            "teams": lambda: json.dumps(format_teams(a, env="finops")),
+            "slack": lambda: json.dumps(format_slack(a, env="finops")),
+        }[formato]()
+        assert "Entorno" not in salida
+        assert "FINOPS" not in salida
+        assert "Instalacion FinOps" in salida
 
     def test_teams_es_message_card(self):
-        payload = format_teams(alerta(), env="prd", dashboard_url="https://x")
+        payload = format_teams(alerta(), env="finops", dashboard_url="https://x")
         assert payload["@type"] == "MessageCard"
         assert payload["themeColor"] == "F7630C"
         assert payload["potentialAction"][0]["targets"][0]["uri"] == "https://x"
 
     def test_slack_es_block_kit(self):
-        payload = format_slack(alerta("critical"), env="dev")
+        payload = format_slack(alerta("critical"), env="finops")
         assert payload["blocks"][0]["type"] == "header"
         assert any(b["type"] == "section" for b in payload["blocks"])
 
@@ -255,7 +275,7 @@ class TestFormateo:
 
     def test_resumen_agrupa(self):
         alertas = [alerta("high", f"h{i}") for i in range(30)]
-        texto = format_digest(alertas, env="prd")
+        texto = format_digest(alertas, env="finops")
         assert "30 alertas" in texto
         assert "y 5 mas" in texto
 
@@ -391,7 +411,7 @@ class TestFilasDeAlerta:
         despachada = alerta("high", "a")
         suprimida = alerta("high", "b")
         entregas = [DeliveryResult("tabla", "a", True, "ok")]
-        filas = alerts_to_rows([despachada], entregas, run_id="r1", env="dev", suppressed=[suprimida])
+        filas = alerts_to_rows([despachada], entregas, run_id="r1", env="finops", suppressed=[suprimida])
         estados = {f["fingerprint"]: f["dispatch_status"] for f in filas}
         assert estados == {"a": "dispatched", "b": "suppressed"}
         assert filas[0]["channels"] == "tabla"
@@ -400,8 +420,81 @@ class TestFilasDeAlerta:
     def test_contexto_serializado_a_texto(self):
         a = alerta()
         a.context = {"n": 5, "f": 1.5}
-        filas = alerts_to_rows([a], [], run_id="r", env="dev")
+        filas = alerts_to_rows([a], [], run_id="r", env="finops")
         assert all(isinstance(v, str) for v in filas[0]["context"].values())
 
     def test_reporte_vacio(self):
         assert DispatchReport().summary().startswith("generadas=0")
+
+
+class TestUmbralesDesdeGold:
+    """Los umbrales sobreviven la ida y vuelta por `fct_budget_status`.
+
+    `details` es un MAP<STRING, STRING> en Delta: la lista de umbrales se guarda
+    con `str()` y vuelve como texto. La etapa `alerts` del job desplegado corre
+    en su propia tarea y relee de gold, asi que ese texto es lo que ve de
+    verdad; en una corrida de un solo proceso llega la lista original y el
+    problema no aparece.
+    """
+
+    RESPALDO = [50.0, 80.0, 90.0, 100.0]
+
+    def test_una_lista_pasa_tal_cual(self):
+        from finops.alerting.rules import _umbrales
+
+        assert _umbrales([80, 100], self.RESPALDO) == [80.0, 100.0]
+
+    def test_el_texto_que_devuelve_gold_se_interpreta(self):
+        from finops.alerting.rules import _umbrales
+
+        assert _umbrales("[50.0, 80.0, 90.0, 100.0]", self.RESPALDO) == [50.0, 80.0, 90.0, 100.0]
+
+    @pytest.mark.parametrize("valor", ["", "no-es-una-lista", None, "[", 42, {"a": 1}])
+    def test_lo_ininteligible_cae_al_respaldo(self, valor):
+        """Antes esto reventaba la etapa entera, no solo la regla del presupuesto."""
+        from finops.alerting.rules import _umbrales
+
+        assert _umbrales(valor, self.RESPALDO) == self.RESPALDO
+
+    def test_la_regla_no_revienta_tras_la_ida_y_vuelta_por_gold(self):
+        """Reproduce el fallo real: se serializa con `to_row()` y se vuelve a leer."""
+        from finops.alerting.rules import budget_alerts
+        from finops.analytics.budgets import BudgetStatus
+
+        estado = BudgetStatus(
+            budget_id="org_global_monthly",
+            budget_name="Presupuesto global",
+            period="monthly",
+            period_start=date(2026, 9, 1),
+            period_end=date(2026, 9, 30),
+            as_of_date=date(2026, 9, 20),
+            scope={},
+            scope_label="toda la organizacion",
+            owner_email="finops@example.com",
+            budget_amount_usd=500.0,
+            actual_cost_usd=420.0,
+            consumed_pct=84.0,
+            forecast_remaining_usd=180.0,
+            projected_total_usd=600.0,
+            projected_pct=120.0,
+            variance_usd=-100.0,
+            avg_daily_cost_usd=21.0,
+            required_daily_cost_usd=8.0,
+            elapsed_days=20,
+            remaining_days=10,
+            period_progress_pct=66.7,
+            days_to_exhaustion=4,
+            threshold_reached_pct=80.0,
+            status="WARNING",
+            is_on_track=False,
+            details={"thresholds_pct": [50.0, 80.0, 90.0, 100.0], "period_label": "2026-09"},
+        )
+
+        # Lo que de verdad llega a la etapa `alerts`: `details` ya paso por
+        # MAP<STRING, STRING>, asi que la lista es texto.
+        estado.details = estado.to_row()["details"]
+        assert estado.details["thresholds_pct"] == "[50.0, 80.0, 90.0, 100.0]"
+
+        alertas = budget_alerts([estado], {"budget_threshold": {"enabled": True}})
+        assert len(alertas) == 1
+        assert alertas[0].severity == "medium"

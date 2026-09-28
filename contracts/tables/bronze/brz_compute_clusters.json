@@ -1,0 +1,177 @@
+{
+  "_doc": "Bronze — Snapshot de configuracion de clusters (system.compute.clusters).",
+  "catalog": "{catalog.bronze}",
+  "schema": "{path.schema_bronze}",
+  "name": "brz_compute_clusters",
+  "type": "MANAGED",
+  "format": "DELTA",
+  "comment": "Snapshot de configuracion de clusters (system.compute.clusters).",
+  "owner": "finops",
+  "columns": [
+    {
+      "name": "account_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "workspace_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "cluster_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "cluster_name",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "owned_by",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "create_time",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "delete_time",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "driver_node_type",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "worker_node_type",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "worker_count",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "min_autoscale_workers",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "max_autoscale_workers",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "auto_termination_minutes",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "enable_elastic_disk",
+      "type": "BOOLEAN",
+      "nullable": true
+    },
+    {
+      "name": "tags",
+      "type": "MAP",
+      "nullable": true,
+      "comment": "MAP<STRING,STRING>"
+    },
+    {
+      "name": "cluster_source",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "init_scripts",
+      "type": "ARRAY",
+      "nullable": true,
+      "comment": "ARRAY<STRING>"
+    },
+    {
+      "name": "azure_attributes",
+      "type": "STRUCT",
+      "nullable": true,
+      "comment": "STRUCT<FIRST_ON_DEMAND:BIGINT,AVAILABILITY:STRING,SPOT_BID_MAX_PRICE:DOUBLE>"
+    },
+    {
+      "name": "aws_attributes",
+      "type": "STRUCT",
+      "nullable": true,
+      "comment": "STRUCT<FIRST_ON_DEMAND:BIGINT,AVAILABILITY:STRING,ZONE_ID:STRING,INSTANCE_PROFILE_ARN:STRING,SPOT_BID_PRICE_PERCENT:BIGINT,EBS_VOLUME_TYPE:STRING,EBS_VOLUME_COUNT:BIGINT,EBS_VOLUME_SIZE:BIGINT,EBS_VOLUME_IOPS:BIGINT,EBS_VOLUME_THROUGHPUT:BIGINT>"
+    },
+    {
+      "name": "gcp_attributes",
+      "type": "STRUCT",
+      "nullable": true,
+      "comment": "STRUCT<USE_PREEMPTIBLE_EXECUTORS:BOOLEAN,GOOGLE_SERVICE_ACCOUNT:STRING,BOOT_DISK_SIZE:BIGINT,AVAILABILITY:STRING,ZONE_ID:STRING,LOCAL_SSD_COUNT:BIGINT>"
+    },
+    {
+      "name": "driver_instance_pool_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "worker_instance_pool_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "dbr_version",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "change_time",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "change_date",
+      "type": "DATE",
+      "nullable": true
+    },
+    {
+      "name": "data_security_mode",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "policy_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "_ingested_at",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "_run_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "_source",
+      "type": "STRING",
+      "nullable": true
+    }
+  ],
+  "partitions": [],
+  "properties": {
+    "layer": "bronze",
+    "quality": "raw",
+    "merge_schema": true
+  }
+}

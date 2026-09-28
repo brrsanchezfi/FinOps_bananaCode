@@ -1,0 +1,74 @@
+{
+  "_doc": "Bronze — Snapshot de system.billing.list_prices (precios de lista vigentes e historicos).",
+  "catalog": "{catalog.bronze}",
+  "schema": "{path.schema_bronze}",
+  "name": "brz_billing_list_prices",
+  "type": "MANAGED",
+  "format": "DELTA",
+  "comment": "Snapshot de system.billing.list_prices (precios de lista vigentes e historicos).",
+  "owner": "finops",
+  "columns": [
+    {
+      "name": "price_start_time",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "price_end_time",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "account_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "sku_name",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "cloud",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "currency_code",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "usage_unit",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "pricing",
+      "type": "STRUCT",
+      "nullable": true,
+      "comment": "STRUCT<DEFAULT:DECIMAL(38,18),PROMOTIONAL:STRUCT<DEFAULT:DECIMAL(38,18)>,EFFECTIVE_LIST:STRUCT<DEFAULT:DECIMAL(38,18)>>"
+    },
+    {
+      "name": "_ingested_at",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "_run_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "_source",
+      "type": "STRING",
+      "nullable": true
+    }
+  ],
+  "partitions": [],
+  "properties": {
+    "layer": "bronze",
+    "quality": "raw",
+    "merge_schema": true
+  }
+}
