@@ -34,6 +34,7 @@ schema siga saliendo de `conf/*.yml` y no quede quemado en los contratos.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import tempfile
@@ -49,7 +50,7 @@ from .logging_utils import get_logger
 if TYPE_CHECKING:  # pragma: no cover
     from DKOps.launcher import Launcher
     from DKOps.table_governance.contracts.loader import TableContract
-    from pyspark.sql import DataFrame
+    from pyspark.sql import DataFrame, SparkSession
 
     from .catalog import TableDef
 
@@ -207,8 +208,36 @@ def start_launcher(cfg: FinOpsConfig) -> Launcher:
     os.environ["DATABRICKS_TARGET"] = cfg.env
     # Un archivo por corrida: los volumenes de UC no admiten reabrir un archivo
     # para agregarle lineas, solo escribirlo de corrido.
+    return Launcher(str(ruta), log_filename=_log_filename(cfg))
+
+
+def _log_filename(cfg: FinOpsConfig) -> str:
     sello = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
-    return Launcher(str(ruta), log_filename=f"finops-{cfg.env}-{sello}")
+    return f"finops-{cfg.env}-{sello}"
+
+
+def open_log(cfg: FinOpsConfig, spark: SparkSession) -> None:
+    """Abre un archivo de log nuevo si no hay uno activo (p. ej. tras `close_log`)."""
+    from DKOps.logger_config import AppLogger
+
+    if AppLogger._file_handler_id is None:
+        AppLogger.add_file_handler(spark, log_dir(cfg), _log_filename(cfg))
+
+
+def close_log() -> None:
+    """Cierra el archivo de log de la corrida.
+
+    En un volumen de UC el archivo solo se publica al cerrarse, y el
+    interprete de un notebook no termina al acabar la tarea: sin este cierre
+    el log se pierde con el cluster.
+    """
+    from DKOps.logger_config import AppLogger
+    from loguru import logger
+
+    if AppLogger._file_handler_id is not None:
+        with contextlib.suppress(ValueError):  # ya retirado
+            logger.remove(AppLogger._file_handler_id)
+        AppLogger._file_handler_id = None
 
 
 # ---------------------------------------------------------------------------

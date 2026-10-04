@@ -49,7 +49,16 @@ from .catalog import (
 )
 from .config import FinOpsConfig
 from .errors import PipelineError
-from .governance import append, delete_range, overwrite, replace_range, start_launcher, upsert
+from .governance import (
+    append,
+    close_log,
+    delete_range,
+    open_log,
+    overwrite,
+    replace_range,
+    start_launcher,
+    upsert,
+)
 from .ingestion.cdf import (
     cdf_enabled,
     changed_usage_dates,
@@ -675,7 +684,22 @@ def run(
     launcher = start_launcher(cfg)
     sesion = spark or launcher.spark
     configure_session(sesion, cfg.get("runtime.shuffle_partitions", "auto"))
+    open_log(cfg, sesion)
+    try:
+        return _run_stages(sesion, cfg, stages, run_id, secret_resolver, dashboard_url, raise_on_error)
+    finally:
+        close_log()
 
+
+def _run_stages(
+    sesion: SparkSession,
+    cfg: FinOpsConfig,
+    stages: list[str] | tuple[str, ...],
+    run_id: str | None,
+    secret_resolver: Callable[[str, str], str] | None,
+    dashboard_url: str,
+    raise_on_error: bool,
+) -> PipelineResult:
     resultado = PipelineResult(run_id or new_run_id(), cfg)
     log.info("=== FinOps %s === %s", resultado.run_id, cfg.describe())
 
