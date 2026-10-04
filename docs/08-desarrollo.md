@@ -12,14 +12,25 @@ ruff check src tests scripts
 python -m finops.cli validate
 ```
 
-La suite corre **sin Spark ni Databricks**. Si quieres ejecutar tambien las
-pruebas marcadas `@pytest.mark.spark`:
+La mayor parte de la suite corre **sin Spark ni Databricks**. Las pruebas
+marcadas `@pytest.mark.spark` necesitan pyspark, y las que evaluan expresiones
+sobre un DataFrame usan la fixture `spark`, que levanta Spark + Delta en local
+con el `Launcher` de DKOps. Para correrlas todas, como en CI:
 
 ```bash
-pip install -e ".[dev,spark]"
+pip install -e ".[dev,spark]"     # trae DKOps[local]: pyspark 3.5 y delta-spark
+pytest -q
 ```
 
-Sin `pyspark` instalado esas pruebas se omiten automaticamente (ver
+Requisitos: **Java 17** en el PATH (`java -version`). La primera corrida descarga
+el jar de Delta desde Maven. En Windows ademas hace falta `HADOOP_HOME` con
+`winutils.exe`, como en cualquier Spark local.
+
+La fixture genera el `config.json` del Launcher en un directorio temporal. Para
+usar otro (por ejemplo Databricks Connect con `EXECUTION_ENVIRONMENT:
+databricks`), define `PATH_CONFIG_LAUNCHER=ruta/al/config.json`.
+
+Sin pyspark instalado esas pruebas se omiten automaticamente (ver
 `tests/conftest.py`).
 
 ---
@@ -241,11 +252,11 @@ Documentada honestamente para que quien continue sepa donde esta parado:
    necesitar ajuste tras el primer deploy. Ver
    [04 — Dashboards](04-dashboards.md#nota-sobre-la-primera-revision).
 
-2. **No hay pruebas de integracion con Spark.** La logica esta cubierta al 100%
-   en su version pura, pero las transformaciones de `silver.py` y `gold.py` solo
-   se validan al ejecutarse contra un workspace. Anadir pruebas con una
-   `SparkSession` local (marcadas `@pytest.mark.spark`) es la mejora de mayor
-   valor pendiente.
+2. **Las pruebas con Spark apenas empiezan.** La fixture `spark` (Launcher de
+   DKOps) ya corre en CI, y hay paridad Python/Spark para la clasificacion de
+   SKU y los descuentos. Los constructores completos de `silver.py` y `gold.py`
+   (`build_usage_priced`, `build_cost_daily`, KPIs) todavia no tienen pruebas con
+   filas de ejemplo: es la mejora de mayor valor pendiente.
 
 3. **El costo de infraestructura de Azure no se integra.** El estimador por
    factor esta desactivado por defecto y es burdo. La solucion real es integrar
