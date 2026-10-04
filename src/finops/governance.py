@@ -38,6 +38,7 @@ import contextlib
 import json
 import os
 import tempfile
+import uuid
 from datetime import date, datetime, timezone
 from functools import lru_cache
 from pathlib import Path
@@ -212,8 +213,10 @@ def start_launcher(cfg: FinOpsConfig) -> Launcher:
 
 
 def _log_filename(cfg: FinOpsConfig) -> str:
+    # Tareas paralelas del job arrancan en el mismo segundo: el sufijo evita que
+    # dos procesos escriban el mismo archivo del volumen.
     sello = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
-    return f"finops-{cfg.env}-{sello}"
+    return f"finops-{cfg.env}-{sello}-{uuid.uuid4().hex[:6]}"
 
 
 def open_log(cfg: FinOpsConfig, spark: SparkSession) -> None:
@@ -235,7 +238,9 @@ def close_log() -> None:
     from loguru import logger
 
     if AppLogger._file_handler_id is not None:
-        with contextlib.suppress(ValueError):  # ya retirado
+        # ValueError: ya retirado. OSError: el volcado final fallo; el log no
+        # debe tumbar una tarea que ya termino.
+        with contextlib.suppress(ValueError, OSError):
             logger.remove(AppLogger._file_handler_id)
         AppLogger._file_handler_id = None
 
