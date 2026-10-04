@@ -1,16 +1,18 @@
-"""Adaptadores de Spark: sesion, lectura tolerante, escritura idempotente.
+"""Adaptadores de Spark: ajustes de sesion, lectura tolerante y utilidades.
 
-Este modulo concentra TODA la interaccion con Spark/Delta para que el resto del
-paquete permanezca testeable sin cluster. Las importaciones de pyspark son
-perezosas: importar `finops.spark_utils` no requiere pyspark instalado.
+La sesion la crea el Launcher de DKOps y las escrituras de tablas las hacen sus
+writers (ambos via `finops.governance`). Aqui queda lo que DKOps no cubre:
+lectura con tablas alternas, bootstrap de catalogo y schemas, y conversiones
+entre filas de Python y DataFrames. Las importaciones de pyspark son perezosas:
+importar `finops.spark_utils` no requiere pyspark instalado.
 """
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
-from .errors import ConfigError, SchemaMismatchError, SourceUnavailableError
+from .errors import ConfigError, SourceUnavailableError
 from .logging_utils import get_logger
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -20,22 +22,12 @@ log = get_logger("spark")
 
 
 # ---------------------------------------------------------------------------
-# Sesion
+# Sesion (la crea el Launcher de DKOps: ver `finops.governance.start_launcher`)
 # ---------------------------------------------------------------------------
-def get_spark(app_name: str = "finops") -> SparkSession:
-    """Devuelve la SparkSession activa o crea una nueva."""
-    from pyspark.sql import SparkSession
-
-    activa = SparkSession.getActiveSession()
-    if activa is not None:
-        return activa
-    return SparkSession.builder.appName(app_name).getOrCreate()
-
-
 #: Modo de sobrescritura de particiones que exige la plataforma.
 #
 # El patron incremental de este pipeline es DELETE explicito del rango + append
-# (`replace_date_range`), nunca sobrescritura dinamica de particiones. Y las
+# (`governance.replace_range`), nunca sobrescritura dinamica de particiones. Y las
 # tablas de snapshot se reescriben enteras con `overwriteSchema`, que Delta
 # **rechaza** si el modo dinamico esta activo:
 #
@@ -109,7 +101,7 @@ def read_source(spark: SparkSession, definition: dict[str, Any]) -> DataFrame | 
 
 
 # ---------------------------------------------------------------------------
-# Escritura
+# Bootstrap de catalogo y schemas
 # ---------------------------------------------------------------------------
 def build_create_catalog_sql(catalog: str, managed_location: str | None = None) -> str:
     """SQL de creacion de catalogo, con ubicacion gestionada si se configuro.
@@ -222,200 +214,6 @@ def with_audit_columns(df: DataFrame, run_id: str, source: str = "") -> DataFram
     if source:
         salida = salida.withColumn("_source", F.lit(source))
     return salida
-
-
-def overwrite_table(
-    spark: SparkSession,
-    df: DataFrame,
-    fqn: str,
-    *,
-    partition_by: list[str] | None = None,
-    properties: dict[str, str] | None = None,
-    dry_run: bool = False,
-) -> int:
-    """Sobrescribe una tabla completa (snapshot). Devuelve filas escritas."""
-    filas = df.count()
-    if dry_run:
-        log.info("[dry-run] overwrite %s (%s filas)", fqn, f"{filas:,}")
-        return filas
-    writer = (
-        df.write.format("delta")
-        .mode("overwrite")
-        .option("overwriteSchema", "true")
-        .option("partitionOverwriteMode", PARTITION_OVERWRITE_MODE)
-    )
-    if partition_by:
-        writer = writer.partitionBy(*partition_by)
-    writer.saveAsTable(fqn)
-    apply_table_properties(spark, fqn, properties)
-    log.info("overwrite %s -> %s filas", fqn, f"{filas:,}")
-    return filas
-
-
-def replace_date_range(
-    spark: SparkSession,
-    df: DataFrame,
-    fqn: str,
-    *,
-    date_column: str,
-    min_date: date,
-    max_date: date,
-    partition_by: list[str] | None = None,
-    properties: dict[str, str] | None = None,
-    dry_run: bool = False,
-) -> int:
-    """Escritura incremental idempotente por rango de fechas.
-
-    Borra el rango [min_date, max_date] en el destino y agrega el nuevo lote.
-    Es el patron correcto para billing: los registros de un dia pueden llegar
-    tarde y deben reemplazar por completo lo que ya se habia calculado.
-    """
-    filas = df.count()
-    if dry_run:
-        log.info("[dry-run] replace %s rango [%s..%s] (%s filas)", fqn, min_date, max_date, f"{filas:,}")
-        return filas
-
-    if not table_exists(spark, fqn):
-        writer = (
-            df.write.format("delta")
-            .mode("overwrite")
-            .option("overwriteSchema", "true")
-            .option("partitionOverwriteMode", PARTITION_OVERWRITE_MODE)
-        )
-        if partition_by:
-            writer = writer.partitionBy(*partition_by)
-        writer.saveAsTable(fqn)
-        apply_table_properties(spark, fqn, properties)
-        log.info("crear %s -> %s filas", fqn, f"{filas:,}")
-        return filas
-
-    spark.sql(
-        f"DELETE FROM {fqn} WHERE {date_column} >= DATE'{min_date.isoformat()}' "
-        f"AND {date_column} <= DATE'{max_date.isoformat()}'"
-    )
-    df.write.format("delta").mode("append").option("mergeSchema", "true").saveAsTable(fqn)
-    apply_table_properties(spark, fqn, properties)
-    log.info("replace %s rango [%s..%s] -> %s filas", fqn, min_date, max_date, f"{filas:,}")
-    return filas
-
-
-def create_table_if_missing(
-    spark: SparkSession,
-    fqn: str,
-    schema: Any,
-    *,
-    partition_by: list[str] | None = None,
-    properties: dict[str, str] | None = None,
-    dry_run: bool = False,
-) -> bool:
-    """Crea una tabla Delta vacia con el esquema dado. Devuelve True si la creo.
-
-    Las tablas de analitica solo se escriben cuando hay resultados, y hay
-    resultados que legitimamente tardan semanas en aparecer: la deteccion de
-    anomalias necesita historia suficiente para construir una base, y el
-    pronostico tambien. Sin esto, `fct_cost_anomaly` no existiria durante los
-    primeros dias y cualquier consulta contra ella fallaria con
-    TABLE_OR_VIEW_NOT_FOUND — incluidos los dashboards, donde un dataset roto
-    invalida el widget completo en vez de mostrarlo vacio.
-
-    Una tabla vacia con el esquema correcto es la diferencia entre un panel que
-    dice "sin datos" y uno que da error.
-    """
-    if table_exists(spark, fqn):
-        return False
-    if dry_run:
-        log.info("[dry-run] crear tabla vacia %s", fqn)
-        return True
-
-    writer = (
-        spark.createDataFrame([], schema)
-        .write.format("delta")
-        .mode("overwrite")
-        .option("overwriteSchema", "true")
-        .option("partitionOverwriteMode", PARTITION_OVERWRITE_MODE)
-    )
-    if partition_by:
-        writer = writer.partitionBy(*partition_by)
-    writer.saveAsTable(fqn)
-    apply_table_properties(spark, fqn, properties)
-    log.info("Tabla vacia creada: %s", fqn)
-    return True
-
-
-def delete_date_range(
-    spark: SparkSession,
-    fqn: str,
-    *,
-    date_column: str,
-    min_date: date,
-    max_date: date,
-    dry_run: bool = False,
-) -> None:
-    """Borra un rango de fechas de una tabla, si existe.
-
-    Se usa cuando una corrida re-evalua un rango y no produce filas: lo que se
-    habia escrito antes para ese rango debe desaparecer (por ejemplo, una
-    anomalia detectada ayer que hoy ya no lo es).
-    """
-    if not table_exists(spark, fqn):
-        return
-    if dry_run:
-        log.info("[dry-run] delete %s rango [%s..%s]", fqn, min_date, max_date)
-        return
-    spark.sql(
-        f"DELETE FROM {fqn} WHERE {date_column} >= DATE'{min_date.isoformat()}' "
-        f"AND {date_column} <= DATE'{max_date.isoformat()}'"
-    )
-    log.info("delete %s rango [%s..%s]", fqn, min_date, max_date)
-
-
-def merge_table(
-    spark: SparkSession,
-    df: DataFrame,
-    fqn: str,
-    *,
-    keys: list[str],
-    partition_by: list[str] | None = None,
-    properties: dict[str, str] | None = None,
-    update: bool = True,
-    dry_run: bool = False,
-) -> int:
-    """MERGE upsert por clave de negocio. Crea la tabla si no existe."""
-    filas = df.count()
-    if dry_run:
-        log.info("[dry-run] merge %s por %s (%s filas)", fqn, keys, f"{filas:,}")
-        return filas
-
-    if not table_exists(spark, fqn):
-        writer = (
-            df.write.format("delta")
-            .mode("overwrite")
-            .option("overwriteSchema", "true")
-            .option("partitionOverwriteMode", PARTITION_OVERWRITE_MODE)
-        )
-        if partition_by:
-            writer = writer.partitionBy(*partition_by)
-        writer.saveAsTable(fqn)
-        apply_table_properties(spark, fqn, properties)
-        log.info("crear %s -> %s filas", fqn, f"{filas:,}")
-        return filas
-
-    vista = f"_stg_{fqn.replace('.', '_')}"
-    df.createOrReplaceTempView(vista)
-    condicion = " AND ".join(f"t.{k} <=> s.{k}" for k in keys)
-    accion_update = "WHEN MATCHED THEN UPDATE SET *" if update else ""
-    spark.sql(
-        f"""
-        MERGE INTO {fqn} AS t
-        USING {vista} AS s
-        ON {condicion}
-        {accion_update}
-        WHEN NOT MATCHED THEN INSERT *
-        """
-    )
-    apply_table_properties(spark, fqn, properties)
-    log.info("merge %s por %s -> %s filas de origen", fqn, keys, f"{filas:,}")
-    return filas
 
 
 def normalize_row_types(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -563,30 +361,6 @@ def rows_to_dataframe(spark: SparkSession, rows: list[dict[str, Any]], schema: A
         ordenadas = [tuple(fila.get(n) for n in nombres) for fila in rows]
         return spark.createDataFrame(ordenadas, schema=schema)
     return spark.createDataFrame(normalize_row_types(rows))
-
-
-def append_rows(
-    spark: SparkSession,
-    rows: list[dict[str, Any]],
-    fqn: str,
-    schema: Any = None,
-    *,
-    dry_run: bool = False,
-) -> int:
-    """Agrega filas Python a una tabla Delta (logs de corrida, alertas)."""
-    if not rows:
-        return 0
-    if dry_run:
-        log.info("[dry-run] append %s filas a %s", len(rows), fqn)
-        return len(rows)
-    df = rows_to_dataframe(spark, rows, schema)
-    try:
-        df.write.format("delta").mode("append").option("mergeSchema", "true").saveAsTable(fqn)
-    except Exception as exc:  # noqa: BLE001
-        if "FAILED_TO_MERGE_FIELDS" not in str(exc) and "MERGE_INCOMPATIBLE" not in str(exc):
-            raise
-        raise SchemaMismatchError(fqn, str(exc)) from exc
-    return len(rows)
 
 
 def optimize_table(spark: SparkSession, fqn: str, zorder_by: list[str] | None = None) -> None:

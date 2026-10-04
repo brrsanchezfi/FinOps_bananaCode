@@ -1,0 +1,127 @@
+{
+  "_doc": "Silver — Ultima configuracion conocida de cada cluster con banderas de eficiencia.",
+  "catalog": "{catalog.silver}",
+  "schema": "{path.schema_silver}",
+  "name": "slv_clusters",
+  "type": "MANAGED",
+  "format": "DELTA",
+  "comment": "Ultima configuracion conocida de cada cluster con banderas de eficiencia.",
+  "columns": [
+    {
+      "name": "account_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "workspace_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "cluster_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "cluster_name",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "cluster_owner",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "create_time",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "delete_time",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "cluster_source",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "policy_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "data_security_mode",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "driver_node_type",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "worker_node_type",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "num_workers",
+      "type": "INTEGER",
+      "nullable": true,
+      "comment": "INT"
+    },
+    {
+      "name": "min_workers",
+      "type": "INTEGER",
+      "nullable": true,
+      "comment": "INT"
+    },
+    {
+      "name": "max_workers",
+      "type": "INTEGER",
+      "nullable": true,
+      "comment": "INT"
+    },
+    {
+      "name": "autotermination_minutes",
+      "type": "INTEGER",
+      "nullable": true,
+      "comment": "INT"
+    },
+    {
+      "name": "spark_version",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "cluster_tags",
+      "type": "MAP",
+      "nullable": true,
+      "comment": "MAP<STRING,STRING>"
+    },
+    {
+      "name": "autoscale_enabled",
+      "type": "BOOLEAN",
+      "nullable": true
+    },
+    {
+      "name": "is_single_node",
+      "type": "BOOLEAN",
+      "nullable": true
+    },
+    {
+      "name": "is_deleted",
+      "type": "BOOLEAN",
+      "nullable": true
+    }
+  ],
+  "partitions": [],
+  "properties": {
+    "layer": "silver",
+    "quality": "curated",
+    "merge_schema": true
+  }
+}

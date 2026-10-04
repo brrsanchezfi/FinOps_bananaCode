@@ -6,7 +6,6 @@
   "type": "MANAGED",
   "format": "DELTA",
   "comment": "Catalogo de workspaces de la cuenta.",
-  "owner": "finops",
   "columns": [
     {
       "name": "account_id",

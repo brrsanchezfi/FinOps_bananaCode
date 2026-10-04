@@ -34,8 +34,9 @@ from ..catalog import (
     SLV_WAREHOUSES,
 )
 from ..config import FinOpsConfig
+from ..governance import overwrite, replace_range
 from ..logging_utils import get_logger, stage
-from ..spark_utils import overwrite_table, replace_date_range, table_exists
+from ..spark_utils import table_exists
 
 if TYPE_CHECKING:  # pragma: no cover
     from pyspark.sql import DataFrame, SparkSession
@@ -573,15 +574,13 @@ def build_entity_profiles(spark: SparkSession, cfg: FinOpsConfig, *, lookback_da
 # ---------------------------------------------------------------------------
 def run_gold(spark: SparkSession, cfg: FinOpsConfig, run_id: str, *, recorder: Any = None) -> dict[str, int]:
     """Construye toda la capa gold en el orden de dependencias correcto."""
-    propiedades = cfg.get("catalog.table_properties", {}) or {}
     resultados: dict[str, int] = {}
 
     # 1) Hecho central (incremental por rango)
     with stage("gold.cost_daily", recorder) as metrica:
-        metrica.rows = replace_date_range(
-            spark, build_cost_daily(spark, cfg), GOLD_COST_DAILY.fqn(cfg),
+        metrica.rows = replace_range(
+            cfg, GOLD_COST_DAILY, build_cost_daily(spark, cfg),
             date_column="usage_date", min_date=cfg.min_date, max_date=cfg.max_date,
-            partition_by=list(GOLD_COST_DAILY.partition_by), properties=propiedades, dry_run=cfg.dry_run,
         )
         resultados["gold.cost_daily"] = metrica.rows
 
@@ -598,10 +597,9 @@ def run_gold(spark: SparkSession, cfg: FinOpsConfig, run_id: str, *, recorder: A
                 metrica.details["motivo"] = f"{requerida.fqn(cfg)} no disponible"
                 resultados[nombre] = 0
                 continue
-            metrica.rows = replace_date_range(
-                spark, constructor(spark, cfg), destino.fqn(cfg),
+            metrica.rows = replace_range(
+                cfg, destino, constructor(spark, cfg),
                 date_column=columna_fecha, min_date=cfg.min_date, max_date=cfg.max_date,
-                partition_by=list(destino.partition_by), properties=propiedades, dry_run=cfg.dry_run,
             )
             resultados[nombre] = metrica.rows
 
@@ -616,10 +614,7 @@ def run_gold(spark: SparkSession, cfg: FinOpsConfig, run_id: str, *, recorder: A
     )
     for nombre, destino, constructor in snapshots:
         with stage(nombre, recorder) as metrica:
-            metrica.rows = overwrite_table(
-                spark, constructor(spark, cfg), destino.fqn(cfg),
-                properties=propiedades, dry_run=cfg.dry_run,
-            )
+            metrica.rows = overwrite(cfg, destino, constructor(spark, cfg))
             resultados[nombre] = metrica.rows
 
     return resultados

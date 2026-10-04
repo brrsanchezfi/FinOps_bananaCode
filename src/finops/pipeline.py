@@ -49,6 +49,7 @@ from .catalog import (
 )
 from .config import FinOpsConfig
 from .errors import PipelineError
+from .governance import append, delete_range, overwrite, replace_range, start_launcher, upsert
 from .ingestion.cdf import (
     cdf_enabled,
     changed_usage_dates,
@@ -65,17 +66,7 @@ from .ingestion.watermark import (
 from .logging_utils import RunRecorder, configure_logging, get_logger, stage
 from .quality.checks import enforce, run_checks
 from .schemas import esquemas as _esquemas
-from .spark_utils import (
-    append_rows,
-    configure_session,
-    delete_date_range,
-    merge_table,
-    overwrite_table,
-    replace_date_range,
-    rows_to_dataframe,
-    rows_to_dicts,
-    table_exists,
-)
+from .spark_utils import configure_session, rows_to_dataframe, rows_to_dicts, table_exists
 from .transform.gold import build_entity_profiles, run_gold
 from .transform.silver import run_silver
 
@@ -190,9 +181,7 @@ def stage_quality(spark: SparkSession, cfg: FinOpsConfig, result: PipelineResult
         filas = [
             {**r.to_row(), "run_id": result.run_id, "pipeline_environment": cfg.env} for r in resultados
         ]
-        metrica.rows = append_rows(
-            spark, filas, OPS_QUALITY.fqn(cfg), _esquemas()["quality"], dry_run=cfg.dry_run
-        )
+        metrica.rows = append(cfg, OPS_QUALITY, rows_to_dataframe(spark, filas, _esquemas()["quality"]))
         fallidos = [r for r in resultados if not r.passed]
         metrica.details["fallidos"] = len(fallidos)
         result.outputs["quality"] = [
@@ -228,7 +217,6 @@ def stage_analytics(spark: SparkSession, cfg: FinOpsConfig, result: PipelineResu
     """Ejecuta anomalias, pronostico, presupuestos, recomendaciones y chargeback."""
     from pyspark.sql import functions as F
 
-    propiedades = cfg.get("catalog.table_properties", {}) or {}
     hoy = cfg.max_date
     esquemas = _esquemas()
 
@@ -272,19 +260,14 @@ def stage_analytics(spark: SparkSession, cfg: FinOpsConfig, result: PipelineResu
                 )
             metrica.details["ventana_evaluada"] = f"{desde_eval} .. {hoy}"
             if filas:
-                metrica.rows = replace_date_range(
-                    spark, rows_to_dataframe(spark, filas, esquemas["anomaly"]), GOLD_ANOMALY.fqn(cfg),
+                metrica.rows = replace_range(
+                    cfg, GOLD_ANOMALY, rows_to_dataframe(spark, filas, esquemas["anomaly"]),
                     date_column="usage_date", min_date=desde_eval, max_date=hoy,
-                    properties=propiedades, dry_run=cfg.dry_run,
                 )
             else:
                 # Sin hallazgos igual hay que limpiar el rango: una anomalia
                 # detectada ayer que hoy ya no lo es debe desaparecer.
-                delete_date_range(
-                    spark, GOLD_ANOMALY.fqn(cfg),
-                    date_column="usage_date", min_date=desde_eval, max_date=hoy,
-                    dry_run=cfg.dry_run,
-                )
+                delete_range(cfg, GOLD_ANOMALY, date_column="usage_date", min_date=desde_eval, max_date=hoy)
                 metrica.rows = 0
                 metrica.status = "skipped"
 
@@ -317,10 +300,7 @@ def stage_analytics(spark: SparkSession, cfg: FinOpsConfig, result: PipelineResu
                     for fila in pronostico.to_rows()
                 )
             if filas:
-                metrica.rows = overwrite_table(
-                    spark, rows_to_dataframe(spark, filas, esquemas["forecast"]), GOLD_FORECAST.fqn(cfg),
-                    properties=propiedades, dry_run=cfg.dry_run,
-                )
+                metrica.rows = overwrite(cfg, GOLD_FORECAST, rows_to_dataframe(spark, filas, esquemas["forecast"]))
             else:
                 metrica.rows = 0
                 metrica.status = "skipped"
@@ -357,10 +337,9 @@ def stage_analytics(spark: SparkSession, cfg: FinOpsConfig, result: PipelineResu
             for e in estados
         ]
         if filas:
-            metrica.rows = merge_table(
-                spark, rows_to_dataframe(spark, filas, esquemas["budget"]), GOLD_BUDGET_STATUS.fqn(cfg),
+            metrica.rows = upsert(
+                cfg, GOLD_BUDGET_STATUS, rows_to_dataframe(spark, filas, esquemas["budget"]),
                 keys=["budget_id", "period_start", "as_of_date"],
-                properties=propiedades, dry_run=cfg.dry_run,
             )
         else:
             metrica.rows = 0
@@ -382,9 +361,8 @@ def stage_analytics(spark: SparkSession, cfg: FinOpsConfig, result: PipelineResu
                 for r in recomendaciones
             ]
             if filas:
-                metrica.rows = overwrite_table(
-                    spark, rows_to_dataframe(spark, filas, esquemas["recommendation"]), GOLD_RECOMMENDATION.fqn(cfg),
-                    properties=propiedades, dry_run=cfg.dry_run,
+                metrica.rows = overwrite(
+                    cfg, GOLD_RECOMMENDATION, rows_to_dataframe(spark, filas, esquemas["recommendation"])
                 )
             else:
                 metrica.rows = 0
@@ -441,9 +419,8 @@ def stage_analytics(spark: SparkSession, cfg: FinOpsConfig, result: PipelineResu
                 # cambio deja de coincidir, asi que el merge insertaba la nueva y
                 # dejaba la vieja para siempre. El tablero de chargeback acababa
                 # sumando varias generaciones de la misma unidad.
-                metrica.rows = overwrite_table(
-                    spark, rows_to_dataframe(spark, filas, esquemas["chargeback"]), GOLD_CHARGEBACK.fqn(cfg),
-                    properties=propiedades, dry_run=cfg.dry_run,
+                metrica.rows = overwrite(
+                    cfg, GOLD_CHARGEBACK, rows_to_dataframe(spark, filas, esquemas["chargeback"])
                 )
             else:
                 metrica.rows = 0
@@ -650,9 +627,7 @@ def stage_alerts(
             reporte.alerts, reporte.deliveries, run_id=result.run_id, env=cfg.env, suppressed=suprimidas
         )
         if filas_alerta:
-            append_rows(
-                spark, filas_alerta, OPS_ALERTS.fqn(cfg), _esquemas()["alert"], dry_run=cfg.dry_run
-            )
+            append(cfg, OPS_ALERTS, rows_to_dataframe(spark, filas_alerta, _esquemas()["alert"]))
 
         metrica.rows = len(filas_alerta)
         metrica.details.update(
@@ -694,10 +669,11 @@ def run(
         raise_on_error: si False, registra el error y continua con las etapas
             restantes (util para no perder el alertamiento si falla la ingesta).
     """
-    from .spark_utils import get_spark
-
     configure_logging(str(cfg.get("runtime.log_level", "INFO")))
-    sesion = spark or get_spark(f"finops-{cfg.env}")
+    # Los writers de DKOps toman la sesion del Launcher activo, asi que se
+    # garantiza uno aunque el llamador traiga su propia sesion.
+    launcher = start_launcher(cfg)
+    sesion = spark or launcher.spark
     configure_session(sesion, cfg.get("runtime.shuffle_partitions", "auto"))
 
     resultado = PipelineResult(run_id or new_run_id(), cfg)
@@ -741,6 +717,6 @@ def _persist_run_log(spark: SparkSession, cfg: FinOpsConfig, result: PipelineRes
             {**fila, "run_started_at": result.started_at, "run_date": cfg.max_date}
             for fila in result.recorder.as_rows(result.run_id, cfg.env)
         ]
-        append_rows(spark, filas, OPS_RUN_LOG.fqn(cfg), _esquemas()["run_log"], dry_run=cfg.dry_run)
+        append(cfg, OPS_RUN_LOG, rows_to_dataframe(spark, filas, _esquemas()["run_log"]))
     except Exception as exc:  # noqa: BLE001
         log.warning("No se pudo persistir la bitacora de la corrida: %s", exc)

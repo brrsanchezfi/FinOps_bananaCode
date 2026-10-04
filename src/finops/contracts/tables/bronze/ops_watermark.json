@@ -6,7 +6,6 @@
   "type": "MANAGED",
   "format": "DELTA",
   "comment": "Marcas de agua de ingesta por fuente.",
-  "owner": "finops",
   "columns": [
     {
       "name": "source_key",

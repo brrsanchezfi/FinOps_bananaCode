@@ -108,7 +108,7 @@ Los registros de facturacion llegan con retraso: un dia puede recibir datos dos
 o tres dias despues. Escribir en modo `append` duplicaria; escribir en
 `overwrite` completo seria carisimo.
 
-El patron es `replace_date_range`: se borra el rango `[min_date, max_date]` en el
+El patron es `governance.replace_range` (writers de DKOps, ver ADR 0007): se borra el rango `[min_date, max_date]` en el
 destino y se agrega el lote nuevo. Reprocesar la misma ventana N veces produce
 exactamente el mismo resultado. La ventana por defecto es de 7 dias hacia atras
 (`ingestion.lookback_days`), suficiente para el SLA de publicacion de Databricks.

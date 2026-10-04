@@ -1,0 +1,182 @@
+{
+  "_doc": "Gold — Costo diario por SQL warehouse con metricas de actividad de consultas.",
+  "catalog": "{catalog.gold}",
+  "schema": "{path.schema_gold}",
+  "name": "fct_warehouse_cost_daily",
+  "type": "MANAGED",
+  "format": "DELTA",
+  "comment": "Costo diario por SQL warehouse con metricas de actividad de consultas.",
+  "columns": [
+    {
+      "name": "usage_date",
+      "type": "DATE",
+      "nullable": true
+    },
+    {
+      "name": "workspace_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "warehouse_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "cost_center",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "team",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "environment",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "owner",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "proceso",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "concepto",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "list_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "discount_amount_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "effective_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "estimated_infra_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "total_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "usage_quantity",
+      "type": "DECIMAL",
+      "nullable": true,
+      "comment": "DECIMAL(27,6)"
+    },
+    {
+      "name": "sku_group",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "is_serverless",
+      "type": "BOOLEAN",
+      "nullable": true
+    },
+    {
+      "name": "query_count",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "failed_query_count",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "active_hours",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "avg_duration_ms",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "distinct_users",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "read_bytes",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "warehouse_name",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "warehouse_size",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "warehouse_type",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "auto_stop_minutes",
+      "type": "INTEGER",
+      "nullable": true,
+      "comment": "INT"
+    },
+    {
+      "name": "min_clusters",
+      "type": "INTEGER",
+      "nullable": true,
+      "comment": "INT"
+    },
+    {
+      "name": "max_clusters",
+      "type": "INTEGER",
+      "nullable": true,
+      "comment": "INT"
+    },
+    {
+      "name": "cost_per_query_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "entity_key",
+      "type": "STRING",
+      "nullable": true
+    }
+  ],
+  "partitions": [
+    "usage_date"
+  ],
+  "properties": {
+    "layer": "gold",
+    "quality": "consumption",
+    "merge_schema": true
+  }
+}

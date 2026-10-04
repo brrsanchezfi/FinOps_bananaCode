@@ -1,0 +1,133 @@
+{
+  "_doc": "Gold — Recomendaciones de optimizacion con ahorro estimado y evidencia.",
+  "catalog": "{catalog.gold}",
+  "schema": "{path.schema_gold}",
+  "name": "fct_recommendation",
+  "type": "MANAGED",
+  "format": "DELTA",
+  "comment": "Recomendaciones de optimizacion con ahorro estimado y evidencia.",
+  "columns": [
+    {
+      "name": "rule_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "title",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "entity_key",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "entity_type",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "entity_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "entity_name",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "workspace_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "team",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "cost_center",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "environment",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "owner",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "observed_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "estimated_monthly_savings_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "savings_pct",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "confidence",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "severity",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "estimation_method",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "recommendation",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "evidence",
+      "type": "MAP",
+      "nullable": true,
+      "comment": "MAP<STRING,STRING>"
+    },
+    {
+      "name": "run_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "pipeline_environment",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "generated_at",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "analysis_date",
+      "type": "DATE",
+      "nullable": true
+    }
+  ],
+  "partitions": [],
+  "properties": {
+    "layer": "gold",
+    "quality": "consumption",
+    "merge_schema": true
+  }
+}

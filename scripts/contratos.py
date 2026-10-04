@@ -1,15 +1,16 @@
-"""Contratos de tabla DKOps para la capa bronze.
+"""Contratos de tabla DKOps para las tres capas (bronze, silver y gold).
 
     python scripts/contratos.py bootstrap --schemas esquemas.json
     python scripts/contratos.py check
 
 Por que existen estos contratos
 -------------------------------
-Hoy el esquema de bronze no esta escrito en ninguna parte: las tablas nacen de
-proyectar lo que traiga la system table de turno. Eso hace que un cambio de
-esquema en el origen entre sin que nadie lo revise, y las system tables cambian
-(este repo ya carga con el renombre `system.workflow.*` -> `system.lakeflow.*`).
-Un contrato JSON versionado convierte ese cambio en un diff de pull request.
+Toda escritura del pipeline pasa por los writers de DKOps, y DKOps escribe
+contra un contrato: valida el DataFrame antes de tocar la tabla. Sin contrato
+el esquema no estaria escrito en ninguna parte -- las tablas nacerian de lo que
+traiga la system table o la transformacion de turno -- y un cambio entraria sin
+que nadie lo revise. Un contrato JSON versionado convierte ese cambio en un
+diff de pull request.
 
 `bootstrap` es una herramienta de ARRANQUE, no parte del pipeline: toma los
 esquemas reales de un workspace ya cargado y escribe los contratos por primera
@@ -20,14 +21,14 @@ justifica tenerlos.
 No se conecta a Databricks: recibe un archivo con el resultado de esta consulta,
 para no arrastrar plomeria de autenticacion a una herramienta que se usa una vez.
 
-    SELECT table_name, column_name, full_data_type, is_nullable
+    SELECT table_schema, table_name, column_name, full_data_type, is_nullable
     FROM <catalogo>.information_schema.columns
-    WHERE table_schema = 'bronze'
-    ORDER BY table_name, ordinal_position
+    WHERE table_schema IN ('bronze', 'silver', 'gold')
+    ORDER BY table_schema, table_name, ordinal_position
 
 Sobre los placeholders
 ----------------------
-`{catalog.bronze}` lo resuelve DKOps. El SCHEMA va como `{path.schema_bronze}`
+`{catalog.<capa>}` lo resuelve DKOps. El SCHEMA va como `{path.schema_<capa>}`
 porque el espacio de placeholders de DKOps es catalogo/path/env y no tiene uno
 para schema: FinOps pone las tres capas en UN catalogo separadas por schema (ver
 docs/adr/0005), asi que el nombre del schema tiene que viajar por algun lado.
@@ -42,18 +43,19 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-CONTRACTS_DIR = REPO_ROOT / "contracts" / "tables" / "bronze"
+# Dentro del paquete: el wheel que se instala en el cluster los lleva consigo.
+CONTRACTS_DIR = REPO_ROOT / "src" / "finops" / "contracts" / "tables"
 
 #: Columnas que agrega el propio pipeline, no el origen (ver `with_audit_columns`).
 COLUMNAS_DE_AUDITORIA = {"_ingested_at", "_source_table", "_run_id"}
 
 
-def _tablas_bronze() -> dict[str, object]:
-    """TableDefs de bronze, indexados por nombre fisico."""
+def _tablas() -> dict[str, object]:
+    """TableDefs del registro, indexados por nombre fisico."""
     sys.path.insert(0, str(REPO_ROOT / "src"))
     from finops.catalog import ALL_TABLES
 
-    return {t.name: t for t in ALL_TABLES if t.layer == "bronze"}
+    return {t.name: t for t in ALL_TABLES}
 
 
 #: Nombre SQL de Spark -> nombre que entiende DKOps. Spark reporta `BIGINT` e
@@ -106,77 +108,92 @@ def agrupar_columnas(filas: list[dict]) -> dict[str, list[dict]]:
     return salida
 
 
+CALIDAD_POR_CAPA = {"bronze": "raw", "silver": "curated", "gold": "consumption"}
+
+
 def construir_contrato(tabla, columnas: list[dict]) -> dict:
-    """Contrato de una tabla bronze. Funcion pura: se prueba sin Spark."""
+    """Contrato de una tabla del registro. Funcion pura: se prueba sin Spark.
+
+    Sin `owner` a proposito: DKOps lo aplica con `ALTER TABLE ... SET OWNER`, y
+    entregarle la tabla a un principal distinto del que corre el job puede
+    dejar al job sin permiso para su siguiente escritura.
+    """
+    capa = tabla.layer
     return {
-        "_doc": f"Bronze — {tabla.description}",
-        "catalog": "{catalog.bronze}",
-        "schema": "{path.schema_bronze}",
+        "_doc": f"{capa.capitalize()} — {tabla.description}",
+        "catalog": f"{{catalog.{capa}}}",
+        "schema": f"{{path.schema_{capa}}}",
         "name": tabla.name,
         "type": "MANAGED",
         "format": "DELTA",
         "comment": tabla.description,
-        "owner": "finops",
-        # Bronze copia la system table tal cual: TODA columna es nullable a
-        # proposito. Declarar `nullable: false` sobre un origen que no
-        # controlamos convierte un dato faltante en una corrida rota, y el
-        # principio de esta capa es tolerar el origen, no disciplinarlo.
+        # TODA columna es nullable a proposito. En bronze, declarar
+        # `nullable: false` sobre un origen que no controlamos convierte un
+        # dato faltante en una corrida rota. En silver y gold las columnas
+        # salen de expresiones de Spark, que no garantizan no-nulos.
         "columns": [{**c, "nullable": True} for c in columnas],
         "partitions": list(tabla.partition_by),
         "properties": {
-            "layer": "bronze",
-            "quality": "raw",
-            # Las system tables ganan columnas sin aviso. Sin esto, la primera
-            # columna nueva rompe la ingesta en vez de incorporarse.
+            "layer": capa,
+            "quality": CALIDAD_POR_CAPA[capa],
+            # Las system tables ganan columnas sin aviso, y silver/gold las
+            # heredan. Sin esto, la primera columna nueva rompe la escritura en
+            # vez de incorporarse (y el contrato la reporta como WARNING).
             "merge_schema": True,
         },
     }
 
 
 def cmd_bootstrap(args: argparse.Namespace) -> int:
-    tablas = _tablas_bronze()
+    tablas = _tablas()
     columnas = agrupar_columnas(json.loads(Path(args.schemas).read_text(encoding="utf-8")))
 
-    CONTRACTS_DIR.mkdir(parents=True, exist_ok=True)
     faltantes = sorted(set(tablas) - set(columnas))
     if faltantes:
         print(f"ATENCION: sin esquema en el workspace, se omiten: {faltantes}", file=sys.stderr)
 
     for nombre, tabla in sorted(tablas.items()):
-        if nombre not in columnas:
+        if nombre not in columnas or (args.layer and tabla.layer != args.layer):
             continue
         contrato = construir_contrato(tabla, columnas[nombre])
-        destino = CONTRACTS_DIR / f"{nombre}.json"
+        destino = CONTRACTS_DIR / tabla.layer / f"{nombre}.json"
+        destino.parent.mkdir(parents=True, exist_ok=True)
         destino.write_text(json.dumps(contrato, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         print(f"escrito {destino.relative_to(REPO_ROOT).as_posix()} ({len(contrato['columns'])} columnas)")
     return 0
 
 
 def cmd_check(args: argparse.Namespace) -> int:  # noqa: ARG001
-    """Valida que cada tabla bronze del registro tenga contrato, y viceversa."""
-    tablas = set(_tablas_bronze())
-    contratos = {p.stem for p in CONTRACTS_DIR.glob("*.json")} if CONTRACTS_DIR.is_dir() else set()
+    """Valida que cada tabla del registro tenga contrato en su capa, y viceversa."""
+    tablas = {f"{t.layer}/{t.name}" for t in _tablas().values()}
+    contratos = {
+        p.relative_to(CONTRACTS_DIR).with_suffix("").as_posix() for p in CONTRACTS_DIR.glob("*/*.json")
+    }
 
     sin_contrato = sorted(tablas - contratos)
     huerfanos = sorted(contratos - tablas)
     if sin_contrato:
-        print(f"Tablas bronze sin contrato: {sin_contrato}", file=sys.stderr)
+        print(f"Tablas sin contrato: {sin_contrato}", file=sys.stderr)
     if huerfanos:
         print(f"Contratos sin tabla en el registro: {huerfanos}", file=sys.stderr)
     if sin_contrato or huerfanos:
         return 1
-    print(f"Contratos al dia ({len(contratos)} tablas bronze).")
+    print(f"Contratos al dia ({len(contratos)} tablas).")
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Contratos de tabla DKOps (bronze)")
+    parser = argparse.ArgumentParser(description="Contratos de tabla DKOps")
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_boot = sub.add_parser("bootstrap", help="Genera los contratos desde esquemas ya extraidos")
     p_boot.add_argument(
         "--schemas", required=True,
         help="JSON con el resultado de la consulta a information_schema (ver el docstring)",
+    )
+    p_boot.add_argument(
+        "--layer", choices=sorted(CALIDAD_POR_CAPA),
+        help="Regenera solo esta capa (por defecto, todas las que traiga el archivo)",
     )
     p_boot.set_defaults(func=cmd_bootstrap)
 

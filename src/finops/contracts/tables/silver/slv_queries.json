@@ -1,0 +1,97 @@
+{
+  "_doc": "Silver — Consultas SQL agregadas por warehouse/usuario/dia.",
+  "catalog": "{catalog.silver}",
+  "schema": "{path.schema_silver}",
+  "name": "slv_queries",
+  "type": "MANAGED",
+  "format": "DELTA",
+  "comment": "Consultas SQL agregadas por warehouse/usuario/dia.",
+  "columns": [
+    {
+      "name": "query_date",
+      "type": "DATE",
+      "nullable": true
+    },
+    {
+      "name": "workspace_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "warehouse_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "executed_by",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "query_count",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "total_duration_ms",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "avg_duration_ms",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "p95_duration_ms",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "queue_ms",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "read_bytes",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "produced_rows",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "failed_query_count",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "distinct_statements",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "active_hours",
+      "type": "DOUBLE",
+      "nullable": true
+    }
+  ],
+  "partitions": [
+    "query_date"
+  ],
+  "properties": {
+    "layer": "silver",
+    "quality": "curated",
+    "merge_schema": true
+  }
+}

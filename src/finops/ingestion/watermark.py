@@ -95,7 +95,8 @@ def write_watermark(
     details: dict[str, Any] | None = None,
 ) -> None:
     """Registra la marca de agua alcanzada por una fuente."""
-    from ..spark_utils import append_rows
+    from ..governance import append
+    from ..spark_utils import rows_to_dataframe
 
     fila = {
         "source_key": source_key,
@@ -106,5 +107,5 @@ def write_watermark(
         "updated_at": datetime.now(timezone.utc),
         "details": {k: str(v) for k, v in (details or {}).items()},
     }
-    append_rows(spark, [fila], OPS_WATERMARK.fqn(cfg), esquemas()["watermark"], dry_run=cfg.dry_run)
+    append(cfg, OPS_WATERMARK, rows_to_dataframe(spark, [fila], esquemas()["watermark"]))
     log.debug("Marca de agua %s -> %s", source_key, watermark_date)

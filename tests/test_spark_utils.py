@@ -7,8 +7,6 @@ producido fallos reales en despliegue.
 
 from __future__ import annotations
 
-from datetime import date
-
 import pytest
 
 from finops.errors import ConfigError
@@ -18,7 +16,6 @@ from finops.spark_utils import (
     build_create_schema_sql,
     catalog_exists,
     configure_session,
-    delete_date_range,
     ensure_catalog,
 )
 
@@ -138,23 +135,6 @@ class TestDdl:
     def test_catalog_exists_es_tolerante(self):
         assert catalog_exists(SparkFalso(), "no_existe") is False
         assert catalog_exists(SparkFalso(existentes={"si_existe"}), "si_existe") is True
-
-
-class TestDeleteDateRange:
-    def test_no_hace_nada_si_la_tabla_no_existe(self):
-        spark = SparkFalso()
-        delete_date_range(
-            spark, "c.s.t", date_column="d", min_date=date(2026, 1, 1), max_date=date(2026, 1, 5)
-        )
-        assert not any(s.startswith("DELETE") for s in spark.sql_ejecutado)
-
-    def test_dry_run_no_borra(self):
-        spark = SparkFalso(existentes={"c.s.t"})
-        delete_date_range(
-            spark, "c.s.t", date_column="d",
-            min_date=date(2026, 1, 1), max_date=date(2026, 1, 5), dry_run=True,
-        )
-        assert not any(s.startswith("DELETE") for s in spark.sql_ejecutado)
 
 
 class TestNormalizacionDeTipos:

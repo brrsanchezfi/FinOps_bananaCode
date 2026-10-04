@@ -6,7 +6,6 @@
   "type": "MANAGED",
   "format": "DELTA",
   "comment": "Snapshot de configuracion de clusters (system.compute.clusters).",
-  "owner": "finops",
   "columns": [
     {
       "name": "account_id",

@@ -1,0 +1,62 @@
+{
+  "_doc": "Gold — Dimension de workspace.",
+  "catalog": "{catalog.gold}",
+  "schema": "{path.schema_gold}",
+  "name": "dim_workspace",
+  "type": "MANAGED",
+  "format": "DELTA",
+  "comment": "Dimension de workspace.",
+  "columns": [
+    {
+      "name": "account_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "workspace_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "cloud",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "first_seen_date",
+      "type": "DATE",
+      "nullable": true
+    },
+    {
+      "name": "last_seen_date",
+      "type": "DATE",
+      "nullable": true
+    },
+    {
+      "name": "lifetime_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "workspace_name",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "workspace_url",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "workspace_status",
+      "type": "STRING",
+      "nullable": true
+    }
+  ],
+  "partitions": [],
+  "properties": {
+    "layer": "gold",
+    "quality": "consumption",
+    "merge_schema": true
+  }
+}

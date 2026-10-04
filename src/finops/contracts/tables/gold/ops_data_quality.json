@@ -1,0 +1,67 @@
+{
+  "_doc": "Gold — Resultados de los chequeos de calidad.",
+  "catalog": "{catalog.gold}",
+  "schema": "{path.schema_gold}",
+  "name": "ops_data_quality",
+  "type": "MANAGED",
+  "format": "DELTA",
+  "comment": "Resultados de los chequeos de calidad.",
+  "columns": [
+    {
+      "name": "check",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "table",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "passed",
+      "type": "BOOLEAN",
+      "nullable": true
+    },
+    {
+      "name": "severity",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "observed",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "threshold",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "message",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "checked_at",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "run_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "pipeline_environment",
+      "type": "STRING",
+      "nullable": true
+    }
+  ],
+  "partitions": [],
+  "properties": {
+    "layer": "gold",
+    "quality": "consumption",
+    "merge_schema": true
+  }
+}

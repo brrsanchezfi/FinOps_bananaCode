@@ -1,0 +1,124 @@
+{
+  "_doc": "Gold — Agregado mensual por todas las dimensiones de atribucion.",
+  "catalog": "{catalog.gold}",
+  "schema": "{path.schema_gold}",
+  "name": "agg_cost_monthly",
+  "type": "MANAGED",
+  "format": "DELTA",
+  "comment": "Agregado mensual por todas las dimensiones de atribucion.",
+  "columns": [
+    {
+      "name": "year_month",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "account_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "workspace_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "sku_group",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "compute_family",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "entity_type",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "cost_center",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "team",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "environment",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "owner",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "proceso",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "concepto",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "list_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "discount_amount_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "effective_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "estimated_infra_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "total_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "usage_quantity",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "entity_count",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "active_days",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "month_start",
+      "type": "DATE",
+      "nullable": true
+    }
+  ],
+  "partitions": [],
+  "properties": {
+    "layer": "gold",
+    "quality": "consumption",
+    "merge_schema": true
+  }
+}
