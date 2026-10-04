@@ -1,13 +1,20 @@
 """Fixtures compartidas de la suite de pruebas.
 
 La logica de negocio de la plataforma es pura, por lo que la suite corre sin
-Spark ni conexion a Databricks. Las pruebas que necesitan una SparkSession se
-marcan con `@pytest.mark.spark` y se omiten si pyspark no esta instalado.
+Spark ni conexion a Databricks. Las pruebas que necesitan pyspark se marcan con
+`@pytest.mark.spark` y se omiten si pyspark no esta instalado.
+
+La SparkSession la levanta el `Launcher` de DKOps (fixture `spark`), igual que
+en cualquier otro flujo DKOps: Spark + Delta en la maquina local. Se instala con
+`pip install -e ".[dev,spark]"`, que trae `DKOps[local]` (pyspark y delta-spark
+en las versiones que DKOps soporta) y requiere Java 17 en el PATH.
 """
 
 from __future__ import annotations
 
 import importlib.util
+import json
+import os
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -32,6 +39,42 @@ def pytest_collection_modifyitems(config, items):  # noqa: ARG001
     for item in items:
         if "spark" in item.keywords:
             item.add_marker(omitir)
+
+
+@pytest.fixture(scope="session")
+def spark(tmp_path_factory):
+    """SparkSession local creada por el `Launcher` de DKOps.
+
+    El config.json del Launcher se genera en un directorio temporal para que el
+    warehouse y los logs no ensucien el repositorio ni dependan del sistema
+    operativo (`/tmp` no existe en Windows). Si `PATH_CONFIG_LAUNCHER` esta
+    definida se usa ese archivo, por ejemplo para correr contra Databricks
+    Connect con `EXECUTION_ENVIRONMENT: databricks`.
+    """
+    pytest.importorskip("pyspark", reason="pyspark no esta instalado")
+    from DKOps.launcher import ENV_VAR_CONFIG, Launcher
+
+    ruta = os.environ.get(ENV_VAR_CONFIG)
+    if not ruta:
+        base = tmp_path_factory.mktemp("dkops")
+        ruta = base / "launcher.json"
+        ruta.write_text(
+            json.dumps(
+                {
+                    "EXECUTION_ENVIRONMENT": "local",
+                    "SPARK_APP_NAME": "finops-tests",
+                    "SPARK_WAREHOUSE_DIR": str(base / "warehouse"),
+                    "DELTA_VERSION": "3.2.0",
+                    "LOG_LEVEL": "WARNING",
+                    "LOG_DIR": str(base / "logs"),
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    launcher = Launcher(str(ruta), log_filename="finops-tests")
+    yield launcher.spark
+    launcher.spark.stop()
 
 
 @pytest.fixture

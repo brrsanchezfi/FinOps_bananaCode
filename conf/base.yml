@@ -289,7 +289,7 @@ anomaly:
     high: 6.0
     medium: 4.5
   # Dimensiones sobre las que se buscan anomalias.
-  group_by_dimensions: [ambiente, proceso, concepto, cost_center, workspace_id, sku_group, entity_key]
+  group_by_dimensions: [environment, proceso, concepto, cost_center, workspace_id, sku_group, entity_key]
 
 # ---------------------------------------------------------------------------
 # Pronostico de costo
@@ -305,7 +305,7 @@ forecast:
   weekly_seasonality: true
   min_history_days: 21
   train_window_days: 120
-  group_by_dimensions: [ambiente, proceso, concepto, cost_center, workspace_id]
+  group_by_dimensions: [environment, proceso, concepto, cost_center, workspace_id]
 
 # ---------------------------------------------------------------------------
 # Recomendaciones de optimizacion
