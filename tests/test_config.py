@@ -216,3 +216,17 @@ class TestConfiguracionDelRepositorio:
         cfg = load_config("finops", conf_dir=conf_dir, use_env_vars=False, use_local_overlay=False)
         ids = [b["id"] for b in cfg.budgets["budgets"]]
         assert len(ids) == len(set(ids))
+
+    @pytest.mark.parametrize("seccion", ["anomaly", "forecast"])
+    def test_las_dimensiones_de_analitica_existen_en_el_hecho_diario(self, cfg_repo, seccion):
+        """Toda dimension de `group_by_dimensions` debe ser columna de fct_cost_daily.
+
+        Si no lo es, `pipeline._daily_series_by` la salta con un warning y esa
+        serie deja de analizarse en silencio. Paso con `ambiente`, que no existe:
+        la dimension canonica es `environment`.
+        """
+        from finops.transform.gold import cost_daily_grain
+
+        columnas = set(cost_daily_grain(cfg_repo))
+        pedidas = cfg_repo.get(f"{seccion}.group_by_dimensions", []) or []
+        assert set(pedidas) - columnas == set(), f"{seccion}: dimensiones inexistentes"
