@@ -12,9 +12,11 @@ de un SKU, y con el, la cifra de todos los tableros que agrupan por `sku_group`.
 Estas pruebas cuidan la propiedad que hace segura esa unificacion: que no vuelva
 a aparecer una segunda implementacion.
 
-Las expresiones Spark se construyen sin SparkSession -- `F.when(...)` devuelve un
-Column y su `str()` es el SQL generado -- asi que esto corre sin cluster, igual
-que el resto de la suite.
+Las expresiones Spark necesitan una SparkSession activa para construirse (pyspark
+3.5 lo exige hasta para `F.lit`), asi que esas pruebas usan la fixture `spark`
+--el Launcher de DKOps en local-- y se omiten si pyspark no esta instalado.
+`TestParidadPythonSpark` va mas alla del texto de la expresion: la EVALUA sobre
+un DataFrame y compara fila por fila contra `classify_sku`.
 """
 
 from __future__ import annotations
@@ -56,11 +58,12 @@ class TestLaCascadaEsLaFuenteDeVerdad:
             assert f"SERVERLESS_{grupo}" in P.SKU_GROUPS
 
 
+@pytest.mark.spark
 class TestElCompiladorDeSparkCubreLaCascada:
-    """Sin SparkSession: se inspecciona la expresion generada."""
+    """Se inspecciona el texto de la expresion generada."""
 
     @pytest.fixture(scope="class")
-    def expresion(self) -> str:
+    def expresion(self, spark) -> str:
         from finops.transform.silver import sku_group_expr
 
         return str(sku_group_expr())
@@ -125,8 +128,49 @@ class TestEquivalenciaDeReglas:
     def test_python_clasifica_como_se_espera(self, sku, producto, esperado):
         assert P.classify_sku(sku, producto) == esperado
 
+    @pytest.mark.spark
     @pytest.mark.parametrize(("sku", "producto", "esperado"), CASOS)
-    def test_el_grupo_esperado_existe_en_la_expresion_spark(self, sku, producto, esperado):
+    def test_el_grupo_esperado_existe_en_la_expresion_spark(self, spark, sku, producto, esperado):
         from finops.transform.silver import sku_group_expr
 
         assert esperado in str(sku_group_expr())
+
+
+@pytest.mark.spark
+class TestParidadPythonSpark:
+    """La expresion Spark, evaluada, clasifica igual que `classify_sku`.
+
+    Es la prueba que faltaba: las anteriores solo miran el TEXTO de la
+    expresion. Aqui se corre sobre un DataFrame con todos los casos de
+    `TestEquivalenciaDeReglas` mas uno por cada paso de la cascada.
+    """
+
+    @staticmethod
+    def _casos() -> list[tuple[str, str]]:
+        casos = [(sku, producto) for sku, producto, _ in TestEquivalenciaDeReglas.CASOS]
+        for paso in P.CASCADA_DE_SKU:
+            if paso.campo == "producto":
+                casos.append(("SKU_SIN_PATRON", paso.valor))
+                casos.append(("PREMIUM_SERVERLESS_X", paso.valor))
+        casos += [("", ""), ("premium_jobs_compute", "")]
+        return casos
+
+    def test_grupo_identico_fila_por_fila(self, spark):
+        from finops.transform.silver import sku_group_expr
+
+        df = spark.createDataFrame(self._casos(), "sku_name string, billing_origin_product string")
+        filas = df.withColumn("sku_group", sku_group_expr()).collect()
+
+        distintos = [
+            (f["sku_name"], f["billing_origin_product"], f["sku_group"],
+             P.classify_sku(f["sku_name"], f["billing_origin_product"]))
+            for f in filas
+            if f["sku_group"] != P.classify_sku(f["sku_name"], f["billing_origin_product"])
+        ]
+        assert distintos == [], f"(sku, producto, spark, python) que divergen: {distintos}"
+
+    def test_nulos_caen_al_respaldo(self, spark):
+        from finops.transform.silver import sku_group_expr
+
+        df = spark.createDataFrame([(None, None)], "sku_name string, billing_origin_product string")
+        assert df.select(sku_group_expr().alias("g")).first()["g"] == P.classify_sku(None, None)

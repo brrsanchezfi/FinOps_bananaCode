@@ -11,6 +11,8 @@ from __future__ import annotations
 import dataclasses
 from datetime import date, datetime, timezone
 
+import pytest
+
 from finops.alerting.rules import Alert
 from finops.analytics.anomaly import AnomalyResult
 from finops.analytics.budgets import evaluate_budget
@@ -152,6 +154,7 @@ def _importar_recommendation():
 Recommendation = _importar_recommendation()
 
 
+@pytest.mark.spark
 class TestTiposDeSpark:
     """`spark_type_for` debe cubrir tambien los tipos pelados de las specs planas."""
 
@@ -186,6 +189,7 @@ class TestTiposDeSpark:
         assert self._simple(datetime) == "timestamp"
 
 
+@pytest.mark.spark
 class TestTiposDeLasTablasOperativas:
     """Las columnas de metadatos deben ser MAP, no STRUCT ni STRING.
 
@@ -211,6 +215,7 @@ class TestTiposDeLasTablasOperativas:
             )
 
 
+@pytest.mark.spark
 class TestTablasQueDebenExistirSiempre:
     """Todo dataset de dashboard debe apuntar a una tabla que exista siempre.
 

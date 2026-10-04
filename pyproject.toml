@@ -29,8 +29,11 @@ dev = [
     "ruff>=0.5",
     "pandas>=2.0",
 ]
+# Spark local para las pruebas marcadas `spark`. Lo levanta el Launcher de DKOps
+# (tests/conftest.py), asi que se instala su extra [local]: pyspark y
+# delta-spark en las versiones que DKOps soporta. Requiere Java 17.
 spark = [
-    "pyspark>=3.5",
+    "DKOps[local]>=0.3.6,<0.4",
 ]
 
 [project.scripts]
@@ -52,7 +55,7 @@ testpaths = ["tests"]
 pythonpath = [".", "src"]
 addopts = "-q --strict-markers"
 markers = [
-    "spark: pruebas que requieren una SparkSession local (se omiten si no hay pyspark)",
+    "spark: pruebas que requieren pyspark o la SparkSession del Launcher de DKOps (se omiten si no hay pyspark)",
 ]
 
 [tool.ruff]

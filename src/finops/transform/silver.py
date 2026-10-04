@@ -161,6 +161,17 @@ def sku_group_expr(sku_col: str = "sku_name", product_col: str = "billing_origin
     return expr
 
 
+def glob_a_like(patron: str) -> str:
+    """Traduce un glob (`*`, `?`) a un patron LIKE de Spark.
+
+    `_` y `%` son comodines en LIKE pero literales en un glob: sin escaparlos,
+    la regla `PREMIUM_SQL*` coincidia tambien con `PREMIUMXSQL...` en Spark y no
+    en Python (`fnmatch`), que es la referencia.
+    """
+    escapado = patron.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return escapado.replace("*", "%").replace("?", "_")
+
+
 def discount_expr(discount_rules: list[dict[str, Any]] | None) -> tuple[Column, Column]:
     """Construye (descuento, nombre_regla) evaluando las reglas en orden."""
     from pyspark.sql import functions as F
@@ -190,7 +201,7 @@ def discount_expr(discount_rules: list[dict[str, Any]] | None) -> tuple[Column, 
             candidatos = esperado if isinstance(esperado, (list, tuple)) else [esperado]
             sub = F.lit(False)
             for candidato in candidatos:
-                sub = sub | columna.like(str(candidato).upper().replace("*", "%"))
+                sub = sub | columna.like(glob_a_like(str(candidato).upper()))
             condicion = condicion & sub
         pct = max(0.0, min(float(regla.get("discount_pct", 0.0) or 0.0), 0.999))
         descuento = F.when(condicion, F.lit(pct)).otherwise(descuento)

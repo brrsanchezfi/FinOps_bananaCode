@@ -95,6 +95,7 @@ class TestLosDosRegistrosNoDivergen:
         existentes = {p.stem for p in CONTRATOS_BRONZE.glob("*.json")}
         assert existentes - esperados == set(), "contratos sin tabla en el registro"
 
+    @pytest.mark.spark  # el validador de contratos de DKOps importa pyspark
     def test_el_contrato_resuelve_al_mismo_nombre_que_el_registro(self, conf_dir):
         """LA prueba de este archivo.
 
@@ -111,6 +112,7 @@ class TestLosDosRegistrosNoDivergen:
                 f"y el registro '{tabla.fqn(cfg)}'"
             )
 
+    @pytest.mark.spark  # el validador de contratos de DKOps importa pyspark
     def test_las_particiones_coinciden_con_el_registro(self, conf_dir):
         from finops.governance import load_table_contract
 

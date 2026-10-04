@@ -178,3 +178,66 @@ class TestEnriquecimiento:
         registro = {"sku_name": "PREMIUM_JOBS_COMPUTE", "usage_quantity": 1.0, "unit_price": 1.0}
         enrich_usage_record(registro, pricing_cfg)
         assert "sku_group" not in registro
+
+
+class TestGlobALike:
+    """Sin Spark: la traduccion de patrones es texto."""
+
+    @pytest.mark.parametrize(
+        ("glob", "like"),
+        [
+            ("*SQL*", "%SQL%"),
+            ("PREMIUM_SQL*", "PREMIUM\\_SQL%"),
+            ("100%", "100\\%"),
+            ("AZ?RE", "AZ_RE"),
+        ],
+    )
+    def test_traduce_y_escapa(self, glob, like):
+        from finops.transform.silver import glob_a_like
+
+        assert glob_a_like(glob) == like
+
+
+@pytest.mark.spark
+class TestParidadDescuentosSpark:
+    """`silver.discount_expr` evaluada sobre un DataFrame decide igual que
+    `pricing.resolve_discount`, que es la referencia probada arriba."""
+
+    REGLAS = [
+        {"name": "sql_pro", "match": {"sku_name": "PREMIUM_SQL*"}, "discount_pct": 0.30},
+        {"name": "ws", "match": {"workspace_id": ["111", "222"]}, "discount_pct": 0.15},
+        {"name": "azure_jobs", "match": {"cloud": "AZURE", "sku_group": "JOBS"}, "discount_pct": 0.20},
+        {"name": "general", "match": {}, "discount_pct": 0.05},
+    ]
+
+    FILAS = [
+        # (workspace_id, account_id, sku_name, sku_group, billing_origin_product, cloud)
+        ("999", "a", "PREMIUM_SQL_PRO_COMPUTE", "SQL", "SQL", "AZURE"),
+        # `_` es literal en el glob: no debe coincidir con `PREMIUM_SQL*`.
+        ("999", "a", "PREMIUMXSQL_PRO_COMPUTE", "SQL", "SQL", "AZURE"),
+        ("222", "a", "PREMIUM_JOBS_COMPUTE", "JOBS", "JOBS", "AWS"),
+        ("999", "a", "PREMIUM_JOBS_COMPUTE", "JOBS", "JOBS", "azure"),
+        ("999", "a", "PREMIUM_JOBS_COMPUTE", "JOBS", "JOBS", None),
+        (None, "a", "PREMIUM_ALL_PURPOSE_COMPUTE", "ALL_PURPOSE", None, "AWS"),
+    ]
+
+    def test_descuento_y_regla_identicos(self, spark):
+        from finops.transform.pricing import resolve_discount
+        from finops.transform.silver import discount_expr
+
+        columnas = ["workspace_id", "account_id", "sku_name", "sku_group", "billing_origin_product", "cloud"]
+        df = spark.createDataFrame(self.FILAS, ", ".join(f"{c} string" for c in columnas))
+        descuento, regla = discount_expr(self.REGLAS)
+        filas = df.withColumn("pct", descuento).withColumn("regla", regla).collect()
+
+        for fila in filas:
+            contexto = {c: fila[c] for c in columnas}
+            esperado = resolve_discount(self.REGLAS, contexto)
+            assert (fila["pct"], fila["regla"]) == esperado, contexto
+
+    def test_sin_reglas(self, spark):
+        from finops.transform.silver import discount_expr
+
+        descuento, regla = discount_expr(None)
+        fila = spark.range(1).select(descuento.alias("pct"), regla.alias("regla")).first()
+        assert (fila["pct"], fila["regla"]) == (0.0, "sin_descuento")

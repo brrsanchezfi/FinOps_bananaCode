@@ -29,10 +29,18 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
+      # Las pruebas marcadas `spark` levantan Spark + Delta local con el
+      # Launcher de DKOps (tests/conftest.py). Spark 3.5 necesita Java 17.
+      - name: Configurar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
       - name: Instalar dependencias
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install -e ".[dev,spark]"
 
       - name: Lint (ruff)
         run: ruff check src tests scripts
