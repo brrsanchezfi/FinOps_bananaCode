@@ -9,6 +9,7 @@ importar `finops.spark_utils` no requiere pyspark instalado.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
@@ -52,6 +53,11 @@ def configure_session(spark: SparkSession, shuffle_partitions: Any = "auto") -> 
     spark.conf.set("spark.sql.pyspark.inferNestedDictAsStruct.enabled", "false")
     if shuffle_partitions and str(shuffle_partitions).lower() != "auto":
         spark.conf.set("spark.sql.shuffle.partitions", str(shuffle_partitions))
+    # PySpark vuelca como ERROR el plan completo de cada sentencia SQL que falla,
+    # aunque el codigo atrape la excepcion y la registre. En un notebook ese
+    # volcado supera el limite de salida de la celda y Databricks descarta el
+    # resto del log de la tarea.
+    logging.getLogger("SQLQueryContextLogger").setLevel(logging.CRITICAL)
 
 
 def current_user(spark: SparkSession) -> str:
