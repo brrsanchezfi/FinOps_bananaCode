@@ -226,6 +226,71 @@ class TestRenderPorInstalacion:
             )
 
 
+class TestTableroUnificado:
+    """Se despliega un solo tablero: la Vista ejecutiva con los demas como pestanas."""
+
+    def _generador(self):
+        sys.path.insert(0, str(REPO_ROOT / "scripts"))
+        import dashboards as generador
+
+        return generador
+
+    def _unificado(self):
+        generador = self._generador()
+        base = json.loads(
+            (DASHBOARDS_DIR / f"{generador.TABLERO_UNIFICADO}.lvdash.json").read_text(encoding="utf-8")
+        )
+        pestanas = [
+            json.loads((DASHBOARDS_DIR / f"{n}.lvdash.json").read_text(encoding="utf-8"))
+            for n in generador.PESTANAS
+        ]
+        return generador, base, pestanas, generador.unificar(base, pestanas)
+
+    def test_incluye_las_paginas_de_todos(self):
+        _, base, pestanas, unificado = self._unificado()
+        esperadas = [p["name"] for p in base["pages"]] + [
+            p["name"] for t in pestanas for p in t["pages"]
+        ]
+        assert [p["name"] for p in unificado["pages"]] == esperadas
+
+    def test_conserva_el_tema_de_la_vista_ejecutiva(self):
+        _, base, _, unificado = self._unificado()
+        assert unificado["uiSettings"] == base["uiSettings"]
+
+    def test_todo_widget_consulta_un_dataset_del_tablero(self):
+        _, _, _, unificado = self._unificado()
+        datasets = {d["name"] for d in unificado["datasets"]}
+        huerfanos = [
+            f"{p['name']}:{item['widget']['name']}"
+            for p in unificado["pages"]
+            for item in p.get("layout", [])
+            for q in item["widget"].get("queries", [])
+            if "datasetName" in q["query"] and q["query"]["datasetName"] not in datasets
+        ]
+        assert huerfanos == []
+
+    def test_display_names_unicos(self):
+        _, _, _, unificado = self._unificado()
+        visibles = [d["displayName"] for d in unificado["datasets"]]
+        assert len(visibles) == len(set(visibles))
+
+    def test_unificar_dos_veces_no_duplica(self):
+        generador, _, pestanas, unificado = self._unificado()
+        assert generador.unificar(unificado, pestanas) == unificado
+
+    def test_cada_pagina_lleva_el_logo_de_dataknow(self):
+        generador, _, _, unificado = self._unificado()
+        esperado = generador.logo_spec()
+        for pagina in unificado["pages"]:
+            if "layout" not in pagina:
+                continue
+            logos = [i["widget"] for i in pagina["layout"] if "imageSpec" in i["widget"]]
+            assert len(logos) == 1, f"{pagina['displayName']} no tiene un logo"
+            assert logos[0]["imageSpec"] == esperado["imageSpec"], (
+                f"{pagina['displayName']} no usa el logo de DataKnow"
+            )
+
+
 class TestSqlDeCreacion:
     """Constructores de DDL: puros, probables sin Spark."""
 
@@ -469,7 +534,7 @@ class TestWidgetsDeDashboard:
             for pagina in contenido["pages"]:
                 for elemento in pagina["layout"]:
                     widget = elemento["widget"]
-                    if "queries" in widget:
+                    if "queries" in widget or "imageSpec" in widget:
                         continue
                     assert "textbox_spec" not in widget, f"{archivo}:{widget['name']}"
                     lineas = widget.get("multilineTextboxSpec", {}).get("lines")
