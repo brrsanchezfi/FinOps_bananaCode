@@ -128,8 +128,8 @@ tabla que no exista en el registro, y que ninguno tenga un catalogo incrustado.
 
 `pipeline.run(stages=[...])` permite ejecutar cualquier subconjunto. Esto habilita:
 
-- Un job diario multi-tarea, con una tarea por etapa: cada una tiene su duracion,
-  sus reintentos y su estado en la UI de Workflows.
+- Un job diario de una sola tarea que corre todas las etapas; el parametro
+  `stages` permite relanzar solo una parte.
 - Un job de **alertamiento** que corre tres veces al dia sobre el gold ya
   construido, sin repetir la ingesta.
 - Reprocesar solo la analitica tras cambiar un umbral, sin volver a ingerir.

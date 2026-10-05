@@ -5,9 +5,9 @@
 #   finops_alertas          solo alertamiento, con mayor frecuencia
 #   finops_backfill         recarga historica manual (full refresh)
 #
-# Las tres tareas usan el mismo notebook `10_etapa` con distinto parametro
-# `stages`: el codigo no se duplica y cada etapa aparece por separado en la UI
-# de Workflows, con su propia duracion, reintentos y estado.
+# Cada job es una sola tarea con el notebook `10_etapa` (o el orquestador) y
+# su lista de etapas en el parametro `stages`. El detalle por etapa (duracion,
+# filas, estado) queda en el log de la corrida y en `ops_run_log`.
 # =============================================================================
 
 resources:
@@ -89,107 +89,28 @@ resources:
           default: "false"
         - name: overrides
           default: ""
+        # Todas las etapas por defecto; se puede pedir un subconjunto al lanzar
+        # la corrida (`--params stages=silver,gold`).
+        - name: stages
+          default: "setup,bronze,silver,gold,analytics,quality,alerts,maintenance"
 
+      # Una sola tarea que corre todas las etapas de corrido, en el mismo proceso
+      # y con un solo archivo de log; cada etapa abre con un separador en el log.
+      # Si falla setup, bronze, silver o gold la corrida se corta; si falla
+      # analitica o calidad, alertas y mantenimiento corren igual y la tarea
+      # termina en error al final (ver `pipeline.BLOCKING_STAGES`).
       tasks:
-        - task_key: ingesta_bronze
-          description: Copia incremental de las system tables a bronze.
+        - task_key: pipeline
+          description: Ingesta, modelo, analitica, calidad, alertas y mantenimiento.
           job_cluster_key: finops_cluster
           notebook_task:
             notebook_path: ../notebooks/10_etapa.py
-            base_parameters:
-              stages: "setup,bronze"
           libraries:
             - whl: ../dist/*.whl
-          timeout_seconds: 3600
-          max_retries: 2
+          timeout_seconds: 10800     # 3 horas
+          # Reintentar repite la corrida completa; las escrituras son idempotentes.
+          max_retries: 1
           min_retry_interval_millis: 120000
-
-        - task_key: modelo_silver
-          description: Valorizacion del consumo, entidades y etiquetas.
-          depends_on:
-            - task_key: ingesta_bronze
-          job_cluster_key: finops_cluster
-          notebook_task:
-            notebook_path: ../notebooks/10_etapa.py
-            base_parameters:
-              stages: "silver"
-          libraries:
-            - whl: ../dist/*.whl
-          timeout_seconds: 3600
-          max_retries: 1
-
-        - task_key: modelo_gold
-          description: Modelo dimensional y KPIs.
-          depends_on:
-            - task_key: modelo_silver
-          job_cluster_key: finops_cluster
-          notebook_task:
-            notebook_path: ../notebooks/10_etapa.py
-            base_parameters:
-              stages: "gold"
-          libraries:
-            - whl: ../dist/*.whl
-          timeout_seconds: 3600
-          max_retries: 1
-
-        - task_key: calidad
-          description: Chequeos de calidad sobre silver y gold.
-          depends_on:
-            - task_key: modelo_gold
-          job_cluster_key: finops_cluster
-          notebook_task:
-            notebook_path: ../notebooks/10_etapa.py
-            base_parameters:
-              stages: "quality"
-          libraries:
-            - whl: ../dist/*.whl
-          timeout_seconds: 1800
-
-        - task_key: analitica
-          description: Anomalias, pronostico, presupuestos, recomendaciones y chargeback.
-          depends_on:
-            - task_key: modelo_gold
-          job_cluster_key: finops_cluster
-          notebook_task:
-            notebook_path: ../notebooks/10_etapa.py
-            base_parameters:
-              stages: "analytics"
-          libraries:
-            - whl: ../dist/*.whl
-          timeout_seconds: 3600
-          max_retries: 1
-
-        - task_key: alertas
-          description: >-
-            Genera y despacha alertas. Depende de analitica y calidad, pero se
-            ejecuta aunque una de ellas falle: una falla del pipeline es
-            justamente algo que hay que notificar.
-          depends_on:
-            - task_key: analitica
-            - task_key: calidad
-          run_if: AT_LEAST_ONE_SUCCESS
-          job_cluster_key: finops_cluster
-          notebook_task:
-            notebook_path: ../notebooks/10_etapa.py
-            base_parameters:
-              stages: "alerts"
-          libraries:
-            - whl: ../dist/*.whl
-          timeout_seconds: 1800
-
-        - task_key: mantenimiento
-          description: OPTIMIZE/ZORDER y comentarios de catalogo.
-          depends_on:
-            - task_key: alertas
-          run_if: ALL_DONE
-          job_cluster_key: finops_cluster
-          notebook_task:
-            notebook_path: ../notebooks/10_etapa.py
-            base_parameters:
-              stages: "maintenance"
-          libraries:
-            - whl: ../dist/*.whl
-          timeout_seconds: 3600
 
     # -------------------------------------------------------------------------
     finops_alertas:

@@ -144,7 +144,7 @@ databricks bundle run finops_pipeline_diario -t finops
 │   └── alerting/               reglas, formateo, deduplicacion, despacho
 ├── notebooks/
 │   ├── 00_orquestador.py       Pipeline completo (orquestador general)
-│   ├── 10_etapa.py             Ejecutor de una etapa (tareas del job)
+│   ├── 10_etapa.py             Ejecutor de etapas (tarea de los jobs)
 │   └── 90_exploracion.py       Consultas ad-hoc
 ├── dashboards/*.lvdash.json    Dashboards generados y versionados
 ├── scripts/

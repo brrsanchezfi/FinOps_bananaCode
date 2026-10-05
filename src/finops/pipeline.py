@@ -85,6 +85,11 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger("pipeline")
 
 ALL_STAGES = ("setup", "bronze", "silver", "gold", "analytics", "quality", "alerts", "maintenance")
+# Si una de estas falla, las siguientes no tienen datos que procesar y la corrida
+# se corta. Una falla de analitica o calidad no corta: las alertas y el
+# mantenimiento corren igual, y la corrida termina en error al final.
+BLOCKING_STAGES = frozenset({"setup", "bronze", "silver", "gold"})
+_SEPARADOR = "=" * 72
 
 
 class PipelineResult:
@@ -720,17 +725,25 @@ def _run_stages(
     if not seleccionadas:
         raise PipelineError("seleccion", f"Ninguna etapa valida en {stages}. Validas: {ALL_STAGES}")
 
-    for nombre in seleccionadas:
+    fallidas: list[str] = []
+    for i, nombre in enumerate(seleccionadas, start=1):
+        log.info(_SEPARADOR)
+        log.info("ETAPA %d/%d: %s", i, len(seleccionadas), nombre.upper())
+        log.info(_SEPARADOR)
         try:
             ejecutores[nombre](sesion, cfg, resultado)
         except Exception as exc:  # noqa: BLE001
             log.exception("Etapa '%s' fallo", nombre)
-            if raise_on_error:
+            fallidas.append(nombre)
+            if raise_on_error and nombre in BLOCKING_STAGES:
                 _persist_run_log(sesion, cfg, resultado)
                 raise PipelineError(nombre, exc) from exc
 
+    log.info(_SEPARADOR)
     _persist_run_log(sesion, cfg, resultado)
     log.info("%s", resultado.summary())
+    if raise_on_error and fallidas:
+        raise PipelineError(", ".join(fallidas), "ver el resumen de la corrida")
     return resultado
 
 
