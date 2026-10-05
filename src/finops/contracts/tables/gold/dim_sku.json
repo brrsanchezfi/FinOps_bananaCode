@@ -1,0 +1,72 @@
+{
+  "_doc": "Gold — Dimension de SKU con agrupacion y familia de producto.",
+  "catalog": "{catalog.gold}",
+  "schema": "{path.schema_gold}",
+  "name": "dim_sku",
+  "type": "MANAGED",
+  "format": "DELTA",
+  "comment": "Dimension de SKU con agrupacion y familia de producto.",
+  "columns": [
+    {
+      "name": "sku_name",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "sku_group",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "compute_family",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "is_serverless",
+      "type": "BOOLEAN",
+      "nullable": true
+    },
+    {
+      "name": "is_photon",
+      "type": "BOOLEAN",
+      "nullable": true
+    },
+    {
+      "name": "usage_unit",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "latest_unit_price_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "first_seen_date",
+      "type": "DATE",
+      "nullable": true
+    },
+    {
+      "name": "last_seen_date",
+      "type": "DATE",
+      "nullable": true
+    },
+    {
+      "name": "lifetime_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "billing_origin_product",
+      "type": "STRING",
+      "nullable": true
+    }
+  ],
+  "partitions": [],
+  "properties": {
+    "layer": "gold",
+    "quality": "consumption",
+    "merge_schema": true
+  }
+}

@@ -6,7 +6,6 @@
   "type": "MANAGED",
   "format": "DELTA",
   "comment": "Copia incremental de system.billing.usage acotada a la ventana de proceso.",
-  "owner": "finops",
   "columns": [
     {
       "name": "record_id",

@@ -1,0 +1,307 @@
+{
+  "_doc": "Silver — Consumo valorizado: DBU x precio de lista, con descuentos, etiquetas normalizadas y entidad resuelta. Grano = registro de system.billing.usage.",
+  "catalog": "{catalog.silver}",
+  "schema": "{path.schema_silver}",
+  "name": "slv_usage_priced",
+  "type": "MANAGED",
+  "format": "DELTA",
+  "comment": "Consumo valorizado: DBU x precio de lista, con descuentos, etiquetas normalizadas y entidad resuelta. Grano = registro de system.billing.usage.",
+  "columns": [
+    {
+      "name": "record_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "account_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "workspace_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "cloud",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "sku_name",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "usage_date",
+      "type": "DATE",
+      "nullable": true
+    },
+    {
+      "name": "usage_start_time",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "usage_end_time",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "usage_unit",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "usage_quantity",
+      "type": "DECIMAL",
+      "nullable": true,
+      "comment": "DECIMAL(38,18)"
+    },
+    {
+      "name": "billing_origin_product",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "record_type",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "usage_type",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "sku_group",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "compute_family",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "is_serverless",
+      "type": "BOOLEAN",
+      "nullable": true
+    },
+    {
+      "name": "is_photon",
+      "type": "BOOLEAN",
+      "nullable": true
+    },
+    {
+      "name": "entity_type",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "entity_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "entity_key",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "entity_name",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "job_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "job_run_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "cluster_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "warehouse_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "dlt_pipeline_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "endpoint_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "instance_pool_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "owner_resolved",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "unit_price",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "price_currency",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "price_missing",
+      "type": "BOOLEAN",
+      "nullable": true
+    },
+    {
+      "name": "discount_pct",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "discount_rule",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "infra_factor",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "list_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "discount_amount_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "effective_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "estimated_infra_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "total_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "cost_center",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "team",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "environment",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "owner",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "proceso",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "concepto",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "tag_source_cost_center",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "tag_source_team",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "tag_source_environment",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "tag_source_owner",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "tag_source_proceso",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "tag_source_concepto",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "tags_resolved",
+      "type": "INTEGER",
+      "nullable": true,
+      "comment": "INT"
+    },
+    {
+      "name": "tags_expected",
+      "type": "INTEGER",
+      "nullable": true,
+      "comment": "INT"
+    },
+    {
+      "name": "is_fully_tagged",
+      "type": "BOOLEAN",
+      "nullable": true
+    },
+    {
+      "name": "is_untagged",
+      "type": "BOOLEAN",
+      "nullable": true
+    },
+    {
+      "name": "_run_id",
+      "type": "STRING",
+      "nullable": true
+    }
+  ],
+  "partitions": [
+    "usage_date"
+  ],
+  "properties": {
+    "layer": "silver",
+    "quality": "curated",
+    "merge_schema": true
+  }
+}

@@ -249,8 +249,21 @@ def bootstrap(spark: SparkSession, cfg: FinOpsConfig) -> list[str]:
         except Exception as exc:  # noqa: BLE001
             log.debug("No se pudo comentar el schema %s: %s", schema, exc)
     log.info("Schemas listos: %s", ", ".join(creados))
+    _ensure_log_volume(spark, cfg)
     ensure_analytics_tables(spark, cfg)
     return creados
+
+
+def _ensure_log_volume(spark: SparkSession, cfg: FinOpsConfig) -> None:
+    """Volumen de UC donde DKOps deja el log de cada corrida (ver governance.log_dir)."""
+    from .governance import LOG_VOLUME
+
+    if cfg.get("runtime.log_dir"):
+        return
+    try:
+        spark.sql(f"CREATE VOLUME IF NOT EXISTS {cfg.catalog}.{cfg.schema('gold')}.{LOG_VOLUME}")
+    except Exception as exc:  # noqa: BLE001 - sin volumen el log cae a /tmp
+        log.warning("No se pudo crear el volumen de logs: %s", exc)
 
 
 def ensure_analytics_tables(spark: SparkSession, cfg: FinOpsConfig) -> int:
@@ -261,38 +274,23 @@ def ensure_analytics_tables(spark: SparkSession, cfg: FinOpsConfig) -> int:
     historia suficiente. Crearlas vacias evita que un dashboard falle con
     TABLE_OR_VIEW_NOT_FOUND durante los primeros dias de operacion.
     """
+    from .governance import create_if_missing
     from .schemas import tablas_con_esquema
-    from .spark_utils import create_table_if_missing
 
-    propiedades = cfg.get("catalog.table_properties", {}) or {}
-    creadas = 0
-    for tabla, esquema in tablas_con_esquema():
-        if create_table_if_missing(
-            spark, tabla.fqn(cfg), esquema,
-            partition_by=list(tabla.partition_by) or None,
-            properties=propiedades, dry_run=cfg.dry_run,
-        ):
-            creadas += 1
+    creadas = sum(create_if_missing(cfg, tabla, esquema) for tabla, esquema in tablas_con_esquema())
     if creadas:
         log.info("Tablas vacias creadas: %s", creadas)
     return creadas
 
 
 def apply_comments(spark: SparkSession, cfg: FinOpsConfig) -> int:
-    """Aplica el `description` de cada TableDef como COMMENT en Unity Catalog."""
-    from .spark_utils import table_exists
+    """Reaplica la metadata del contrato (comentarios de tabla y de columna).
 
-    aplicados = 0
-    for tabla in ALL_TABLES:
-        fqn = tabla.fqn(cfg)
-        if not table_exists(spark, fqn):
-            continue
-        texto = tabla.description.replace("'", "''")
-        try:
-            spark.sql(f"COMMENT ON TABLE {fqn} IS '{texto}'")
-            aplicados += 1
-        except Exception as exc:  # noqa: BLE001
-            log.debug("No se pudo comentar %s: %s", fqn, exc)
+    Cada escritura ya la aplica; esto repara tablas tocadas por otro camino.
+    """
+    from .governance import apply_metadata
+
+    aplicados = apply_metadata(cfg, ALL_TABLES)
     log.info("Comentarios aplicados a %s tablas", aplicados)
     return aplicados
 

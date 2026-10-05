@@ -6,7 +6,6 @@
   "type": "MANAGED",
   "format": "DELTA",
   "comment": "Historial de consultas SQL (system.query.history).",
-  "owner": "finops",
   "columns": [
     {
       "name": "account_id",

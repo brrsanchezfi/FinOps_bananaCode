@@ -33,8 +33,9 @@ from ..catalog import (
     SLV_WAREHOUSES,
 )
 from ..config import FinOpsConfig
+from ..governance import overwrite, replace_range
 from ..logging_utils import get_logger, stage
-from ..spark_utils import overwrite_table, replace_date_range, table_exists
+from ..spark_utils import table_exists
 from . import pricing as P
 from .tags import DEFAULT_SOURCE_ORDER, build_alias_index, normalize_key
 
@@ -730,15 +731,12 @@ def build_queries(spark: SparkSession, cfg: FinOpsConfig) -> DataFrame:
 # ---------------------------------------------------------------------------
 def run_silver(spark: SparkSession, cfg: FinOpsConfig, run_id: str, *, recorder: Any = None) -> dict[str, int]:
     """Construye toda la capa silver."""
-    propiedades = cfg.get("catalog.table_properties", {}) or {}
     resultados: dict[str, int] = {}
 
     with stage("silver.usage_priced", recorder) as metrica:
-        df = build_usage_priced(spark, cfg)
-        metrica.rows = replace_date_range(
-            spark, df, SLV_USAGE_PRICED.fqn(cfg),
+        metrica.rows = replace_range(
+            cfg, SLV_USAGE_PRICED, build_usage_priced(spark, cfg),
             date_column="usage_date", min_date=cfg.min_date, max_date=cfg.max_date,
-            partition_by=list(SLV_USAGE_PRICED.partition_by), properties=propiedades, dry_run=cfg.dry_run,
         )
         resultados["silver.usage_priced"] = metrica.rows
 
@@ -757,14 +755,10 @@ def run_silver(spark: SparkSession, cfg: FinOpsConfig, run_id: str, *, recorder:
                 continue
             df = constructor(spark, cfg)
             if columna_fecha:
-                metrica.rows = replace_date_range(
-                    spark, df, destino.fqn(cfg),
-                    date_column=columna_fecha, min_date=cfg.min_date, max_date=cfg.max_date,
-                    partition_by=list(destino.partition_by), properties=propiedades, dry_run=cfg.dry_run,
+                metrica.rows = replace_range(
+                    cfg, destino, df, date_column=columna_fecha, min_date=cfg.min_date, max_date=cfg.max_date
                 )
             else:
-                metrica.rows = overwrite_table(
-                    spark, df, destino.fqn(cfg), properties=propiedades, dry_run=cfg.dry_run
-                )
+                metrica.rows = overwrite(cfg, destino, df)
             resultados[nombre] = metrica.rows
     return resultados

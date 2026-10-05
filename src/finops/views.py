@@ -373,7 +373,7 @@ SELECT
   MIN(usage_date)                   AS first_seen,
   MAX(usage_date)                   AS last_seen,
   ROUND(SUM(list_cost_usd), 2)      AS list_cost_usd,
-  SIZE(MAX(COALESCE(custom_tags, MAP()))) AS tag_count
+  MAX(SIZE(COALESCE(custom_tags, MAP()))) AS tag_count
 FROM {base}
 WHERE {ninguna}
 GROUP BY entity_type, entity_id, workspace_id, sku_name, billing_origin_product

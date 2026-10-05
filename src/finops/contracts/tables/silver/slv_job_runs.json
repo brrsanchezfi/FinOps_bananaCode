@@ -1,0 +1,115 @@
+{
+  "_doc": "Silver — Ejecuciones de jobs con duracion, resultado y metadata del job.",
+  "catalog": "{catalog.silver}",
+  "schema": "{path.schema_silver}",
+  "name": "slv_job_runs",
+  "type": "MANAGED",
+  "format": "DELTA",
+  "comment": "Ejecuciones de jobs con duracion, resultado y metadata del job.",
+  "columns": [
+    {
+      "name": "workspace_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "job_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "run_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "run_start_time",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "run_end_time",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "run_date",
+      "type": "DATE",
+      "nullable": true
+    },
+    {
+      "name": "run_name",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "trigger_type",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "run_type",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "result_state",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "termination_code",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "compute_ids",
+      "type": "ARRAY",
+      "nullable": true,
+      "comment": "ARRAY<STRING>"
+    },
+    {
+      "name": "duration_minutes",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "is_failed",
+      "type": "BOOLEAN",
+      "nullable": true
+    },
+    {
+      "name": "is_success",
+      "type": "BOOLEAN",
+      "nullable": true
+    },
+    {
+      "name": "is_cancelled",
+      "type": "BOOLEAN",
+      "nullable": true
+    },
+    {
+      "name": "job_name",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "job_run_as",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "job_creator_id",
+      "type": "STRING",
+      "nullable": true
+    }
+  ],
+  "partitions": [
+    "run_date"
+  ],
+  "properties": {
+    "layer": "silver",
+    "quality": "curated",
+    "merge_schema": true
+  }
+}

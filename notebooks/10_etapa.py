@@ -1,13 +1,10 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # FinOps — Ejecutor de una etapa
+# MAGIC # FinOps — Ejecutor de etapas
 # MAGIC
-# MAGIC Notebook usado por las tareas del job multi-etapa. Cada tarea invoca este
-# MAGIC mismo notebook con un valor distinto del parametro `stages`, lo que da
-# MAGIC observabilidad por etapa en la UI de Workflows (duracion, reintentos y
-# MAGIC fallos por separado) sin duplicar codigo.
-# MAGIC
-# MAGIC Para ejecutar el pipeline completo de una sola vez usar `00_orquestador`.
+# MAGIC Notebook de la tarea de los jobs. Corre las etapas del parametro `stages`
+# MAGIC (por defecto todas) en orden, en el mismo proceso; cada etapa abre con un
+# MAGIC separador en el log.
 
 # COMMAND ----------
 
