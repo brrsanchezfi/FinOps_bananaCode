@@ -12,7 +12,7 @@
 #
 # Por que no apuntar directo a `dashboards/`: esos JSON estan resueltos contra
 # la configuracion NEUTRA del repositorio y nombran el catalogo `finops`. Una
-# instalacion con otro catalogo desplegaria cuatro tableros apuntando a un
+# instalacion con otro catalogo desplegaria tableros apuntando a un
 # catalogo ajeno, que no fallan: salen VACIOS.
 #
 # Hay una sola instalacion (docs/adr/0006), asi que basta un juego de archivos.
@@ -25,30 +25,16 @@
 
 resources:
   dashboards:
+    # Un solo tablero: la Vista ejecutiva lleva como pestanas Costos y
+    # chargeback, Optimizacion y gobierno, y Gobierno de etiquetado (las arma
+    # `render`, ver TABLERO_UNIFICADO en scripts/dashboards.py).
+    #
+    # La pestana de etiquetado es la unica que NO depende de la ejecucion del
+    # pipeline: consulta las vistas `vw_*_live`, que leen system.billing.usage
+    # directamente. Para que la vea alguien sin permiso sobre `system.billing`,
+    # publicar el tablero con credenciales embebidas.
     finops_ejecutivo:
       display_name: "[FinOps] Vista ejecutiva"
       file_path: ../build/dashboards/finops_ejecutivo.lvdash.json
-      warehouse_id: ${var.warehouse_id}
-      parent_path: ${workspace.root_path}/dashboards
-
-    finops_costos:
-      display_name: "[FinOps] Costos y chargeback"
-      file_path: ../build/dashboards/finops_costos.lvdash.json
-      warehouse_id: ${var.warehouse_id}
-      parent_path: ${workspace.root_path}/dashboards
-
-    finops_optimizacion:
-      display_name: "[FinOps] Optimizacion y gobierno"
-      file_path: ../build/dashboards/finops_optimizacion.lvdash.json
-      warehouse_id: ${var.warehouse_id}
-      parent_path: ${workspace.root_path}/dashboards
-
-    # Unico tablero que NO depende de la ejecucion del pipeline: consulta las
-    # vistas `vw_*_live`, que leen system.billing.usage directamente. Para que
-    # lo vea alguien sin permiso sobre `system.billing`, publicarlo con
-    # credenciales embebidas.
-    finops_etiquetado:
-      display_name: "[FinOps] Gobierno de etiquetado"
-      file_path: ../build/dashboards/finops_etiquetado.lvdash.json
       warehouse_id: ${var.warehouse_id}
       parent_path: ${workspace.root_path}/dashboards
