@@ -9,7 +9,6 @@ de la corrida en `ops_run_log`.
 
 from __future__ import annotations
 
-import sys
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -77,21 +76,7 @@ def configure_logging(level: str = "INFO") -> None:
     El Launcher (ver `finops.governance.start_launcher`) le agrega despues el
     archivo de log; aqui solo se fija el nivel, que sale de `conf/*.yml`.
     """
-    if AppLogger._initialized:
-        return
     AppLogger.setup({"LOG_LEVEL": str(level).upper()}, log_filename=_LOGGER_NAME)
-    # DKOps fija la consola a `sys.stdout` tal como esta al configurar. En un
-    # notebook de Databricks cada celda tiene su propio stdout: lo que se escribe
-    # despues en el de la celda de arranque no aparece en la salida. El sink
-    # resuelve `sys.stdout` en cada mensaje. En este punto solo existe la consola
-    # (el archivo lo agrega el Launcher despues).
-    logger.remove()
-    logger.add(
-        lambda mensaje: sys.stdout.write(mensaje),
-        level=AppLogger._level,
-        colorize=True,
-        format=AppLogger._FMT_CONSOLE,
-    )
 
 
 class _Logger:
