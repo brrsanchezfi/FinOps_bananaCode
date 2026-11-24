@@ -27,6 +27,7 @@ despliegan los reescribe `render` contra el catalogo de cada instalacion.
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import re
 import sys
@@ -253,6 +254,57 @@ def table(
         },
         "position": _pos(x, y, w, h),
     }
+
+
+#: Logotipos oficiales de DataKnow (skill dataknow-logo), sin modificar. El de
+#: color va sobre el fondo blanco del tema claro; el blanco, sobre el fondo
+#: oscuro (#1F272D) que el widget fija en el tema oscuro.
+ASSETS_DIR = REPO_ROOT / "scripts" / "assets"
+LOGO_COLOR = ASSETS_DIR / "logo-dataknow-color.svg"
+LOGO_BLANCO = ASSETS_DIR / "logo-dataknow-blanco.svg"
+
+
+def _data_uri_svg(ruta: Path) -> str:
+    return "data:image/svg+xml;base64," + base64.b64encode(ruta.read_bytes()).decode("ascii")
+
+
+def logo_spec() -> dict[str, Any]:
+    """Contenido del widget de logo, igual al que usa la Vista ejecutiva."""
+    color = _data_uri_svg(LOGO_COLOR)
+    return {
+        "imageSpec": {
+            "useSeparateLightDarkImages": True,
+            "image": {
+                "source": {"url": color},
+                "sourceLight": {"url": color},
+                "sourceDark": {"url": _data_uri_svg(LOGO_BLANCO)},
+            },
+            "frame": {},
+            "style": {},
+        },
+        "specExtensions": {
+            "widgetBackgroundColor": {"dark": "#1F272D"},
+            "widgetBorderColor": {"dark": "#1F272D"},
+        },
+    }
+
+
+#: Estilo del encabezado de las paginas de la Vista ejecutiva (hechas en la UI).
+_GRIS = "#919191"
+
+
+def encabezado(subtitulo: str, descripcion: str = "") -> list[dict[str, Any]]:
+    """Titulo y logo de una pagina, con el formato de la Vista ejecutiva.
+
+    `descripcion` admite HTML en linea (p. ej. un `<b>`): va dentro de un
+    `<span>`, donde Lakeview no interpreta markdown.
+    """
+    texto = f'# FinOps Databricks <span style="color:{_GRIS}">- {subtitulo}</span>'
+    if descripcion:
+        texto += f'\n\n<span style="color:{_GRIS};font-size:13px">{descripcion}</span>'
+    titulo = markdown("titulo", texto, x=0, y=0, w=GRID_WIDTH - 1, h=2)
+    logo = {"widget": {"name": "logo", **logo_spec()}, "position": _pos(GRID_WIDTH - 1, 0, 1, 2)}
+    return [titulo, logo]
 
 
 # ---------------------------------------------------------------------------
@@ -597,13 +649,11 @@ LIMIT 500
     ]
 
     layout = [
-        markdown(
-            "titulo",
-            "# Costos y chargeback\n"
+        *encabezado(
+            "Costos y chargeback",
             "Imputacion de costo por unidad de negocio, evolucion mensual y detalle por recurso. "
             "El chargeback incluye el prorrateo del costo compartido y del costo sin atribuir "
-            "segun la estrategia definida en `conf/budgets.yml`.",
-            x=0, y=0, h=2,
+            "segun la estrategia definida en conf/budgets.yml.",
         ),
         chart("cb_barras", "chargeback_mes", "bar", "Chargeback del ultimo mes",
               x_campo="unit", x_escala="categorical", x_titulo="Unidad",
@@ -825,13 +875,11 @@ LIMIT 200
     ]
 
     layout = [
-        markdown(
-            "titulo",
-            "# Optimizacion y gobierno\n"
+        *encabezado(
+            "Optimizacion y gobierno",
             "Oportunidades de ahorro, calidad del etiquetado y salud de la plataforma. "
-            "**Los ahorros son estimaciones**: cada recomendacion declara su metodo de calculo "
+            "<b>Los ahorros son estimaciones</b>: cada recomendacion declara su metodo de calculo "
             "y su nivel de confianza en la columna correspondiente. Validar antes de comprometer cifras.",
-            x=0, y=0, h=2,
         ),
         counter("ahorro_total", "resumen_ahorro", "ahorro_mensual_usd",
                 "Ahorro mensual estimado", x=0, y=2, w=2),
@@ -1016,14 +1064,12 @@ ORDER BY costo_usd DESC
     ]
 
     layout = [
-        markdown(
-            "titulo",
-            "# FinOps Databricks — Gobierno de etiquetado\n"
-            "**Datos en vivo**: este tablero lee las tablas de sistema directamente, "
-            "no depende de la ejecucion del pipeline. Los importes son a **precio de "
-            "lista** (sin descuentos negociados), asi que pueden diferir de los otros "
-            "tableros; sirven para comparar entre si, no como cifra de facturacion.",
-            x=0, y=0, w=6, h=2,
+        *encabezado(
+            "Gobierno de etiquetado",
+            "<b>Datos en vivo</b>: esta pagina lee las tablas de sistema directamente, "
+            "no depende de la ejecucion del pipeline. Los importes son a <b>precio de "
+            "lista</b> (sin descuentos negociados), asi que pueden diferir de las otras "
+            "paginas; sirven para comparar entre si, no como cifra de facturacion.",
         ),
         counter("kpi_costo_total", "resumen_global", "costo_total_usd",
                 "Costo total 30 dias (lista)", x=0, y=2, w=2, h=3),
@@ -1115,6 +1161,52 @@ BUILD_DIR = REPO_ROOT / "build" / "dashboards"
 
 def _es_manual(nombre_archivo: str) -> bool:
     return nombre_archivo.split(".", 1)[0] in MANTENIDOS_A_MANO
+
+
+#: Se despliega UN solo tablero: la Vista ejecutiva, con los generados como
+#: pestanas adicionales (en este orden) tras sus propias paginas. Los generados
+#: siguen versionandose por separado en `dashboards/`, pero solo como piezas
+#: del unificado; `render` no los despliega sueltos.
+TABLERO_UNIFICADO = "finops_ejecutivo"
+PESTANAS = ("finops_costos", "finops_optimizacion", "finops_etiquetado")
+
+
+def unificar(base: dict[str, Any], pestanas: list[dict[str, Any]]) -> dict[str, Any]:
+    """Anexa las paginas y datasets de `pestanas` al tablero `base`.
+
+    El tablero resultante conserva el tema (`uiSettings`) de `base`, que es lo
+    que da a las pestanas el estilo visual de la Vista ejecutiva.
+
+    Si `base` ya trae una pagina con el mismo `name` que una pestana (porque se
+    exporto desde la UI el tablero ya unificado), se reemplaza por la generada:
+    unificar dos veces da el mismo resultado.
+
+    El `displayName` de un dataset que coincida con uno ya presente recibe el
+    nombre de su pestana: las consultas hechas en la UI califican los campos
+    por ese `displayName`. Los nombres de widget no se tocan: Lakeview los
+    exige unicos por pagina, no en todo el tablero.
+    """
+    unificado = json.loads(json.dumps(base))
+    nombres_ds = {d["name"] for d in unificado["datasets"]}
+    nombres_pag = {p["name"] for t in pestanas for p in t["pages"]}
+    unificado["pages"] = [p for p in unificado["pages"] if p["name"] not in nombres_pag]
+    nombres_ds -= {d["name"] for t in pestanas for d in t["datasets"]}
+    unificado["datasets"] = [d for d in unificado["datasets"] if d["name"] in nombres_ds]
+    visibles = {d["displayName"] for d in unificado["datasets"]}
+
+    for tablero in pestanas:
+        etiqueta = tablero["pages"][0]["displayName"]
+        for ds in tablero["datasets"]:
+            if ds["name"] in nombres_ds:
+                raise SystemExit(f"ERROR: dataset '{ds['name']}' repetido al unificar")
+            ds = dict(ds)
+            if ds["displayName"] in visibles:
+                ds["displayName"] = f"{ds['displayName']} ({etiqueta})"
+            nombres_ds.add(ds["name"])
+            visibles.add(ds["displayName"])
+            unificado["datasets"].append(ds)
+        unificado["pages"].extend(tablero["pages"])
+    return unificado
 
 
 # ---------------------------------------------------------------------------
@@ -1217,7 +1309,7 @@ def cmd_render(args: argparse.Namespace) -> int:
     Los JSON de `dashboards/` estan resueltos contra la configuracion NEUTRA del
     repositorio, asi que nombran el catalogo `finops`. Una instalacion que use
     otro catalogo -- porque el nombre ya esta tomado en su metastore, o porque
-    su convencion es otra -- desplegaria cuatro tableros apuntando a un catalogo
+    su convencion es otra -- desplegaria tableros apuntando a un catalogo
     ajeno: no fallan, salen VACIOS. Este paso los reescribe contra la
     configuracion efectiva (conf/local.yml incluido) justo antes de desplegar.
 
@@ -1226,6 +1318,9 @@ def cmd_render(args: argparse.Namespace) -> int:
     se sustituye cada FQN conocido por el suyo: es un reemplazo exacto sobre la
     lista de tablas y vistas del registro, no un `replace` del nombre del
     catalogo, que tambien tocaria textos y titulos.
+
+    Al final todo se junta en un solo archivo (ver `unificar`): la Vista
+    ejecutiva con los generados como pestanas.
     """
     sys.path.insert(0, str(REPO_ROOT / "src"))
     from finops.catalog import table_map
@@ -1240,18 +1335,26 @@ def cmd_render(args: argparse.Namespace) -> int:
 
     BUILD_DIR.mkdir(parents=True, exist_ok=True)
     generados = render_env(env, cfg=cfg_real)
+    resueltos: dict[str, dict[str, Any]] = {}
     for nombre in sorted(DASHBOARDS):
         archivo = f"{nombre}.lvdash.json"
         if _es_manual(archivo):
             contenido = (DASHBOARDS_DIR / archivo).read_text(encoding="utf-8")
             for neutro, real in homologacion.items():
                 contenido = contenido.replace(neutro, real)
-            origen = "mantenido a mano"
         else:
             contenido = generados[archivo]
-            origen = "generado"
-        (BUILD_DIR / archivo).write_text(contenido, encoding="utf-8")
-        print(f"resuelto {archivo} ({origen}) -> catalogo {cfg_real.catalog}")
+        resueltos[nombre] = json.loads(contenido)
+
+    unificado = unificar(resueltos[TABLERO_UNIFICADO], [resueltos[n] for n in PESTANAS])
+    destino = BUILD_DIR / f"{TABLERO_UNIFICADO}.lvdash.json"
+    destino.write_text(json.dumps(unificado, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    # Restos de cuando se desplegaba un tablero por archivo.
+    for sobrante in BUILD_DIR.glob("*.lvdash.json"):
+        if sobrante != destino:
+            sobrante.unlink()
+    paginas = ", ".join(p["displayName"] for p in unificado["pages"] if "layout" in p)
+    print(f"resuelto {destino.name} -> catalogo {cfg_real.catalog}; pestanas: {paginas}")
     return 0
 
 

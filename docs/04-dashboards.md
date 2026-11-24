@@ -1,8 +1,20 @@
 # 04 — Dashboards
 
-Cuatro dashboards Lakeview, versionados en `dashboards/*.lvdash.json` y
-desplegados por el bundle. Los tres primeros leen el modelo gold; el cuarto lee
-las system tables en vivo.
+Cuatro dashboards Lakeview, versionados en `dashboards/*.lvdash.json`, que se
+despliegan como **un solo tablero**: "[FinOps] Vista ejecutiva". Sus paginas
+propias (Resumen, Mes Actual, Detalle consumo, Presupuestos y desviaciones,
+Optimizacion) van primero, y los otros tres entran como pestanas: Costos y
+chargeback, Optimizacion y gobierno, y Gobierno de etiquetado. Los tres primeros
+leen el modelo gold; el de etiquetado lee las system tables en vivo.
+
+`python scripts/dashboards.py render` arma el tablero unificado en
+`build/dashboards/finops_ejecutivo.lvdash.json` (funcion `unificar`): toma el
+tema visual de la Vista ejecutiva y le anexa las paginas y datasets de los
+generados. Las pestanas generadas llevan el mismo encabezado (titulo en gris y
+logo de DataKnow, ver `encabezado` y `scripts/assets/`). Si se exporta desde la
+UI el tablero ya unificado para actualizar `finops_ejecutivo.lvdash.json`,
+conviene quitar las tres pestanas generadas; si se quedan, `unificar` las
+reemplaza por las del generador.
 
 ---
 
