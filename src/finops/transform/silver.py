@@ -72,21 +72,40 @@ def _normalized_tag_map(col: Column) -> Column:
 
     Permite resolver 'Cost-Center', 'cost_center' y 'COSTCENTER' con una unica
     busqueda por clave, sin explotar el mapa ni hacer joins adicionales.
+
+    Dos etiquetas pueden normalizarse a la misma clave ('Cost-Center' y
+    'cost_center'), y las claves solo de simbolos o de caracteres no ASCII
+    quedan vacias. `map_from_entries` falla con DUPLICATED_MAP_KEY en ambos
+    casos, asi que se descartan las claves vacias y, ante una colision, gana
+    la entrada de menor clave original (orden determinista, independiente del
+    orden del mapa de origen y de `spark.sql.mapKeyDedupPolicy`).
     """
     from pyspark.sql import functions as F
+
+    entradas = F.transform(
+        F.map_entries(col),
+        lambda e: F.struct(
+            F.regexp_replace(F.lower(F.trim(e["key"])), _NORM_REGEX, "").alias("key"),
+            e["key"].cast("string").alias("original"),
+            e["value"].cast("string").alias("value"),
+        ),
+    )
+    validas = F.array_sort(F.filter(entradas, lambda e: e["key"] != ""))
+    tipo_entrada = "array<struct<key:string,value:string>>"
+    unicas = F.aggregate(
+        validas,
+        F.array().cast(tipo_entrada),
+        lambda acc, e: F.when(
+            F.exists(acc, lambda x: x["key"] == e["key"]), acc
+        ).otherwise(
+            F.concat(acc, F.array(F.struct(e["key"].alias("key"), e["value"].alias("value"))))
+        ),
+    )
 
     return F.when(
         col.isNull(), F.create_map().cast("map<string,string>")
     ).otherwise(
-        F.map_from_entries(
-            F.transform(
-                F.map_entries(col),
-                lambda e: F.struct(
-                    F.regexp_replace(F.lower(F.trim(e["key"])), _NORM_REGEX, "").alias("key"),
-                    e["value"].cast("string").alias("value"),
-                ),
-            )
-        )
+        F.map_from_entries(unicas).cast("map<string,string>")
     )
 
 
