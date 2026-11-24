@@ -1,0 +1,167 @@
+{
+  "_doc": "Gold — Estado de cada presupuesto por periodo: consumido, proyectado, ritmo y semaforo.",
+  "catalog": "{catalog.gold}",
+  "schema": "{path.schema_gold}",
+  "name": "fct_budget_status",
+  "type": "MANAGED",
+  "format": "DELTA",
+  "comment": "Estado de cada presupuesto por periodo: consumido, proyectado, ritmo y semaforo.",
+  "columns": [
+    {
+      "name": "budget_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "budget_name",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "period",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "period_start",
+      "type": "DATE",
+      "nullable": true
+    },
+    {
+      "name": "period_end",
+      "type": "DATE",
+      "nullable": true
+    },
+    {
+      "name": "as_of_date",
+      "type": "DATE",
+      "nullable": true
+    },
+    {
+      "name": "scope",
+      "type": "MAP",
+      "nullable": true,
+      "comment": "MAP<STRING,STRING>"
+    },
+    {
+      "name": "scope_label",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "owner_email",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "budget_amount_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "actual_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "consumed_pct",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "forecast_remaining_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "projected_total_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "projected_pct",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "variance_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "avg_daily_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "required_daily_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "elapsed_days",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "remaining_days",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "period_progress_pct",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "days_to_exhaustion",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "threshold_reached_pct",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "status",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "is_on_track",
+      "type": "BOOLEAN",
+      "nullable": true
+    },
+    {
+      "name": "details",
+      "type": "MAP",
+      "nullable": true,
+      "comment": "MAP<STRING,STRING>"
+    },
+    {
+      "name": "run_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "pipeline_environment",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "generated_at",
+      "type": "TIMESTAMP",
+      "nullable": true
+    }
+  ],
+  "partitions": [],
+  "properties": {
+    "layer": "gold",
+    "quality": "consumption",
+    "merge_schema": true
+  }
+}

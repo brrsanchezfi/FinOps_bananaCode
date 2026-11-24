@@ -108,7 +108,7 @@ Los registros de facturacion llegan con retraso: un dia puede recibir datos dos
 o tres dias despues. Escribir en modo `append` duplicaria; escribir en
 `overwrite` completo seria carisimo.
 
-El patron es `replace_date_range`: se borra el rango `[min_date, max_date]` en el
+El patron es `governance.replace_range` (writers de DKOps, ver ADR 0007): se borra el rango `[min_date, max_date]` en el
 destino y se agrega el lote nuevo. Reprocesar la misma ventana N veces produce
 exactamente el mismo resultado. La ventana por defecto es de 7 dias hacia atras
 (`ingestion.lookback_days`), suficiente para el SLA de publicacion de Databricks.
@@ -128,8 +128,8 @@ tabla que no exista en el registro, y que ninguno tenga un catalogo incrustado.
 
 `pipeline.run(stages=[...])` permite ejecutar cualquier subconjunto. Esto habilita:
 
-- Un job diario multi-tarea, con una tarea por etapa: cada una tiene su duracion,
-  sus reintentos y su estado en la UI de Workflows.
+- Un job diario de una sola tarea que corre todas las etapas; el parametro
+  `stages` permite relanzar solo una parte.
 - Un job de **alertamiento** que corre tres veces al dia sobre el gold ya
   construido, sin repetir la ingesta.
 - Reprocesar solo la analitica tras cambiar un umbral, sin volver a ingerir.

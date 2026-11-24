@@ -1,0 +1,129 @@
+{
+  "_doc": "Gold — KPIs FinOps diarios de la organizacion (costo, variacion, cobertura, eficiencia).",
+  "catalog": "{catalog.gold}",
+  "schema": "{path.schema_gold}",
+  "name": "fct_kpi_daily",
+  "type": "MANAGED",
+  "format": "DELTA",
+  "comment": "KPIs FinOps diarios de la organizacion (costo, variacion, cobertura, eficiencia).",
+  "columns": [
+    {
+      "name": "usage_date",
+      "type": "DATE",
+      "nullable": true
+    },
+    {
+      "name": "total_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "effective_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "estimated_infra_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "total_dbus",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "active_entities",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "active_workspaces",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "all_purpose_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "serverless_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "photon_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "unallocated_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "cost_prev_day_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "cost_prev_week_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "rolling_7d_avg_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "rolling_28d_avg_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "mtd_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "dod_change_pct",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "wow_change_pct",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "cost_per_dbu_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "allocation_coverage_ratio",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "serverless_share",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "all_purpose_share",
+      "type": "DOUBLE",
+      "nullable": true
+    }
+  ],
+  "partitions": [],
+  "properties": {
+    "layer": "gold",
+    "quality": "consumption",
+    "merge_schema": true
+  }
+}

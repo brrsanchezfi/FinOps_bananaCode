@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-CONTRATOS_BRONZE = REPO_ROOT / "contracts" / "tables" / "bronze"
+CONTRATOS_BRONZE = REPO_ROOT / "src" / "finops" / "contracts" / "tables" / "bronze"
 
 pytest.importorskip("DKOps", reason="DKOps no esta instalado")
 

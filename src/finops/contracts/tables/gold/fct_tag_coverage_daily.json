@@ -1,0 +1,66 @@
+{
+  "_doc": "Gold — Cobertura de etiquetado por dia y dimension: costo atribuido vs no atribuido.",
+  "catalog": "{catalog.gold}",
+  "schema": "{path.schema_gold}",
+  "name": "fct_tag_coverage_daily",
+  "type": "MANAGED",
+  "format": "DELTA",
+  "comment": "Cobertura de etiquetado por dia y dimension: costo atribuido vs no atribuido.",
+  "columns": [
+    {
+      "name": "usage_date",
+      "type": "DATE",
+      "nullable": true
+    },
+    {
+      "name": "workspace_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "dimension",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "total_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "attributed_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "attributed_entities",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "total_entities",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "unattributed_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "coverage_ratio",
+      "type": "DOUBLE",
+      "nullable": true
+    }
+  ],
+  "partitions": [
+    "usage_date"
+  ],
+  "properties": {
+    "layer": "gold",
+    "quality": "consumption",
+    "merge_schema": true
+  }
+}

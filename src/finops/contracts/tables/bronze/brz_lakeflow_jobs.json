@@ -1,12 +1,11 @@
 {
-  "_doc": "Bronze — Linea de tiempo de ejecuciones de tareas de jobs.",
+  "_doc": "Bronze — Snapshot de definiciones de jobs (system.lakeflow.jobs).",
   "catalog": "{catalog.bronze}",
   "schema": "{path.schema_bronze}",
-  "name": "brz_lakeflow_job_task_run_timeline",
+  "name": "brz_lakeflow_jobs",
   "type": "MANAGED",
   "format": "DELTA",
-  "comment": "Linea de tiempo de ejecuciones de tareas de jobs.",
-  "owner": "finops",
+  "comment": "Snapshot de definiciones de jobs (system.lakeflow.jobs).",
   "columns": [
     {
       "name": "account_id",
@@ -24,49 +23,39 @@
       "nullable": true
     },
     {
-      "name": "run_id",
+      "name": "name",
       "type": "STRING",
       "nullable": true
     },
     {
-      "name": "parent_run_id",
+      "name": "description",
       "type": "STRING",
       "nullable": true
     },
     {
-      "name": "task_key",
+      "name": "creator_id",
       "type": "STRING",
       "nullable": true
     },
     {
-      "name": "period_start_time",
-      "type": "TIMESTAMP",
-      "nullable": true
-    },
-    {
-      "name": "period_end_time",
-      "type": "TIMESTAMP",
-      "nullable": true
-    },
-    {
-      "name": "compute_ids",
-      "type": "ARRAY",
+      "name": "tags",
+      "type": "MAP",
       "nullable": true,
-      "comment": "ARRAY<STRING>"
+      "comment": "MAP<STRING,STRING>"
     },
     {
-      "name": "result_state",
-      "type": "STRING",
+      "name": "change_time",
+      "type": "TIMESTAMP",
       "nullable": true
     },
     {
-      "name": "termination_code",
-      "type": "STRING",
+      "name": "delete_time",
+      "type": "TIMESTAMP",
       "nullable": true
     },
     {
-      "name": "run_date",
-      "type": "DATE",
+      "name": "run_as",
+      "type": "STRING",
       "nullable": true
     },
     {
@@ -85,9 +74,7 @@
       "nullable": true
     }
   ],
-  "partitions": [
-    "run_date"
-  ],
+  "partitions": [],
   "properties": {
     "layer": "bronze",
     "quality": "raw",

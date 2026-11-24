@@ -1,0 +1,113 @@
+{
+  "_doc": "Gold — Alertas generadas y su estado de despacho.",
+  "catalog": "{catalog.gold}",
+  "schema": "{path.schema_gold}",
+  "name": "ops_alert_log",
+  "type": "MANAGED",
+  "format": "DELTA",
+  "comment": "Alertas generadas y su estado de despacho.",
+  "columns": [
+    {
+      "name": "rule_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "severity",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "title",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "message",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "fingerprint",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "scope",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "entity_key",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "metric_value",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "threshold_value",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "owner_email",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "event_date",
+      "type": "DATE",
+      "nullable": true
+    },
+    {
+      "name": "created_at",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "context",
+      "type": "MAP",
+      "nullable": true,
+      "comment": "MAP<STRING,STRING>"
+    },
+    {
+      "name": "run_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "pipeline_environment",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "dispatch_status",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "channels",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "delivered",
+      "type": "BOOLEAN",
+      "nullable": true
+    },
+    {
+      "name": "delivery_detail",
+      "type": "STRING",
+      "nullable": true
+    }
+  ],
+  "partitions": [],
+  "properties": {
+    "layer": "gold",
+    "quality": "consumption",
+    "merge_schema": true
+  }
+}

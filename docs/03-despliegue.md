@@ -271,7 +271,7 @@ databricks bundle run finops_pipeline_diario -t finops \
 
 | Job | Schedule | Que hace |
 |---|---|---|
-| `finops_pipeline_diario` | 07:00 America/Bogota | Pipeline completo, 7 tareas encadenadas |
+| `finops_pipeline_diario` | 07:00 America/Bogota | Pipeline completo en una sola tarea |
 | `finops_alertas` | 07:00, 13:00, 19:00 | Solo reevalua alertas sobre gold |
 | `finops_backfill` | manual | Recarga historica |
 
@@ -279,12 +279,12 @@ El pipeline diario corre a las 07:00 para dar margen sobre la latencia de
 publicacion de `system.billing.usage` (tipicamente pocas horas, con reproceso de
 7 dias hacia atras que recupera cualquier llegada tardia).
 
-Las tareas comparten un unico `job_cluster`, asi que el cluster se levanta una
-sola vez para todo el pipeline.
-
-**La tarea `alertas` usa `run_if: AT_LEAST_ONE_SUCCESS`**: se ejecuta aunque
-`analitica` o `calidad` fallen, porque una falla del pipeline es exactamente algo
-que hay que notificar.
+El pipeline diario es una sola tarea que corre las ocho etapas de corrido, con un
+solo archivo de log; cada etapa abre con un separador (`ETAPA 3/8: SILVER`).
+Si falla `setup`, `bronze`, `silver` o `gold`, la corrida se corta. Si falla
+`analytics` o `quality`, `alerts` y `maintenance` corren igual, porque una falla
+del pipeline es exactamente algo que hay que notificar, y la tarea termina en
+error al final. El parametro de job `stages` permite correr un subconjunto.
 
 ### Dashboards
 

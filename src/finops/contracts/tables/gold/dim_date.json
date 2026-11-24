@@ -1,0 +1,93 @@
+{
+  "_doc": "Gold — Dimension calendario.",
+  "catalog": "{catalog.gold}",
+  "schema": "{path.schema_gold}",
+  "name": "dim_date",
+  "type": "MANAGED",
+  "format": "DELTA",
+  "comment": "Dimension calendario.",
+  "columns": [
+    {
+      "name": "date_key",
+      "type": "DATE",
+      "nullable": true
+    },
+    {
+      "name": "year",
+      "type": "INTEGER",
+      "nullable": true,
+      "comment": "INT"
+    },
+    {
+      "name": "quarter",
+      "type": "INTEGER",
+      "nullable": true,
+      "comment": "INT"
+    },
+    {
+      "name": "month",
+      "type": "INTEGER",
+      "nullable": true,
+      "comment": "INT"
+    },
+    {
+      "name": "day",
+      "type": "INTEGER",
+      "nullable": true,
+      "comment": "INT"
+    },
+    {
+      "name": "year_month",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "year_quarter",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "week_of_year",
+      "type": "INTEGER",
+      "nullable": true,
+      "comment": "INT"
+    },
+    {
+      "name": "day_of_week",
+      "type": "INTEGER",
+      "nullable": true,
+      "comment": "INT"
+    },
+    {
+      "name": "day_name",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "is_weekend",
+      "type": "BOOLEAN",
+      "nullable": true
+    },
+    {
+      "name": "month_start",
+      "type": "DATE",
+      "nullable": true
+    },
+    {
+      "name": "month_end",
+      "type": "DATE",
+      "nullable": true
+    },
+    {
+      "name": "is_future",
+      "type": "BOOLEAN",
+      "nullable": true
+    }
+  ],
+  "partitions": [],
+  "properties": {
+    "layer": "gold",
+    "quality": "consumption",
+    "merge_schema": true
+  }
+}

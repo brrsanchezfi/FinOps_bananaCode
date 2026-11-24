@@ -16,10 +16,9 @@ authors = [{ name = "DATAKNOW S.A.S" }]
 # Se declaran igualmente para entornos serverless / locales.
 dependencies = [
     "PyYAML>=6.0",
-    # Gobierno de tablas: contratos JSON versionados y validacion de esquema.
-    # Hoy solo lo usa la capa bronze (ver src/finops/governance.py). No arrastra
-    # PySpark: el extra [local] de DKOps es para desarrollo, y en el cluster el
-    # PySpark lo pone el runtime.
+    # Sesion Spark (Launcher), logging y escritura de todas las tablas contra
+    # su contrato JSON (ver src/finops/governance.py). No arrastra PySpark: el
+    # extra [local] de DKOps es para desarrollo, y en el cluster lo pone el runtime.
     "DKOps>=0.3.6,<0.4",
 ]
 
@@ -45,7 +44,7 @@ where = ["src"]
 include = ["finops*"]
 
 [tool.setuptools.package-data]
-finops = ["py.typed"]
+finops = ["py.typed", "contracts/tables/*/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

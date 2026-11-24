@@ -1,0 +1,104 @@
+{
+  "_doc": "Gold — Anomalias de costo detectadas por serie y dia.",
+  "catalog": "{catalog.gold}",
+  "schema": "{path.schema_gold}",
+  "name": "fct_cost_anomaly",
+  "type": "MANAGED",
+  "format": "DELTA",
+  "comment": "Anomalias de costo detectadas por serie y dia.",
+  "columns": [
+    {
+      "name": "series_key",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "dimension",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "dimension_value",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "usage_date",
+      "type": "DATE",
+      "nullable": true
+    },
+    {
+      "name": "actual_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "expected_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "deviation_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "pct_change",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "score",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "direction",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "severity",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "method",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "baseline_points",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "baseline_window_days",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "run_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "pipeline_environment",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "generated_at",
+      "type": "TIMESTAMP",
+      "nullable": true
+    }
+  ],
+  "partitions": [],
+  "properties": {
+    "layer": "gold",
+    "quality": "consumption",
+    "merge_schema": true
+  }
+}

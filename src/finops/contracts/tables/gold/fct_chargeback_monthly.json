@@ -1,0 +1,94 @@
+{
+  "_doc": "Gold — Imputacion mensual de costo por unidad de negocio, incluyendo prorrateo de costo compartido y no atribuido.",
+  "catalog": "{catalog.gold}",
+  "schema": "{path.schema_gold}",
+  "name": "fct_chargeback_monthly",
+  "type": "MANAGED",
+  "format": "DELTA",
+  "comment": "Imputacion mensual de costo por unidad de negocio, incluyendo prorrateo de costo compartido y no atribuido.",
+  "columns": [
+    {
+      "name": "period",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "allocation_dimension",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "unit",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "direct_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "allocated_shared_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "allocated_unallocated_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "overhead_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "total_chargeback_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "pct_of_total",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "direct_pct_of_unit",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "entity_count",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "details",
+      "type": "MAP",
+      "nullable": true,
+      "comment": "MAP<STRING,STRING>"
+    },
+    {
+      "name": "run_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "pipeline_environment",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "generated_at",
+      "type": "TIMESTAMP",
+      "nullable": true
+    }
+  ],
+  "partitions": [],
+  "properties": {
+    "layer": "gold",
+    "quality": "consumption",
+    "merge_schema": true
+  }
+}

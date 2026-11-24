@@ -1,0 +1,94 @@
+{
+  "_doc": "Gold — Pronostico de costo diario por dimension con intervalo de confianza.",
+  "catalog": "{catalog.gold}",
+  "schema": "{path.schema_gold}",
+  "name": "fct_cost_forecast",
+  "type": "MANAGED",
+  "format": "DELTA",
+  "comment": "Pronostico de costo diario por dimension con intervalo de confianza.",
+  "columns": [
+    {
+      "name": "series_key",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "dimension",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "dimension_value",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "method",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "generated_for_date",
+      "type": "DATE",
+      "nullable": true
+    },
+    {
+      "name": "history_days",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "mape",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "forecast_date",
+      "type": "DATE",
+      "nullable": true
+    },
+    {
+      "name": "predicted_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "lower_bound_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "upper_bound_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "horizon_day",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "run_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "pipeline_environment",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "generated_at",
+      "type": "TIMESTAMP",
+      "nullable": true
+    }
+  ],
+  "partitions": [],
+  "properties": {
+    "layer": "gold",
+    "quality": "consumption",
+    "merge_schema": true
+  }
+}

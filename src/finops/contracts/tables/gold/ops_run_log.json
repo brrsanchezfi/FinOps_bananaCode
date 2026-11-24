@@ -1,0 +1,69 @@
+{
+  "_doc": "Gold — Bitacora de ejecucion del pipeline por etapa.",
+  "catalog": "{catalog.gold}",
+  "schema": "{path.schema_gold}",
+  "name": "ops_run_log",
+  "type": "MANAGED",
+  "format": "DELTA",
+  "comment": "Bitacora de ejecucion del pipeline por etapa.",
+  "columns": [
+    {
+      "name": "run_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "pipeline_environment",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "stage",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "status",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "duration_seconds",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "rows_written",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "details",
+      "type": "MAP",
+      "nullable": true,
+      "comment": "MAP<STRING,STRING>"
+    },
+    {
+      "name": "error_message",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "run_started_at",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "run_date",
+      "type": "DATE",
+      "nullable": true
+    }
+  ],
+  "partitions": [],
+  "properties": {
+    "layer": "gold",
+    "quality": "consumption",
+    "merge_schema": true
+  }
+}

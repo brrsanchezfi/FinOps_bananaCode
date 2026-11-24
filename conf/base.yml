@@ -455,7 +455,18 @@ quality:
 # Ejecucion / rendimiento
 # ---------------------------------------------------------------------------
 runtime:
+  # La sesion Spark y el logging los pone el Launcher de DKOps, alimentado desde
+  # aqui (ver src/finops/governance.py). En un notebook o job de Databricks
+  # reutiliza la sesion del cluster; en un PC levanta Spark + Delta local.
   log_level: INFO
+  # Directorio del archivo de log de DKOps (uno por corrida). null = el volumen
+  # /Volumes/<catalogo>/<schema gold>/logs, que crea la etapa `setup`. No uses
+  # la carpeta del bundle en el workspace: cada `bundle deploy` la sincroniza.
+  log_dir: null
+  # Claves extra del config.json del Launcher. Por ejemplo, para Databricks
+  # Connect desde un PC (en conf/local.yml):
+  #   launcher: {EXECUTION_ENVIRONMENT: databricks, CLUSTER_ID: "<id>", DATABRICKS_PROFILE: finops}
+  launcher: {}
   shuffle_partitions: auto
   # Numero de dias a mantener en las tablas gold de series (0 = sin limite).
   # 1100 dias = 3 anhos, suficiente para comparaciones interanuales.

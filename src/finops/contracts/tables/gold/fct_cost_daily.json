@@ -1,0 +1,181 @@
+{
+  "_doc": "Gold — Hecho central de costo diario. Grano = fecha x workspace x sku x entidad x dimensiones de etiquetado.",
+  "catalog": "{catalog.gold}",
+  "schema": "{path.schema_gold}",
+  "name": "fct_cost_daily",
+  "type": "MANAGED",
+  "format": "DELTA",
+  "comment": "Hecho central de costo diario. Grano = fecha x workspace x sku x entidad x dimensiones de etiquetado.",
+  "columns": [
+    {
+      "name": "usage_date",
+      "type": "DATE",
+      "nullable": true
+    },
+    {
+      "name": "account_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "workspace_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "cloud",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "sku_name",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "sku_group",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "compute_family",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "is_serverless",
+      "type": "BOOLEAN",
+      "nullable": true
+    },
+    {
+      "name": "is_photon",
+      "type": "BOOLEAN",
+      "nullable": true
+    },
+    {
+      "name": "entity_key",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "entity_type",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "entity_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "cost_center",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "team",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "environment",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "owner",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "proceso",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "concepto",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "list_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "discount_amount_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "effective_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "estimated_infra_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "total_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "usage_quantity",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "usage_unit",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "entity_name",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "owner_resolved",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "usage_record_count",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "records_without_price",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "is_untagged",
+      "type": "BOOLEAN",
+      "nullable": true
+    },
+    {
+      "name": "is_fully_tagged",
+      "type": "BOOLEAN",
+      "nullable": true
+    },
+    {
+      "name": "year_month",
+      "type": "STRING",
+      "nullable": true
+    }
+  ],
+  "partitions": [
+    "usage_date"
+  ],
+  "properties": {
+    "layer": "gold",
+    "quality": "consumption",
+    "merge_schema": true
+  }
+}

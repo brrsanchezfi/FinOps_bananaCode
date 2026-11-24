@@ -1,0 +1,211 @@
+{
+  "_doc": "Gold — Dimension unificada de entidades de consumo (cluster, warehouse, job, pipeline, endpoint).",
+  "catalog": "{catalog.gold}",
+  "schema": "{path.schema_gold}",
+  "name": "dim_entity",
+  "type": "MANAGED",
+  "format": "DELTA",
+  "comment": "Dimension unificada de entidades de consumo (cluster, warehouse, job, pipeline, endpoint).",
+  "columns": [
+    {
+      "name": "entity_key",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "entity_type",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "entity_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "workspace_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "entity_name",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "owner_resolved",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "first_seen_date",
+      "type": "DATE",
+      "nullable": true
+    },
+    {
+      "name": "last_seen_date",
+      "type": "DATE",
+      "nullable": true
+    },
+    {
+      "name": "lifetime_cost_usd",
+      "type": "DOUBLE",
+      "nullable": true
+    },
+    {
+      "name": "active_days",
+      "type": "LONG",
+      "nullable": true,
+      "comment": "BIGINT"
+    },
+    {
+      "name": "primary_sku_group",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "is_serverless",
+      "type": "BOOLEAN",
+      "nullable": true
+    },
+    {
+      "name": "is_photon",
+      "type": "BOOLEAN",
+      "nullable": true
+    },
+    {
+      "name": "cost_center",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "team",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "environment",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "owner",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "proceso",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "concepto",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "autotermination_minutes",
+      "type": "INTEGER",
+      "nullable": true,
+      "comment": "INT"
+    },
+    {
+      "name": "autoscale_enabled",
+      "type": "BOOLEAN",
+      "nullable": true
+    },
+    {
+      "name": "num_workers",
+      "type": "INTEGER",
+      "nullable": true,
+      "comment": "INT"
+    },
+    {
+      "name": "min_workers",
+      "type": "INTEGER",
+      "nullable": true,
+      "comment": "INT"
+    },
+    {
+      "name": "max_workers",
+      "type": "INTEGER",
+      "nullable": true,
+      "comment": "INT"
+    },
+    {
+      "name": "spark_version",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "driver_node_type",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "worker_node_type",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "is_single_node",
+      "type": "BOOLEAN",
+      "nullable": true
+    },
+    {
+      "name": "cluster_source",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "policy_id",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "warehouse_size",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "warehouse_type",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "warehouse_channel",
+      "type": "STRING",
+      "nullable": true
+    },
+    {
+      "name": "auto_stop_minutes",
+      "type": "INTEGER",
+      "nullable": true,
+      "comment": "INT"
+    },
+    {
+      "name": "min_clusters",
+      "type": "INTEGER",
+      "nullable": true,
+      "comment": "INT"
+    },
+    {
+      "name": "max_clusters",
+      "type": "INTEGER",
+      "nullable": true,
+      "comment": "INT"
+    },
+    {
+      "name": "days_since_activity",
+      "type": "INTEGER",
+      "nullable": true,
+      "comment": "INT"
+    }
+  ],
+  "partitions": [],
+  "properties": {
+    "layer": "gold",
+    "quality": "consumption",
+    "merge_schema": true
+  }
+}

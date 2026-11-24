@@ -1,63 +1,52 @@
 {
-  "_doc": "Bronze — Snapshot de definiciones de jobs (system.lakeflow.jobs).",
+  "_doc": "Bronze — Snapshot de system.billing.list_prices (precios de lista vigentes e historicos).",
   "catalog": "{catalog.bronze}",
   "schema": "{path.schema_bronze}",
-  "name": "brz_lakeflow_jobs",
+  "name": "brz_billing_list_prices",
   "type": "MANAGED",
   "format": "DELTA",
-  "comment": "Snapshot de definiciones de jobs (system.lakeflow.jobs).",
-  "owner": "finops",
+  "comment": "Snapshot de system.billing.list_prices (precios de lista vigentes e historicos).",
   "columns": [
+    {
+      "name": "price_start_time",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
+    {
+      "name": "price_end_time",
+      "type": "TIMESTAMP",
+      "nullable": true
+    },
     {
       "name": "account_id",
       "type": "STRING",
       "nullable": true
     },
     {
-      "name": "workspace_id",
+      "name": "sku_name",
       "type": "STRING",
       "nullable": true
     },
     {
-      "name": "job_id",
+      "name": "cloud",
       "type": "STRING",
       "nullable": true
     },
     {
-      "name": "name",
+      "name": "currency_code",
       "type": "STRING",
       "nullable": true
     },
     {
-      "name": "description",
+      "name": "usage_unit",
       "type": "STRING",
       "nullable": true
     },
     {
-      "name": "creator_id",
-      "type": "STRING",
-      "nullable": true
-    },
-    {
-      "name": "tags",
-      "type": "MAP",
+      "name": "pricing",
+      "type": "STRUCT",
       "nullable": true,
-      "comment": "MAP<STRING,STRING>"
-    },
-    {
-      "name": "change_time",
-      "type": "TIMESTAMP",
-      "nullable": true
-    },
-    {
-      "name": "delete_time",
-      "type": "TIMESTAMP",
-      "nullable": true
-    },
-    {
-      "name": "run_as",
-      "type": "STRING",
-      "nullable": true
+      "comment": "STRUCT<DEFAULT:DECIMAL(38,18),PROMOTIONAL:STRUCT<DEFAULT:DECIMAL(38,18)>,EFFECTIVE_LIST:STRUCT<DEFAULT:DECIMAL(38,18)>>"
     },
     {
       "name": "_ingested_at",

@@ -1,12 +1,11 @@
 {
-  "_doc": "Bronze — Snapshot de SQL warehouses (system.compute.warehouses).",
-  "catalog": "{catalog.bronze}",
-  "schema": "{path.schema_bronze}",
-  "name": "brz_compute_warehouses",
+  "_doc": "Silver — Ultima configuracion conocida de cada SQL warehouse.",
+  "catalog": "{catalog.silver}",
+  "schema": "{path.schema_silver}",
+  "name": "slv_warehouses",
   "type": "MANAGED",
   "format": "DELTA",
-  "comment": "Snapshot de SQL warehouses (system.compute.warehouses).",
-  "owner": "finops",
+  "comment": "Ultima configuracion conocida de cada SQL warehouse.",
   "columns": [
     {
       "name": "account_id",
@@ -62,41 +61,26 @@
       "comment": "INT"
     },
     {
-      "name": "tags",
+      "name": "warehouse_tags",
       "type": "MAP",
       "nullable": true,
       "comment": "MAP<STRING,STRING>"
     },
     {
-      "name": "change_time",
-      "type": "TIMESTAMP",
+      "name": "is_deleted",
+      "type": "BOOLEAN",
       "nullable": true
     },
     {
-      "name": "delete_time",
-      "type": "TIMESTAMP",
-      "nullable": true
-    },
-    {
-      "name": "_ingested_at",
-      "type": "TIMESTAMP",
-      "nullable": true
-    },
-    {
-      "name": "_run_id",
-      "type": "STRING",
-      "nullable": true
-    },
-    {
-      "name": "_source",
-      "type": "STRING",
+      "name": "is_serverless",
+      "type": "BOOLEAN",
       "nullable": true
     }
   ],
   "partitions": [],
   "properties": {
-    "layer": "bronze",
-    "quality": "raw",
+    "layer": "silver",
+    "quality": "curated",
     "merge_schema": true
   }
 }

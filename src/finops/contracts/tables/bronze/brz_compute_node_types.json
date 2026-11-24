@@ -6,7 +6,6 @@
   "type": "MANAGED",
   "format": "DELTA",
   "comment": "Catalogo de tipos de nodo disponibles (system.compute.node_types).",
-  "owner": "finops",
   "columns": [
     {
       "name": "account_id",

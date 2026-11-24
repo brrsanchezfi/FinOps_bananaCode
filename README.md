@@ -130,7 +130,9 @@ databricks bundle run finops_pipeline_diario -t finops
 │   ├── config.py               Carga, fusion y validacion de configuracion
 │   ├── catalog.py              Registro central de tablas del modelo
 │   ├── views.py                Vistas en vivo de gobierno de etiquetado
-│   ├── spark_utils.py          Unico punto de contacto con Spark/Delta
+│   ├── governance.py           Puente con DKOps: sesion, logging y escritura
+│   ├── contracts/tables/       Contrato DKOps de cada tabla (bronze, silver, gold)
+│   ├── spark_utils.py          Lectura tolerante, bootstrap y utilidades Spark
 │   ├── pipeline.py             Orquestacion por etapas
 │   ├── notebook.py             Puente notebooks <-> paquete
 │   ├── cli.py                  CLI: validate / plan / run
@@ -142,7 +144,7 @@ databricks bundle run finops_pipeline_diario -t finops
 │   └── alerting/               reglas, formateo, deduplicacion, despacho
 ├── notebooks/
 │   ├── 00_orquestador.py       Pipeline completo (orquestador general)
-│   ├── 10_etapa.py             Ejecutor de una etapa (tareas del job)
+│   ├── 10_etapa.py             Ejecutor de etapas (tarea de los jobs)
 │   └── 90_exploracion.py       Consultas ad-hoc
 ├── dashboards/*.lvdash.json    Dashboards generados y versionados
 ├── scripts/

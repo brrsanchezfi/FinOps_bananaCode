@@ -30,8 +30,9 @@ from ..catalog import (
     TableDef,
 )
 from ..config import FinOpsConfig
+from ..governance import overwrite, replace_range
 from ..logging_utils import get_logger
-from ..spark_utils import overwrite_table, read_source, replace_date_range, with_audit_columns
+from ..spark_utils import read_source, with_audit_columns
 
 if TYPE_CHECKING:  # pragma: no cover
     from pyspark.sql import DataFrame, SparkSession
@@ -50,10 +51,6 @@ def select_existing(df: DataFrame, columns: list[str], *, context: str = "") -> 
     if faltantes:
         log.warning("%s: columnas ausentes en el origen, se omiten: %s", context or "fuente", faltantes)
     return df.select(*presentes) if presentes else df
-
-
-def _properties(cfg: FinOpsConfig) -> dict[str, str]:
-    return cfg.get("catalog.table_properties", {}) or {}
 
 
 def _exclude_workspaces(df: DataFrame, cfg: FinOpsConfig) -> DataFrame:
@@ -95,11 +92,7 @@ def ingest_usage(
     # Los registros de tipo corregido/retroactivo se conservan: forman parte del
     # costo real y el reemplazo por rango los incorpora sin duplicar.
     df = with_audit_columns(df, run_id, "system.billing.usage")
-    return replace_date_range(
-        spark, df, BRZ_USAGE.fqn(cfg),
-        date_column="usage_date", min_date=min_date, max_date=max_date,
-        partition_by=list(BRZ_USAGE.partition_by), properties=_properties(cfg), dry_run=cfg.dry_run,
-    )
+    return replace_range(cfg, BRZ_USAGE, df, date_column="usage_date", min_date=min_date, max_date=max_date)
 
 
 JOB_RUN_COLUMNS = [
@@ -126,11 +119,7 @@ def ingest_job_runs(
         .transform(lambda d: _exclude_workspaces(d, cfg))
     )
     df = with_audit_columns(df, run_id, "system.lakeflow.job_run_timeline")
-    return replace_date_range(
-        spark, df, BRZ_JOB_RUNS.fqn(cfg),
-        date_column="run_date", min_date=min_date, max_date=max_date,
-        partition_by=list(BRZ_JOB_RUNS.partition_by), properties=_properties(cfg), dry_run=cfg.dry_run,
-    )
+    return replace_range(cfg, BRZ_JOB_RUNS, df, date_column="run_date", min_date=min_date, max_date=max_date)
 
 
 TASK_RUN_COLUMNS = [
@@ -156,11 +145,7 @@ def ingest_task_runs(
         .transform(lambda d: _exclude_workspaces(d, cfg))
     )
     df = with_audit_columns(df, run_id, "system.lakeflow.job_task_run_timeline")
-    return replace_date_range(
-        spark, df, BRZ_JOB_TASK_RUNS.fqn(cfg),
-        date_column="run_date", min_date=min_date, max_date=max_date,
-        partition_by=list(BRZ_JOB_TASK_RUNS.partition_by), properties=_properties(cfg), dry_run=cfg.dry_run,
-    )
+    return replace_range(cfg, BRZ_JOB_TASK_RUNS, df, date_column="run_date", min_date=min_date, max_date=max_date)
 
 
 QUERY_COLUMNS = [
@@ -189,11 +174,7 @@ def ingest_query_history(
         .transform(lambda d: _exclude_workspaces(d, cfg))
     )
     df = with_audit_columns(df, run_id, "system.query.history")
-    return replace_date_range(
-        spark, df, BRZ_QUERY_HISTORY.fqn(cfg),
-        date_column="query_date", min_date=min_date, max_date=max_date,
-        partition_by=list(BRZ_QUERY_HISTORY.partition_by), properties=_properties(cfg), dry_run=cfg.dry_run,
-    )
+    return replace_range(cfg, BRZ_QUERY_HISTORY, df, date_column="query_date", min_date=min_date, max_date=max_date)
 
 
 # ---------------------------------------------------------------------------
@@ -215,7 +196,7 @@ def _ingest_snapshot(
     df = select_existing(origen, columns, context=source_key) if columns else origen
     df = _exclude_workspaces(df, cfg)
     df = with_audit_columns(df, run_id, definicion["table"])
-    return overwrite_table(spark, df, target.fqn(cfg), properties=_properties(cfg), dry_run=cfg.dry_run)
+    return overwrite(cfg, target, df)
 
 
 PRICE_COLUMNS = [

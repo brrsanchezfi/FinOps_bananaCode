@@ -49,10 +49,9 @@ def get_dbutils(spark: Any = None) -> Any:
         pass
     try:  # job / cluster
         from pyspark.dbutils import DBUtils  # type: ignore[import-not-found]
+        from pyspark.sql import SparkSession
 
-        from .spark_utils import get_spark
-
-        return DBUtils(spark or get_spark())
+        return DBUtils(spark or SparkSession.getActiveSession())
     except Exception as exc:  # noqa: BLE001
         log.warning("dbutils no esta disponible en este contexto: %s", exc)
         return None
@@ -145,12 +144,16 @@ class NotebookContext:
 
 
 def bootstrap(default_env: str = "finops", conf_dir: str | Path | None = None) -> NotebookContext:
-    """Prepara sesion, parametros y configuracion. Punto de entrada del notebook."""
-    ensure_src_on_path()
-    from .spark_utils import configure_session, get_spark
+    """Prepara parametros, configuracion y sesion. Punto de entrada del notebook.
 
-    spark = get_spark("finops")
-    dbutils = get_dbutils(spark)
+    La sesion la crea el Launcher de DKOps, y por eso va despues de la
+    configuracion: el Launcher se alimenta de ella (ver `finops.governance`).
+    """
+    ensure_src_on_path()
+    from .governance import start_launcher
+    from .spark_utils import configure_session
+
+    dbutils = get_dbutils()
     params = read_params(dbutils)
 
     overrides = parse_overrides(params.get("overrides", ""))
@@ -166,6 +169,7 @@ def bootstrap(default_env: str = "finops", conf_dir: str | Path | None = None) -
         run_date=params.get("run_date") or None,
     )
     configure_logging(str(cfg.get("runtime.log_level", "INFO")))
+    spark = start_launcher(cfg).spark
     configure_session(spark, cfg.get("runtime.shuffle_partitions", "auto"))
 
     log.info("Notebook listo | %s", cfg.describe())

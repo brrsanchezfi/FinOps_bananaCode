@@ -22,7 +22,7 @@ Las opciones de escritura eran:
 
 ## Decision
 
-Se adopta la opcion 4, implementada en `spark_utils.replace_date_range`:
+Se adopta la opcion 4, implementada en `governance.replace_range` con los writers de DKOps (ver ADR 0007):
 
 ```
 DELETE FROM destino WHERE fecha BETWEEN min_date AND max_date;
